@@ -55,13 +55,11 @@ object TuxGuitarImporter {
         reader.read(handle)
         val native = requireNotNull(handle.song) { "Decoder returned no song" }
         require(native.countTracks() in 1..64 && native.countMeasureHeaders() in 1..10000) { "Score is empty or too large for this demo" }
-        val manager = TGSongManager()
-        // The exact normalizer used by the legacy editor: fill rests and establish precise starts.
-        for (ti in 0 until native.countTracks()) {
-            val track = native.getTrack(ti)
-            for (mi in 0 until track.countMeasures()) manager.measureManager.autoCompleteSilences(track.getMeasure(mi))
-        }
+        val manager = TGSongManager(handle.factory)
+        // Legacy GP readers may leave getPreciseStart() null. Match the upstream import
+        // order: establish precise starts BEFORE the rest completer reads/unboxes them.
         manager.updatePreciseStart(native)
+        manager.autoCompleteSilences(native)
         return ImportedScore(native, adapt(native), reader.fileFormat.name)
     }
 

@@ -108,6 +108,30 @@ class CoreTest {
         assertTrue(visible.size in 1..5)
         assertTrue(visible.all { it.bounds.overlaps(viewport) })
     }
+    private class CountingList<T>(private val items: List<T>) : AbstractList<T>() {
+        var reads = 0
+        override val size: Int get() = items.size
+        override fun get(index: Int): T { reads++; return items[index] }
+    }
+    @Test fun cullingDoesNotWalkTheOffscreenPrefix() {
+        val data = song(1000)
+        val horizontal = TGLayoutCalculator(TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal)).calculate(data,500f)
+        val measures = CountingList(horizontal.staves[0].measures)
+        val staff = horizontal.staves[0].copy(measures=measures)
+        val layout = TGSongLayout(horizontal.width,horizontal.height,listOf(staff))
+        val target = measures[950].bounds
+        measures.reads = 0
+        assertEquals(1,layout.visibleMeasures(staff,target).count())
+        assertTrue(measures.reads < 25,"Measure culling read ${measures.reads} offscreen/visible entries")
+
+        val page = TGLayoutCalculator().calculate(data,300f)
+        val staves = CountingList(page.staves)
+        val pageLayout = TGSongLayout(page.width,page.height,staves)
+        val viewport = staves[950].bounds
+        staves.reads = 0
+        assertEquals(1,pageLayout.visible(viewport).count())
+        assertTrue(staves.reads < 25,"System culling read ${staves.reads} offscreen/visible entries")
+    }
     @Test fun multitrackColumnsAlign() {
         val s=song(4)
         val second=s.tracks.first().copy(id=2,name="Bass",measures=song(4,TGDuration(16)).tracks.first().measures)

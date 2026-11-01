@@ -57,12 +57,13 @@ class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaff
     fun visible(viewport: Rect): Sequence<TGStaffLayout> {
         // Systems are ordered by Y. Lower-bound the first intersecting staff, then stop below viewport.
         val first = floorIndex(staves.size) { staves[it].bounds.bottom < viewport.top } + 1
-        return staves.asSequence().drop(first).takeWhile { it.bounds.top <= viewport.bottom }
+        return (first until staves.size).asSequence().map { staves[it] }.takeWhile { it.bounds.top <= viewport.bottom }
             .filter { it.bounds.overlaps(viewport) }
     }
     fun visibleMeasures(staff: TGStaffLayout, viewport: Rect): Sequence<TGMeasureLayout> {
         val first = floorIndex(staff.measures.size) { staff.measures[it].bounds.right < viewport.left } + 1
-        return staff.measures.asSequence().drop(first).takeWhile { it.bounds.left <= viewport.right }
+        return (first until staff.measures.size).asSequence().map { staff.measures[it] }
+            .takeWhile { it.bounds.left <= viewport.right }.filter { it.bounds.overlaps(viewport) }
     }
     fun hitTest(point: Offset, stringSpacing: Float): TGHitResult? {
         val staff = visible(Rect(point.x, point.y, point.x + .01f, point.y + .01f)).firstOrNull() ?: return null

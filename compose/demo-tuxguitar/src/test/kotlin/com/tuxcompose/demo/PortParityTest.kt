@@ -59,6 +59,7 @@ class PortParityTest {
     private fun roundTrip(version: Int) {
         val bytes=DemoSongFactory.guitarPro(version)
         val imported=TuxGuitarImporter.read(ByteArrayInputStream(bytes),"study.gp$version")
+        assertTrue(imported.score.tracks.flatMap { it.measures }.flatMap { it.beats }.all { it.preciseStart != null })
         assertEquals("Greenwood Study",imported.score.title)
         assertEquals(2,imported.score.tracks.size)
         assertEquals(12,imported.score.tracks[0].measures.size)

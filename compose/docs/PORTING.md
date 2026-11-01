@@ -97,7 +97,8 @@ Pitched score positions follow:
 
 ```
 position = clefOffset - diatonicIndex - 7 × octave
-noteTopY = staffTop + position × staffSpacing/2
+noteCenterY = staffTop + (position + 1) × staffSpacing/2
+noteTopY = noteCenterY - noteHeadRadius
 clefOffsets = [30,18,22,24]  // treble,bass,tenor,alto
 ```
 
@@ -122,7 +123,7 @@ Fret numbers and prose use a bounded 512-entry text-layout cache, measured in un
 
 - Immutable geometry is remembered by score, style, font metrics, selected track and viewport width. Cursor movement, playback tick updates and selection do not recompute it.
 - There is no full-song bitmap and no giant Compose measurement constraint. Three viewport-sized canvases draw selection, notation and cursor independently.
-- System/measure visibility and cursor lookup use lower-bound binary searches. Only visible measures enter the painter.
+- System/measure visibility and cursor lookup use lower-bound binary searches. Indexed iteration starts at the resulting offset (not a linear `Sequence.drop`); only visible measures enter the painter. A counting-list regression test bounds reads when scrolling past 950 offscreen measures/systems.
 - Reusable musical paths are lazy, shared objects. Fonts are measured once per cached text/style, not per cursor frame.
 - The caller can use `TGLayoutCalculator` and `TGSongLayout` directly without the default component.
 
