@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-command = sys.argv[1:] or ['./gradlew', ':tux-compose-core:desktopTest', ':tux-compose-core:assembleRelease', ':demo-tuxguitar:test', ':sample-android:lintDebug', ':sample-android:assembleDebug', ':sample-android:assembleDebugAndroidTest', '--stacktrace', '--console=plain']
+command = sys.argv[1:] or ['./gradlew', ':tux-compose-core:desktopTest', ':tux-compose-core:assembleRelease', ':demo-tuxguitar:test', ':sample-android:lintDebug', ':sample-android:assembleDebug', ':sample-android:assembleDebugAndroidTest', '--stacktrace', '--console=plain', '--continue']
 result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 text = result.stdout
 print(text)

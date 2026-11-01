@@ -27,13 +27,14 @@ class DemoPlayback(context: Context, private val scope: CoroutineScope, private 
     private var position = 0L
     private var pendingSeek: Long? = null
     private var disposed = false
+    private var generation = 0
 
     fun load(score: ImportedScore) {
         pause(); source=score; sequence=null; position=0
         pendingSeek=score.score.tracks.firstOrNull()?.measures?.firstOrNull()?.start
     }
     fun seek(tick: Long) {
-        val resume=playing
+        val resume=playing || loading
         pause(); pendingSeek=tick
         if (resume) play()
     }
@@ -42,12 +43,13 @@ class DemoPlayback(context: Context, private val scope: CoroutineScope, private 
         val source=source ?: return
         val previous=job
         previous?.cancel()
+        val request = ++generation
         error=null; loading=true
         val speed=speedPercent
         job=scope.launch {
             // Serializing teardown prevents an old job's finally block silencing a new transport.
-            previous?.join()
             try {
+                previous?.join()
                 val prepared=withContext(Dispatchers.IO) {
                     (if (sequence != null && sequenceSpeed==speed) sequence!! else DemoSequence(source.native,speed))
                         .also { audio.open(source.native) }
@@ -73,12 +75,12 @@ class DemoPlayback(context: Context, private val scope: CoroutineScope, private 
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { error=e.message ?: "Unable to initialize audio" }
             finally {
-                playing=false; loading=false
+                if (request == generation) { playing=false; loading=false }
                 withContext(NonCancellable+Dispatchers.IO) { audio.sendAllNotesOff() }
             }
         }
     }
-    fun pause() { job?.cancel(); playing=false }
+    fun pause() { generation++; job?.cancel(); playing=false; loading=false }
     fun stop() {
         pause(); position=0
         pendingSeek=state.song?.tracks?.firstOrNull()?.measures?.firstOrNull()?.start ?: 0
@@ -86,7 +88,7 @@ class DemoPlayback(context: Context, private val scope: CoroutineScope, private 
     }
     fun dispose() {
         if (disposed) return
-        disposed=true
+        disposed=true; generation++
         val previous=job
         previous?.cancel()
         // A short, non-cancellable resource teardown survives disposal of the composition's scope.

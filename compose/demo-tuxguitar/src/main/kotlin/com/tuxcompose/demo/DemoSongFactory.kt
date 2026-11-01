@@ -19,7 +19,7 @@ object DemoSongFactory {
             song.addChannel(channel)
             f.newTrack().apply {
                 number = i+1; name = channel.name; channelId = channel.channelId
-                tuning.forEachIndexed { si, value -> addString(f.newString().apply { number = si+1; this.value = value }) }
+                tuning.forEachIndexed { si, value -> strings.add(f.newString().apply { number = si+1; this.value = value }) }
                 song.addTrack(this)
             }
         }

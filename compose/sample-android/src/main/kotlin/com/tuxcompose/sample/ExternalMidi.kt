@@ -30,5 +30,5 @@ class ExternalMidi(context: Context, private val audio: DemoAudio) : AutoCloseab
             }
         },Handler(Looper.getMainLooper()))
     }
-    override fun close() { generation++; audio.external=null; port?.close(); port=null; device?.close(); device=null }
+    override fun close() { generation++; if (audio.external != null) audio.sendAllNotesOff(); audio.external=null; port?.close(); port=null; device?.close(); device=null }
 }
