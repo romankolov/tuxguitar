@@ -14,6 +14,7 @@ data class TGSelection(val trackIndex: Int, val anchorTick: Long, val focusTick:
 }
 
 enum class CursorStyle { Line, Block, Glow }
+enum class CursorAnimation { Solid, Blink, Pulse }
 @Immutable
 data class TGCursorConfig(
     val style: CursorStyle = CursorStyle.Line,
@@ -23,7 +24,9 @@ data class TGCursorConfig(
     val visible: Boolean = true,
     val highlightNotes: Boolean = false,
     val follow: Boolean = true,
-) { init { require(width.isFinite() && width > 0 && blockAlpha in 0f..1f) } }
+    val animation: CursorAnimation = CursorAnimation.Solid,
+    val animationMillis: Int = 900,
+) { init { require(width.isFinite() && width > 0 && blockAlpha in 0f..1f && animationMillis > 0) } }
 
 /** Convenience wrapper; library has no clock, player, decoder or MIDI dependencies. */
 @Immutable
@@ -74,11 +77,27 @@ class TablatureState(initialSong: TGSong? = null, initialCursorTick: Long = 0L) 
     }
     internal fun moveBeat(direction: Int): Boolean {
         val track = song?.tracks?.getOrNull(selectedTrackIndex) ?: return false
-        val beats = track.measures.flatMap { it.beats }
-        val next = if (direction > 0) beats.firstOrNull { it.start > cursorTick } else beats.lastOrNull { it.start < cursorTick }
-        if (next == null) return false
-        cursorTick = next.start
-        return true
+        var lo = 0; var hi = track.measures.lastIndex; var measureIndex = -1
+        while (lo <= hi) {
+            val mid = (lo + hi) ushr 1
+            if (track.measures[mid].start <= cursorTick) { measureIndex = mid; lo = mid + 1 } else hi = mid - 1
+        }
+        var mi = if (measureIndex < 0) 0 else measureIndex
+        while (mi in track.measures.indices) {
+            val beats = track.measures[mi].beats
+            var left = 0; var right = beats.lastIndex; var candidate = if (direction > 0) beats.size else -1
+            while (left <= right) {
+                val mid = (left + right) ushr 1
+                if (direction > 0) {
+                    if (beats[mid].start > cursorTick) { candidate = mid; right = mid - 1 } else left = mid + 1
+                } else {
+                    if (beats[mid].start < cursorTick) { candidate = mid; left = mid + 1 } else right = mid - 1
+                }
+            }
+            beats.getOrNull(candidate)?.let { cursorTick = it.start; return true }
+            mi += if (direction > 0) 1 else -1
+        }
+        return false
     }
     companion object {
         fun saver(song: TGSong?) = listSaver<TablatureState, Any>(

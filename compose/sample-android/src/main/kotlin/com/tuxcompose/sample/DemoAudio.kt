@@ -17,6 +17,7 @@ import javax.sound.sampled.SourceDataLine
 /** Android-only demo sink. Neither this class nor any synthesizer is a core dependency. */
 class DemoAudio(private val context: Context) : GMReceiver, AutoCloseable {
     private var synth: SoftSynthesizer? = null
+    private var sourceLine: TGSourceDataLine? = null
     private val channels = mutableMapOf<Int,GMChannel>()
     var external: ((ByteArray) -> Unit)? = null
     fun open(song: TGSong) {
@@ -28,6 +29,7 @@ class DemoAudio(private val context: Context) : GMReceiver, AutoCloseable {
                 line.open(format)
                 next.open(line,mapOf<String,Any>("load default soundbank" to false))
                 synth = next
+                sourceLine = line
             } catch (e: Exception) { runCatching { next.close() }; runCatching { line.close() }; throw e }
         }
         sendAllNotesOff()
@@ -74,5 +76,5 @@ class DemoAudio(private val context: Context) : GMReceiver, AutoCloseable {
         if (channel !in 0..15) return
         external?.invoke(if (b == null) byteArrayOf((status or channel).toByte(),a.toByte()) else byteArrayOf((status or channel).toByte(),a.toByte(),b.toByte()))
     }
-    override fun close() { sendAllNotesOff(); synth?.close(); synth=null; channels.clear() }
+    override fun close() { sendAllNotesOff(); synth?.close(); synth=null; sourceLine?.close(); sourceLine=null; channels.clear() }
 }

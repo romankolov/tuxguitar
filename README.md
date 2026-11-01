@@ -34,3 +34,7 @@ TuxGuitar includes the following third party products:
 * Gervill (Java Software Synthesizer)
 * iText (Free Java-PDF library): https://itextpdf.com/
 * Magic Sound Font v2.0 - Contributed by Dennis Deutschmann
+
+## Compose notation component
+
+The standalone [Tux Compose library and Android showcase](compose/README.md) provides an immutable model-to-Canvas API with no playback or parsers in the core. Its separate demo integrates the existing Guitar Pro readers and Gervill. See the [porting/parity notes](compose/docs/PORTING.md) and the **Tux Compose · build, test & APK** workflow for sample APKs.

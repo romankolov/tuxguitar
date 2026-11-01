@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 package com.tuxcompose.component
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -55,7 +56,7 @@ fun TablatureView(
     val layout = remember(song,config,fonts,width,state.selectedTrackIndex) {
         song?.let { TGLayoutCalculator(config,fonts).calculate(it,width,state.selectedTrackIndex) } ?: TGSongLayout(width,0f,emptyList())
     }
-    SideEffect { state.updateViewport(layout.width,layout.height,width,height) }
+    SideEffect { if (size.width > 0 && size.height > 0) state.updateViewport(layout.width,layout.height,width,height) }
     val clicked by rememberUpdatedState(onBeatClicked)
     val hit by rememberUpdatedState(onHit)
     val currentFactor by rememberUpdatedState(factor)
@@ -70,6 +71,14 @@ fun TablatureView(
         val anchorY = state.scrollY + centerY / old
         state.setZoom(next)
         state.scrollTo(anchorX - centerX / next,anchorY - centerY / next)
+    }
+    val zoomHandler by rememberUpdatedState<(Float) -> Unit> { zoom(it) }
+    val cursorAlpha: State<Float> = if (cursorConfig.animation == CursorAnimation.Solid) remember { mutableStateOf(1f) } else {
+        val transition = rememberInfiniteTransition(label = "Notation cursor")
+        transition.animateFloat(1f, if (cursorConfig.animation == CursorAnimation.Blink) 0f else .3f,
+            animationSpec = infiniteRepeatable(
+                animation = if (cursorConfig.animation == CursorAnimation.Blink) snap(cursorConfig.animationMillis) else tween(cursorConfig.animationMillis),
+                repeatMode = RepeatMode.Reverse), label = "Cursor opacity")
     }
     val transform = rememberTransformableState { zoomChange, pan, _ ->
         zoom(zoomChange)
@@ -101,7 +110,7 @@ fun TablatureView(
         .scrollable(vertical,Orientation.Vertical)
         .transformable(transform,canPan = { false })
         .pointerInput(state, config.stringSpacing) {
-            detectTapGestures(onTap = { tapped(it,false) },onLongPress = { tapped(it,true) },onDoubleTap = { zoom(if (state.zoomScale < 2f) 1.5f else 1/1.5f) })
+            detectTapGestures(onTap = { tapped(it,false) },onLongPress = { tapped(it,true) },onDoubleTap = { zoomHandler(if (state.zoomScale < 2f) 1.5f else 1/1.5f) })
         }
     Box(modifier.background(config.colors.background).onSizeChanged { size = it }
         .then(interactions)
@@ -134,7 +143,7 @@ fun TablatureView(
             canvasViewport(state,factor) { viewport -> with(renderer) { render(layout,viewport) } }
         }
         Canvas(Modifier.fillMaxSize()) {
-            canvasViewport(state,factor) { with(renderer) { renderCursor(layout,state.selectedTrackIndex,state.cursorTick,cursorConfig) } }
+            canvasViewport(state,factor) { with(renderer) { renderCursor(layout,state.selectedTrackIndex,state.cursorTick,cursorConfig,cursorAlpha.value) } }
         }
     }
 }

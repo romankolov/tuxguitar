@@ -21,41 +21,75 @@ class DemoPlayback(context: Context, private val scope: CoroutineScope, private 
         private set
     var speedPercent by mutableIntStateOf(100)
     private var job: Job? = null
-    private var sequence: DemoSequence? = null
     private var source: ImportedScore? = null
+    private var sequence: DemoSequence? = null
+    private var sequenceSpeed = 100
     private var position = 0L
-    fun load(score: ImportedScore) { pause(); source=score; sequence=null; position=0 }
-    fun seek(tick: Long) { val resume = playing; pause(); position=sequence?.seekMicros(tick) ?: 0; if (resume) play() }
+    private var pendingSeek: Long? = null
+    private var disposed = false
+
+    fun load(score: ImportedScore) {
+        pause(); source=score; sequence=null; position=0
+        pendingSeek=score.score.tracks.firstOrNull()?.measures?.firstOrNull()?.start
+    }
+    fun seek(tick: Long) {
+        val resume=playing
+        pause(); pendingSeek=tick
+        if (resume) play()
+    }
     fun play() {
-        if (playing || loading) return
-        val source = source ?: return
+        if (disposed || playing || loading) return
+        val source=source ?: return
+        val previous=job
+        previous?.cancel()
         error=null; loading=true
+        val speed=speedPercent
         job=scope.launch {
+            // Serializing teardown prevents an old job's finally block silencing a new transport.
+            previous?.join()
             try {
-                val prepared = withContext(Dispatchers.IO) { DemoSequence(source.native,speedPercent).also { audio.open(source.native) } }
-                sequence=prepared
-                if (position >= prepared.endMicros) position=0
-                var index=prepared.events.indexOfFirst { it.micros >= position }.let { if (it < 0) prepared.events.size else it }
-                // Restore program/controllers when seeking, but do not replay past note-ons.
+                val prepared=withContext(Dispatchers.IO) {
+                    (if (sequence != null && sequenceSpeed==speed) sequence!! else DemoSequence(source.native,speed))
+                        .also { audio.open(source.native) }
+                }
+                val seek=pendingSeek ?: if (sequenceSpeed!=speed) state.cursorTick else null
+                if (seek != null) { position=prepared.seekMicros(seek); pendingSeek=null }
+                sequence=prepared; sequenceSpeed=speed
+                if (position>=prepared.endMicros) position=0
+                var index=prepared.events.indexOfFirst { it.micros>=position }.let { if (it<0) prepared.events.size else it }
                 withContext(Dispatchers.IO) {
                     prepared.events.take(index).filter { it.kind in listOf(DemoMidiEvent.Kind.Control,DemoMidiEvent.Kind.Program,DemoMidiEvent.Kind.Pitch) }.forEach(audio::dispatch)
                 }
                 loading=false; playing=true
                 val start=System.nanoTime()-position*1000
-                while (isActive && position < prepared.endMicros) {
+                while (isActive && position<prepared.endMicros) {
                     position=(System.nanoTime()-start)/1000
                     withContext(Dispatchers.IO) {
-                        while (index < prepared.events.size && prepared.events[index].micros <= position) audio.dispatch(prepared.events[index++])
+                        while (index<prepared.events.size && prepared.events[index].micros<=position) audio.dispatch(prepared.events[index++])
                     }
                     state.cursor.seek(prepared.scoreTickAt(position))
                     delay(8)
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { error=e.message ?: "Unable to initialize audio" }
-            finally { playing=false; loading=false; withContext(NonCancellable+Dispatchers.IO) { audio.sendAllNotesOff() } }
+            finally {
+                playing=false; loading=false
+                withContext(NonCancellable+Dispatchers.IO) { audio.sendAllNotesOff() }
+            }
         }
     }
-    fun pause() { job?.cancel(); job=null; playing=false; audio.sendAllNotesOff() }
-    fun stop() { pause(); position=0; state.cursor.seek(state.song?.tracks?.firstOrNull()?.measures?.firstOrNull()?.start ?: 0) }
-    suspend fun close() { job?.cancelAndJoin(); audio.close() }
+    fun pause() { job?.cancel(); playing=false }
+    fun stop() {
+        pause(); position=0
+        pendingSeek=state.song?.tracks?.firstOrNull()?.measures?.firstOrNull()?.start ?: 0
+        state.cursor.seek(pendingSeek!!)
+    }
+    fun dispose() {
+        if (disposed) return
+        disposed=true
+        val previous=job
+        previous?.cancel()
+        // A short, non-cancellable resource teardown survives disposal of the composition's scope.
+        scope.launch(NonCancellable+Dispatchers.IO) { previous?.join(); audio.close() }
+    }
 }

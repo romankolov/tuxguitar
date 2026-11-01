@@ -67,7 +67,7 @@ fun TuxComposeDemo() {
     DisposableEffect(lifecycle) {
         val observer=LifecycleEventObserver { _,event -> if (event == Lifecycle.Event.ON_STOP) player.pause() }
         lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer); midi.close(); player.pause(); player.audio.close() }
+        onDispose { lifecycle.removeObserver(observer); midi.close(); player.dispose() }
     }
     fun install(score: ImportedScore) {
         player.load(score); imported=score; state.song=score.score; state.selectedTrackIndex=0

@@ -74,14 +74,15 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         }
     }
 
-    fun DrawScope.renderCursor(layout: TGSongLayout, trackIndex: Int, tick: Long, cursor: TGCursorConfig) {
+    fun DrawScope.renderCursor(layout: TGSongLayout, trackIndex: Int, tick: Long, cursor: TGCursorConfig, opacity: Float = 1f) {
         if (!cursor.visible) return
         val beat = layout.beatAt(trackIndex, tick) ?: return
         val b = beat.bounds
-        val color = cursor.color ?: colors.cursor
+        val base = cursor.color ?: colors.cursor
+        val color = base.copy(alpha = base.alpha * opacity)
         when (cursor.style) {
             CursorStyle.Line -> line(beat.x - 3, b.top + 4, beat.x - 3, b.bottom - 4, color, cursor.width)
-            CursorStyle.Block -> drawRect(color.copy(alpha = cursor.blockAlpha), b.topLeft, b.size)
+            CursorStyle.Block -> drawRect(color.copy(alpha = color.alpha * cursor.blockAlpha), b.topLeft, b.size)
             CursorStyle.Glow -> {
                 listOf(5f to .06f, 3f to .1f, 1.7f to .2f, 1f to 1f).forEach { (size, alpha) ->
                     line(beat.x - 3, b.top + 4, beat.x - 3, b.bottom - 4, color.copy(alpha = color.alpha * alpha), cursor.width * size)
@@ -107,7 +108,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             line(m.bounds.right - 2, top, m.bounds.right - 2, bottom, colors.noteHead, 3f)
             line(m.bounds.right - 7, top, m.bounds.right - 7, bottom, colors.noteHead)
             repeatDots(m, m.bounds.right - 11)
-            if (m.measure.header.repeatClose > 2) label("×${m.measure.header.repeatClose}", m.bounds.right - 20, m.bounds.top, TGTextRole.Text, colors.beatText)
+            if (m.measure.header.repeatClose > 1) label("×${m.measure.header.repeatClose + 1}", m.bounds.right - 20, m.bounds.top, TGTextRole.Text, colors.beatText)
         }
     }
     private fun DrawScope.repeatDots(m: TGMeasureLayout, x: Float) {

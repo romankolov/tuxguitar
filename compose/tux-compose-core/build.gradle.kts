@@ -8,12 +8,17 @@ plugins {
 kotlin {
     androidTarget { publishLibraryVariants("release") }
     jvm("desktop")
+    if (providers.gradleProperty("enableIos").orNull == "true") {
+        iosArm64()
+        iosSimulatorArm64()
+    }
     jvmToolchain(17)
     sourceSets {
         commonMain.dependencies {
             api(compose.runtime)
             api(compose.ui)
             implementation(compose.foundation)
+            implementation(compose.animation)
             api("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.8")
         }
         commonTest.dependencies { implementation(kotlin("test")) }
