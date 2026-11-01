@@ -42,6 +42,8 @@ fun TablatureView(
     gesturesEnabled: Boolean = true,
     onBeatClicked: (beatTick: Long, trackIndex: Int) -> Unit = { _, _ -> },
     onHit: (TGHitResult) -> Unit = {},
+    onLayout: (TGSongLayout) -> Unit = {},
+    drawOverlay: DrawScope.(TGSongLayout) -> Unit = {},
 ) {
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer(cacheSize = 512)
@@ -56,10 +58,15 @@ fun TablatureView(
     val song = state.song
     val selectedTrack = state.selectedTrackIndex.coerceIn(0,(song?.tracks?.lastIndex ?: 0).coerceAtLeast(0))
     SideEffect { if (state.selectedTrackIndex != selectedTrack) state.selectedTrackIndex = selectedTrack }
-    val layout = remember(song,config,fonts,width,selectedTrack) {
-        song?.let { TGLayoutCalculator(config,fonts).calculate(it,width,selectedTrack) } ?: TGSongLayout(width,0f,emptyList())
+    val geometryConfig = remember(config) { config.copy(colors = TGColorPalette.Paper) }
+    val layoutTrackKey = if (config.multiTrack) 0 else selectedTrack
+    val layout = remember(song,geometryConfig,fonts,width,layoutTrackKey) {
+        song?.let { TGLayoutCalculator(geometryConfig,fonts).calculate(it,width,layoutTrackKey) } ?: TGSongLayout(width,0f,emptyList())
     }
     SideEffect { if (size.width > 0 && size.height > 0) state.updateViewport(layout.width,layout.height,width,height) }
+    val layoutCallback by rememberUpdatedState(onLayout)
+    val overlay by rememberUpdatedState(drawOverlay)
+    LaunchedEffect(layout) { layoutCallback(layout) }
     val clicked by rememberUpdatedState(onBeatClicked)
     val hit by rememberUpdatedState(onHit)
     val currentFactor by rememberUpdatedState(factor)
@@ -146,7 +153,7 @@ fun TablatureView(
             canvasViewport(state,factor) { viewport -> with(renderer) { render(layout,viewport) } }
         }
         Canvas(Modifier.fillMaxSize()) {
-            canvasViewport(state,factor) { with(renderer) { renderCursor(layout,state.selectedTrackIndex,state.cursorTick,cursorConfig,cursorAlpha.value) } }
+            canvasViewport(state,factor) { with(renderer) { renderCursor(layout,state.selectedTrackIndex,state.cursorTick,cursorConfig,cursorAlpha.value) }; overlay(layout) }
         }
     }
 }

@@ -37,7 +37,7 @@ data class TGTrack(
         require(measures.zipWithNext().all { (a, b) -> a.start < b.start && a.number < b.number }) { "Measures must be ordered" }
         require(measures.all { m -> m.beats.all { b -> b.voices.all { v -> v.notes.all { it.string <= stringTuning.size } } } }) { "Note string outside track" }
     }
-    fun pitch(note: TGNote): Int = note.pitch ?: (stringTuning[note.string - 1] + capo + note.value.coerceAtLeast(0)).coerceIn(0, 127)
+    fun pitch(note: TGNote): Int = note.pitch ?: if (percussion) note.value.coerceIn(0,127) else (stringTuning[note.string - 1] + capo + note.value.coerceAtLeast(0)).coerceIn(0, 127)
 }
 
 @Immutable
@@ -199,7 +199,9 @@ data class TGNoteEffects(
     val trill: TGTrillEffect? = null,
     val tremoloPicking: Int = 0,
     val tremoloBar: TGBendEffect? = null,
-)
+) {
+    init { require(harmonic in 0..5 && tremoloPicking in listOf(0, 8, 16, 32, 64)) }
+}
 
 /** Bend points retain TuxGuitar units: position 0..12, raw amplitude (4 = one full-tone bend label). */
 @Immutable

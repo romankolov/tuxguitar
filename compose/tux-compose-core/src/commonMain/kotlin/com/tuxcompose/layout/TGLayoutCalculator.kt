@@ -206,14 +206,14 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                     val nh = 2 * config.noteHeadRadius
                     val y = score?.plus(position * config.staffSpacing / 2)
                     TGNoteLayout(note, v.index, pitch, position,
-                        y?.let { Rect(x, it, x + nh * 1.33f, it + nh) },
+                        y?.let { val center = it + config.staffSpacing / 2; Rect(x, center - config.noteHeadRadius, x + nh * 1.33f, center + config.noteHeadRadius) },
                         tab?.let { top -> val ty = top + (note.string - 1) * config.stringSpacing; Rect(x - size.width / 2 - 1.5f, ty - size.height / 2, x + size.width / 2 + 1.5f, ty + size.height / 2) },
                         if (track.percussion || note.effects.dead || note.value == -1) null else accidentals.next(pitch, note.altEnharmonic))
                 }
-                val stemX = x + if (score != null && up) config.staffSpacing * 1.085f else 0f
+                val stemX = x + if (score != null && up) 2 * config.noteHeadRadius * 1.085f else 0f
                 val localStart = if (score != null) {
-                    if (up) notes.maxOfOrNull { it.position * config.staffSpacing / 2 + config.noteHeadRadius } ?: 2 * config.staffSpacing
-                    else notes.minOfOrNull { it.position * config.staffSpacing / 2 + config.noteHeadRadius } ?: 2 * config.staffSpacing
+                    if (up) notes.maxOfOrNull { it.position * config.staffSpacing / 2 + config.staffSpacing / 2 } ?: 2 * config.staffSpacing
+                    else notes.minOfOrNull { it.position * config.staffSpacing / 2 + config.staffSpacing / 2 } ?: 2 * config.staffSpacing
                 } else (track.stringTuning.size - 1) * config.stringSpacing + config.stringSpacing / 2
                 val origin = score ?: tab ?: bounds.top
                 val endY = if (score != null) groupStemY(g, xs, bi) else localStart + 2 * config.stringSpacing
@@ -226,7 +226,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             metric.paintClef, metric.paintKey, metric.paintTime, metric.paintTempo, metric.previousKey,
             if (config.multiTrack) col.clef else metric.clef, if (config.multiTrack) col.key else metric.key,
             area, beats, bounds.top + lanes.position(TGTrackLane.Effects), bounds.top + lanes.position(TGTrackLane.Bend),
-            bounds.top + lanes.position(TGTrackLane.Text), bounds.top + lanes.position(TGTrackLane.Chord), bounds.top + lanes.position(TGTrackLane.RepeatEnding), bounds.top + lanes.position(TGTrackLane.Tuplet1))
+            bounds.top + lanes.position(TGTrackLane.Text), bounds.top + lanes.position(TGTrackLane.Chord), bounds.top + lanes.position(TGTrackLane.RepeatEnding), bounds.top + lanes.position(TGTrackLane.Tuplet1), percussion = track.percussion)
     }
 
     private data class Group(val id: Int, val beats: List<Int>, val positions: List<List<Int>>, val up: Boolean)
@@ -245,7 +245,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 val canJoin = before != null && prevVoice != null && prevVoice.notes.isNotEmpty() && voice.notes.isNotEmpty() &&
                     (prevVoice.duration ?: before.duration).value >= 8 && (voice.duration ?: b.duration).value >= 8 &&
                     (before.start - m.start) / division == (b.start - m.start) / division &&
-                    before.start + (prevVoice.duration ?: before.duration).ticks <= b.start + 1
+                    abs(before.start + (prevVoice.duration ?: before.duration).ticks - b.start) <= 1
                 if (!canJoin || batches.isEmpty()) batches += mutableListOf(bi) else batches.last() += bi
                 previous = bi
             }

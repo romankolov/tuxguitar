@@ -1,10 +1,10 @@
 name: Tux Compose · build, test & APK
 on:
   push:
-    branches: ["arena/ab965ff2-tuxguitar"]
-    paths: ["compose/**", ".github/workflows/tux-compose.yml"]
+    branches: ["master", "arena/ab965ff2-tuxguitar"]
+    paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
   pull_request:
-    paths: ["compose/**", ".github/workflows/tux-compose.yml"]
+    paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
       - name: Build library, run tests, lint demo, assemble APKs
         run: python3 tools/ci_build.py
       - name: Upload latest installable demo and library
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tux-compose-apk-${{ github.run_number }}
           path: |
@@ -40,11 +40,12 @@ jobs:
           retention-days: 30
       - name: Upload diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tux-compose-diagnostics-${{ github.run_number }}
           path: |
             compose/build/ci.log
+            compose/build/ci-summary.json
             compose/**/build/reports/**
             compose/**/build/test-results/**
           retention-days: 14
@@ -81,18 +82,19 @@ jobs:
             exit "$result"
       - name: Upload device reports and screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tux-compose-device-${{ github.run_number }}
           path: |
             compose/sample-android/build/device-*
             compose/build/ci.log
+            compose/build/ci-summary.json
             compose/sample-android/build/reports/androidTests/**
             compose/sample-android/build/outputs/androidTest-results/**
           retention-days: 14
 
   preview-apk:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/ab965ff2-tuxguitar'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/ab965ff2-tuxguitar')
     needs: [build, device-test]
     runs-on: ubuntu-22.04
     permissions:
@@ -110,10 +112,15 @@ jobs:
           apk=$(find verified-artifacts -name '*debug.apk' -print -quit)
           aar=$(find verified-artifacts -name '*release.aar' -print -quit)
           test -n "$apk" && test -n "$aar"
-          sha256sum "$apk" "$aar" > SHA256SUMS.txt
+          mkdir release
+          cp "$apk" release/sample-android-debug.apk
+          cp "$aar" release/tux-compose-core-release.aar
+          (cd release && sha256sum *.apk *.aar > SHA256SUMS.txt)
+          notes="Debug-signed sample APK and release library AAR. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build and emulator interaction/PCM tests passed. Evaluation build, not a Play Store release. See compose/README.md and compose/docs/PORTING.md for scope and parity limits."
           if gh release view tux-compose-preview >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GH_REPO/git/refs/tags/tux-compose-preview" -f sha="$GITHUB_SHA" -F force=true
+            gh release edit tux-compose-preview --notes "$notes"
           else
-            gh release create tux-compose-preview --target "$GITHUB_SHA" --prerelease --title "Tux Compose · latest verified Android demo" --notes "Debug-signed sample APK and release library AAR from the Compose workflow. Source: $GITHUB_SHA. JVM differential/unit tests, Android lint/build and emulator interaction/PCM tests passed. Evaluation build, not a Play Store release. See compose/README.md and compose/docs/PORTING.md for scope and parity limits."
+            gh release create tux-compose-preview --target "$GITHUB_SHA" --prerelease --title "Tux Compose · latest verified Android demo" --notes "$notes"
           fi
-          gh release upload tux-compose-preview "$apk" "$aar" SHA256SUMS.txt --clobber
+          gh release upload tux-compose-preview release/* --clobber

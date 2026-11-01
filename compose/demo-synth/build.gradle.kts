@@ -4,14 +4,13 @@ android {
     compileSdk = 35
     defaultConfig { minSdk = 24 }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     sourceSets["main"].apply {
-        java.srcDirs(
-            "../../desktop/gervill/src/main/java",
-            "../../android/TuxGuitar-android-gervill/src"
-        )
+        // The Android fork already includes media.sound plus javax.sound and AudioTrack shims.
+        // Including desktop/gervill as well compiles every synthesizer class twice.
+        java.setSrcDirs(listOf("../../android/TuxGuitar-android-gervill/src"))
         java.exclude("app/tuxguitar/android/midi/**")
     }
 }

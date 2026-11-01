@@ -36,6 +36,7 @@ data class TGMeasureLayout(
     val chordTop: Float,
     val endingTop: Float,
     val tupletTop: Float,
+    val percussion: Boolean = false,
 )
 @Immutable
 data class TGStaffLayout(val systemIndex: Int, val trackIndex: Int, val bounds: Rect, val measures: List<TGMeasureLayout>)

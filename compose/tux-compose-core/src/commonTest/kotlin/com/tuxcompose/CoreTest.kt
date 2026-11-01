@@ -162,6 +162,23 @@ class CoreTest {
         assertEquals(960,s.selection!!.startTick); assertEquals(1920,s.selection!!.endTick)
         s.clearSelection(); assertNull(s.selection)
     }
+    @Test fun customNoteRadiusPreservesThePitchCenterAndStemAttachment() {
+        val normal=TGLayoutCalculator(TGLayoutConfig(noteHeadRadius=4f)).calculate(song(),600f)
+        val large=TGLayoutCalculator(TGLayoutConfig(noteHeadRadius=7f)).calculate(song(),600f)
+        val a=normal.staves[0].measures[0].beats[0].voices[0]
+        val b=large.staves[0].measures[0].beats[0].voices[0]
+        assertEquals(a.notes[0].scoreBounds!!.center.y,b.notes[0].scoreBounds!!.center.y,.001f)
+        assertEquals(14f,b.notes[0].scoreBounds!!.height,.001f)
+        assertTrue(b.stemX>a.stemX)
+    }
+    @Test fun percussionTracksDoNotRequireAManualClefOverride() {
+        val beat = TGBeat(960, voices = listOf(TGVoice(notes = listOf(TGNote(38,1)))))
+        val measure = TGMeasure(1, TGMeasureHeader(), listOf(beat))
+        val track = TGTrack(1, "Drums", listOf(0), listOf(measure), percussion = true)
+        val m=TGLayoutCalculator().calculate(TGSong(tracks=listOf(track)),400f).staves[0].measures[0]
+        assertTrue(m.percussion)
+        assertEquals(2,m.beats[0].voices[0].notes[0].position)
+    }
     @Test fun configurationsRejectNonfiniteGeometry() {
         assertFailsWith<IllegalArgumentException> { TGLayoutConfig(scale=Float.NaN) }
         assertFailsWith<IllegalArgumentException> { TGLayoutConfig(stringSpacing=0f) }

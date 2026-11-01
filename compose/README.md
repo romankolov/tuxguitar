@@ -15,6 +15,11 @@ The library has **no decoder, file access, clock, MIDI, synthesizer, audio depen
 
 **Status:** first implementation, not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). The original duration math, spelling tables, lane permutations, beam slope rules and 32 vector models are ported, with differential tests against the Java source. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
 
+`TablatureView(onLayout = { ... }, drawOverlay = { layout -> ... })` exposes cached
+layout geometry and a custom Canvas overlay. Overlay coordinates are logical song units;
+the component applies the same zoom/scroll transform as the notation. Palette-only changes
+do not rebuild geometry. Overlays should draw only the visible region for large scores.
+
 ## Build and install
 
 Requirements: JDK 17, Android SDK 35, and network access to Gradle/Google/Maven repositories.

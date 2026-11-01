@@ -123,7 +123,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         if (config.showMeasureNumbers) label(m.measure.number.toString(), m.bounds.left + 2, m.bounds.top, TGTextRole.Measure, colors.measureNumber)
         m.measure.header.marker?.let { label(it, x, m.bounds.top + 10, TGTextRole.Chord, colors.beatText) }
         if (m.paintClef && top != null) {
-            val glyph = when (m.measure.clef) {
+            val glyph = if (m.percussion) TGClefPainter.NEUTRAL else when (m.measure.clef) {
                 TGClef.Treble -> TGClefPainter.TREBLE
                 TGClef.Bass -> TGClefPainter.BASS
                 TGClef.Tenor -> TGClefPainter.TENOR
@@ -174,7 +174,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     private fun DrawScope.note(m: TGMeasureLayout, beat: TGBeatLayout, voice: TGVoiceLayout, n: TGNoteLayout) {
         n.scoreBounds?.let { b ->
             val fill = voice.duration.value >= 4 && !n.note.effects.dead && n.note.value != -1
-            val percussion = m.measure.clef == TGClef.Percussion
+            val percussion = m.percussion || m.measure.clef == TGClef.Percussion
             val glyph = when {
                 n.note.effects.dead || n.note.value == -1 -> TGNotePainter.PERCUSSION_X
                 n.note.effects.harmonic != 0 -> TGNotePainter.HARMONIC
@@ -188,16 +188,16 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
                 filled = fill && glyph !== TGNotePainter.PERCUSSION_X)
             n.accidental?.let { accidental ->
                 val a = when (accidental) { TGAccidental.Sharp -> TGKeySignaturePainter.SHARP; TGAccidental.Flat -> TGKeySignaturePainter.FLAT; TGAccidental.Natural -> TGKeySignaturePainter.NATURAL }
-                glyph(a, b.left - config.staffSpacing * .75f, b.top + config.staffSpacing / 2, config.staffSpacing)
+                glyph(a, b.left - config.staffSpacing * .75f, b.center.y, config.staffSpacing)
             }
             // Ledger lines follow the glyph center, in diatonic half-line steps.
-            val centerY = b.top + config.staffSpacing / 2
+            val centerY = b.center.y
             val staff = m.staffTop ?: 0f
             var ledger = staff - config.staffSpacing
             while (ledger >= centerY - .1f) { line(b.left - 2, ledger, b.right + 2, ledger, colors.staffLines); ledger -= config.staffSpacing }
             ledger = staff + 5 * config.staffSpacing
             while (ledger <= centerY + .1f) { line(b.left - 2, ledger, b.right + 2, ledger, colors.staffLines); ledger += config.staffSpacing }
-            dots(voice.duration, b.left + 12f * config.staffSpacing / 8, b.top + config.staffSpacing / 2, config.staffSpacing / 10)
+            dots(voice.duration, b.left + 12f * config.staffSpacing / 8, b.center.y, config.staffSpacing / 10)
             n.note.effects.grace?.let { grace ->
                 glyph(if (grace.dead) TGNotePainter.PERCUSSION_X else TGNotePainter.NOTE, b.left - 9, b.top + 1, b.height * .55f)
                 line(b.left - 4, b.top - 10, b.left - 4, b.top + 4, colors.noteHead, .7f)
