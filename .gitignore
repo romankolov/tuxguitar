@@ -12,3 +12,9 @@ target/
 android/build-scripts/tuxguitar-android/local.properties
 android/build-scripts/tuxguitar-android/.idea/
 .DS_Store
+
+# Compose standalone build and downloaded CI artifacts
+compose/local.properties
+compose/.kotlin/
+compose/.idea/
+compose/artifacts/

@@ -1,0 +1,59 @@
+{
+  "TGClefPainter": {
+    "sha256": "9f87e14a8b160f65ca9c2832cfedae09b2e192d2ae1ffe611b199c92564dd154",
+    "models": [
+      "TREBLE",
+      "BASS",
+      "ALTO",
+      "TENOR",
+      "NEUTRAL"
+    ]
+  },
+  "TGNotePainter": {
+    "sha256": "3c7aff4286cc6db50ddee4e7d6114918ca3dd4d10ce9fa3e5e744c82ce4f4a67",
+    "models": [
+      "NOTE",
+      "HARMONIC",
+      "PERCUSSION_X",
+      "PERCUSSION_TRIANGLE",
+      "PERCUSSION_CYMBAL",
+      "FOOTER_UP",
+      "FOOTER_DOWN"
+    ]
+  },
+  "TGKeySignaturePainter": {
+    "sha256": "157eeeb88198483e61766ff1c56e1ca8710c74364c5e9cd83dae76e0fd65f60e",
+    "models": [
+      "SHARP",
+      "FLAT",
+      "NATURAL"
+    ]
+  },
+  "TGSilencePainter": {
+    "sha256": "8d896e491270821e3170189bd137c084373fd5253e4bb7c230145a33cf715236",
+    "models": [
+      "WHOLE",
+      "HALF",
+      "QUARTER",
+      "EIGHTH",
+      "SIXTEENTH",
+      "THIRTY_SECOND",
+      "SIXTY_FOURTH"
+    ]
+  },
+  "TGNumberPainter": {
+    "sha256": "4a943531035d9345498194e9e033c34747c0c23a17124aa4604b139301ce2a88",
+    "models": [
+      "DIGIT_0",
+      "DIGIT_1",
+      "DIGIT_2",
+      "DIGIT_3",
+      "DIGIT_4",
+      "DIGIT_5",
+      "DIGIT_6",
+      "DIGIT_7",
+      "DIGIT_8",
+      "DIGIT_9"
+    ]
+  }
+}

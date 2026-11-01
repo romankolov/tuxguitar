@@ -1,0 +1,83 @@
+name: Tux Compose · build, test & APK
+on:
+  push:
+    branches: ["arena/ab965ff2-tuxguitar"]
+    paths: ["compose/**", ".github/workflows/tux-compose.yml"]
+  pull_request:
+    paths: ["compose/**", ".github/workflows/tux-compose.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tux-compose-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: compose
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Verify generated upstream glyphs and dependency boundary
+        run: python3 tools/verify.py
+      - name: Build library, run tests, lint demo, assemble APKs
+        run: ./gradlew :tux-compose-core:desktopTest :tux-compose-core:assembleRelease :demo-tuxguitar:test :sample-android:lintDebug :sample-android:assembleDebug :sample-android:assembleDebugAndroidTest --stacktrace
+      - name: Upload latest installable demo and library
+        uses: actions/upload-artifact@v4
+        with:
+          name: tux-compose-apk-${{ github.run_number }}
+          path: |
+            compose/sample-android/build/outputs/apk/debug/*.apk
+            compose/tux-compose-core/build/outputs/aar/*release.aar
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tux-compose-diagnostics-${{ github.run_number }}
+          path: |
+            compose/**/build/reports/**
+            compose/**/build/test-results/**
+          retention-days: 14
+  device-test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Compose interaction, decoder and audio tests on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: cd compose && ./gradlew :sample-android:connectedDebugAndroidTest --stacktrace
+      - name: Upload device reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tux-compose-device-${{ github.run_number }}
+          path: |
+            compose/sample-android/build/reports/androidTests/**
+            compose/sample-android/build/outputs/androidTest-results/**
+          retention-days: 14
