@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -53,8 +54,10 @@ fun TablatureView(
     val width = (size.width / factor).coerceAtLeast(1f)
     val height = (size.height / factor).coerceAtLeast(1f)
     val song = state.song
-    val layout = remember(song,config,fonts,width,state.selectedTrackIndex) {
-        song?.let { TGLayoutCalculator(config,fonts).calculate(it,width,state.selectedTrackIndex) } ?: TGSongLayout(width,0f,emptyList())
+    val selectedTrack = state.selectedTrackIndex.coerceIn(0,(song?.tracks?.lastIndex ?: 0).coerceAtLeast(0))
+    SideEffect { if (state.selectedTrackIndex != selectedTrack) state.selectedTrackIndex = selectedTrack }
+    val layout = remember(song,config,fonts,width,selectedTrack) {
+        song?.let { TGLayoutCalculator(config,fonts).calculate(it,width,selectedTrack) } ?: TGSongLayout(width,0f,emptyList())
     }
     SideEffect { if (size.width > 0 && size.height > 0) state.updateViewport(layout.width,layout.height,width,height) }
     val clicked by rememberUpdatedState(onBeatClicked)
@@ -112,7 +115,7 @@ fun TablatureView(
         .pointerInput(state, config.stringSpacing) {
             detectTapGestures(onTap = { tapped(it,false) },onLongPress = { tapped(it,true) },onDoubleTap = { zoomHandler(if (state.zoomScale < 2f) 1.5f else 1/1.5f) })
         }
-    Box(modifier.background(config.colors.background).onSizeChanged { size = it }
+    Box(modifier.clipToBounds().background(config.colors.background).onSizeChanged { size = it }
         .then(interactions)
         .onPreviewKeyEvent { event ->
             if (event.type != KeyEventType.KeyDown) false else when (event.key) {

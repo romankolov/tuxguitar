@@ -18,4 +18,4 @@ dependencies {
     implementation("org.apache.commons:commons-lang3:3.17.0")
     testImplementation(kotlin("test"))
 }
-tasks.withType<JavaCompile>().configureEach { options.release.set(8) }
+tasks.withType<JavaCompile>().configureEach { options.release.set(17) }

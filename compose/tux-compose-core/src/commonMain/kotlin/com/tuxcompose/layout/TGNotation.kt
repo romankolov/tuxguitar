@@ -40,8 +40,8 @@ object TGNotation {
     // Default map from TGDrumMap; unknown percussion remains at the upstream default (-1).
     fun drumPosition(pitch: Int): Int = when (pitch) {
         35 -> 7; 36 -> 6; 37,38,40,77 -> 2; 42,46 -> -2; 44 -> 8; 49,80,81 -> -3
-        57 -> -4; 55,52 -> -5; 51,53,50 -> -1; 59,47 -> 1; 41 -> 5; 43 -> 4
-        45,54,31 -> 3; 48,56,76 -> 0; else -> -1
+        57 -> -4; 55,52 -> -5; 51,53,50 -> -1; 59,47,76 -> 1; 41 -> 5; 43 -> 4
+        45,54,31 -> 3; 48,56 -> 0; else -> -1
     }
 }
 

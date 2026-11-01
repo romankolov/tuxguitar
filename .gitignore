@@ -18,3 +18,5 @@ compose/local.properties
 compose/.kotlin/
 compose/.idea/
 compose/artifacts/
+__pycache__/
+*.pyc

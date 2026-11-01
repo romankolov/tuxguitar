@@ -9,6 +9,7 @@ import com.tuxcompose.model.TGSong
 
 @Immutable
 data class TGSelection(val trackIndex: Int, val anchorTick: Long, val focusTick: Long = anchorTick) {
+    init { require(trackIndex >= 0 && anchorTick >= 0 && focusTick >= 0) }
     val startTick: Long get() = minOf(anchorTick, focusTick)
     val endTick: Long get() = maxOf(anchorTick, focusTick)
 }
@@ -35,7 +36,10 @@ data class TablatureConfig(val layout: com.tuxcompose.layout.TGLayoutConfig = co
 @Stable
 class TablatureState(initialSong: TGSong? = null, initialCursorTick: Long = 0L) {
     var song: TGSong? by mutableStateOf(initialSong)
-    var cursorTick: Long by mutableLongStateOf(initialCursorTick.coerceAtLeast(0L))
+    private var tickValue: Long by mutableLongStateOf(initialCursorTick.coerceAtLeast(0L))
+    var cursorTick: Long
+        get() = tickValue
+        set(value) { tickValue = value.coerceAtLeast(0L) }
     var selectedTrackIndex: Int by mutableIntStateOf(0)
     var selectedString: Int? by mutableStateOf(null)
     var selection: TGSelection? by mutableStateOf(null)
@@ -66,8 +70,10 @@ class TablatureState(initialSong: TGSong? = null, initialCursorTick: Long = 0L) 
     }
     fun scrollBy(x: Float = 0f, y: Float = 0f) = scrollTo(scrollX + x, scrollY + y)
     fun select(trackIndex: Int, tick: Long, string: Int? = null, extend: Boolean = false) {
-        selectedTrackIndex = trackIndex; cursorTick = tick.coerceAtLeast(0); selectedString = string
-        selection = if (extend && selection?.trackIndex == trackIndex) selection?.copy(focusTick = tick) else TGSelection(trackIndex,tick)
+        require(trackIndex >= 0)
+        val normalized = tick.coerceAtLeast(0)
+        selectedTrackIndex = trackIndex; cursorTick = normalized; selectedString = string
+        selection = if (extend && selection?.trackIndex == trackIndex) selection?.copy(focusTick = normalized) else TGSelection(trackIndex,normalized)
     }
     fun clearSelection() { selection = null }
     internal fun updateViewport(contentWidth: Float, contentHeight: Float, viewportWidth: Float, viewportHeight: Float) {

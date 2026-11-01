@@ -16,8 +16,8 @@ import kotlin.test.*
 class PortParityTest {
     private val factory=TGFactory()
     @Test fun durationAndSpacingParityForEverySupportedDuration() {
-        val original=object : TGLayout(null,DISPLAY_SCORE or DISPLAY_TABLATURE) {
-            override fun getMode()=MODE_HORIZONTAL
+        val original=object : TGLayout(null,TGLayout.DISPLAY_SCORE or TGLayout.DISPLAY_TABLATURE) {
+            override fun getMode()=TGLayout.MODE_HORIZONTAL
             override fun paintSong(painter: UIPainter?, area: UIRectangle?, x: Float, y: Float) = Unit
         }
         val f=TGLayout::class.java.getDeclaredField("durationWidths").apply { isAccessible=true }
@@ -44,7 +44,7 @@ class PortParityTest {
         TGLayoutStyles.entries.forEach { style ->
             val flags=when (style) { TGLayoutStyles.Score -> TGLayout.DISPLAY_SCORE; TGLayoutStyles.Tablature -> TGLayout.DISPLAY_TABLATURE; TGLayoutStyles.Mixed -> TGLayout.DISPLAY_SCORE or TGLayout.DISPLAY_TABLATURE }
             val layout=object : TGLayout(null,flags) {
-                override fun getMode()=MODE_HORIZONTAL
+                override fun getMode()=TGLayout.MODE_HORIZONTAL
                 override fun paintSong(painter: UIPainter?, area: UIRectangle?, x: Float, y: Float)=Unit
             }
             val java=TGTrackSpacing(layout); val kotlin=TGSpacing(style)

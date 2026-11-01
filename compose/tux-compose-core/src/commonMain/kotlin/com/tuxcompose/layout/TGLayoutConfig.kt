@@ -95,4 +95,6 @@ fun interface TGFontMetrics {
 }
 enum class TGTextRole { Note, Text, Measure, Chord, Grace }
 @Immutable
-data class TGTextSize(val width: Float, val height: Float)
+data class TGTextSize(val width: Float, val height: Float) {
+    init { require(width.isFinite() && height.isFinite() && width >= 0 && height >= 0) }
+}

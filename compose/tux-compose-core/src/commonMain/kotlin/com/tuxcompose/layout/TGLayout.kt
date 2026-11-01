@@ -71,7 +71,7 @@ class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaff
         val beat = measure.beats.minByOrNull { kotlin.math.abs(it.x - point.x) } ?: return null
         val string = measure.tabTop?.let { top ->
             if (point.y in (top - stringSpacing / 2)..((measure.tabBottom ?: top) + stringSpacing / 2))
-                ((point.y - top) / stringSpacing + 1.5f).toInt().coerceAtLeast(1) else null
+                ((point.y - top) / stringSpacing + 1.5f).toInt().coerceIn(1, (((measure.tabBottom ?: top) - top) / stringSpacing + 1.5f).toInt()) else null
         }
         val note = beat.voices.flatMap { it.notes }.firstOrNull { it.tabBounds?.contains(point) == true || it.scoreBounds?.contains(point) == true }
         return TGHitResult(staff.trackIndex, measure.measureIndex, beat.beat.start, note?.note?.string ?: string, note?.voiceIndex)
