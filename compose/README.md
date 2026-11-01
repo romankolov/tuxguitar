@@ -2,7 +2,7 @@
 
 **Immutable score → shared layout → Compose Canvas.** A standalone rendering library and an Android showcase built alongside (not inside) the legacy TuxGuitar applications.
 
-The library has **no decoder, file access, clock, MIDI, synthesizer, audio dependency, Android View, SWT or AWT**. The showcase intentionally has these integrations, in separate modules.
+The library has **no decoder, file access, playback clock, MIDI, synthesizer, audio dependency, Android View, SWT or AWT**. The showcase intentionally has these integrations, in separate modules.
 
 ## Modules
 
@@ -39,7 +39,7 @@ adb install -r sample-android/build/outputs/apk/debug/sample-android-debug.apk
 
 The separate build does not change the original Maven/Android application build. There are no dynamic dependency versions. A Gradle wrapper is included.
 
-GitHub Actions: [Tux Compose · build, test & APK](https://github.com/romankolov/tuxguitar/actions/workflows/tux-compose.yml). Successful builds upload the **debug-signed installable APK**, release AAR, unit-test/lint diagnostics and emulator reports. Download the newest successful run's `tux-compose-apk-N` artifact. A debug APK is for evaluation, not a production-signed Play Store release.
+GitHub Actions: [Tux Compose · build, test & APK](https://github.com/romankolov/tuxguitar/actions/workflows/tux-compose.yml). Successful builds upload the **debug-signed installable APK**, release AAR, unit-test/lint diagnostics and emulator reports. Download the newest successful run's `tux-compose-apk-N` artifact. A debug APK is for evaluation, not a production-signed Play Store release. After both JVM/build and device-test jobs pass, the workflow also publishes the [latest verified APK and AAR](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-preview) with SHA-256 checksums.
 
 ## Consume the library
 

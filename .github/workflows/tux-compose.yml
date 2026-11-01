@@ -72,14 +72,7 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: |
-            cd compose
-            set +e
-            python3 tools/ci_build.py ./gradlew :sample-android:connectedDebugAndroidTest --stacktrace --console=plain
-            result=$?
-            adb logcat -d > sample-android/build/device-logcat.txt
-            adb pull /sdcard/Android/data/com.tuxcompose.sample/files/screenshots sample-android/build/device-screenshots || true
-            exit "$result"
+          script: bash compose/tools/device_test.sh
       - name: Upload device reports and screenshots
         if: always()
         uses: actions/upload-artifact@v7

@@ -141,6 +141,6 @@ This implementation is **not all of TuxGuitar's editor or a pixel-identical comp
 - Platform text shaping/antialiasing differ from the legacy Java toolkits. Custom fonts and configurable note sizes intentionally affect collision spacing.
 - Common code is Android/JVM validated by CI. iOS targets can be enabled, but no iOS app or runtime validation is supplied here.
 - The demo's readers are the existing upstream readers, not a newly audited hostile-file sandbox. Input/ZIP expansion limits and upstream XML hardening reduce risk, but import only trusted scores for evaluation.
-- Hardware MIDI enumeration/output is optional and requires a connected device. CI checks software PCM, not a physical USB/Bluetooth device or human-auditioned timing.
+- Hardware MIDI enumeration/output is optional and requires a connected device. CI checks software PCM and the original MIDI events through Android AudioTrack, not a physical USB/Bluetooth device or human-auditioned timing.
 
 These limitations are documented rather than hidden behind “production-grade” or “1:1” labels. The source-mapped, testable boundary allows the remaining parity work without importing the parser/player stack into the library.
