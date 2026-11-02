@@ -129,21 +129,32 @@ class ViewportMotionDeviceTest {
         compose.runOnIdle { state.cursorTick=960+15*3840L }
         compose.mainClock.advanceTimeByFrame()
         compose.mainClock.advanceTimeBy(80)
+        compose.onNodeWithTag("viewport").performTouchInput { down(center) }
+        compose.mainClock.advanceTimeByFrame()
+        val beforeDrag = state.scrollY
         compose.onNodeWithTag("viewport").performTouchInput {
-            down(center)
-            moveTo(center+Offset(0f,-80f),32)
+            moveBy(Offset(0f,-40f),16)
+            moveBy(Offset(0f,-40f),16)
         }
         compose.mainClock.advanceTimeByFrame()
-        compose.runOnIdle { assertTrue("Pointer drag must suspend follow",state.isUserScrolling) }
+        compose.runOnIdle {
+            assertTrue("Pointer drag must suspend follow",state.isUserScrolling)
+            assertTrue("The gesture must really scroll, not merely hold the pointer: before=$beforeDrag after=${state.scrollY}",state.scrollY>beforeDrag+1)
+        }
         val heldY = state.scrollY
-        compose.runOnIdle { state.cursorTick=960+30*3840L }
+        val playingTick = 960+30*3840L
+        compose.runOnIdle { state.cursorTick=playingTick }
         compose.mainClock.advanceTimeBy(1000)
-        compose.runOnIdle { assertEquals("Playback must not fight a held drag",heldY,state.scrollY,.1f) }
+        compose.runOnIdle {
+            assertEquals("Playback must not fight a held drag",heldY,state.scrollY,.1f)
+            assertEquals("A drag must not become a long-press selection",playingTick,state.cursorTick)
+        }
         compose.onNodeWithTag("viewport").performTouchInput { up() }
         compose.mainClock.advanceTimeBy(4000)
         compose.runOnIdle {
             assertFalse(state.isUserScrolling)
-            assertTrue("Browsing away must remain suspended",state.isAutoScrollSuspended)
+            assertEquals("Releasing a drag must not select a beat",playingTick,state.cursorTick)
+            assertTrue("Browsing away must remain suspended: tick=${state.cursorTick}, scroll=${state.scrollY}, cursor=${layout!!.cursorAt(0,state.cursorTick)?.beat?.bounds}",state.isAutoScrollSuspended)
         }
         val browsingY = state.scrollY
         compose.runOnIdle { state.cursorTick+=100 }
