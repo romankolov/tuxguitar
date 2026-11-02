@@ -34,7 +34,8 @@ for path in xml_paths:
                 # ci.log/XML. Long stacks used to hide later suites behind annotation limits.
                 frames = [line.strip() for line in (failure.text or '').splitlines()
                           if 'at com.tuxcompose.' in line][:2]
-                failures.append(f"{case.get('classname')}.{case.get('name')}: {failure.get('message', '')[:1400]}\n" + '\n'.join(frames))
+                message = failure.get('message') or next((line.strip() for line in (failure.text or '').splitlines() if line.strip()), '')
+                failures.append(f"{case.get('classname')}.{case.get('name')}: {message[:1400]}\n" + '\n'.join(frames))
 summary = dict(exit_code=result.returncode, reports=reports)
 Path('build/ci-summary.json').write_text(json.dumps(summary, indent=2))
 if reports:

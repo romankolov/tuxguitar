@@ -59,7 +59,8 @@ class NativeSpacingDeviceTest {
         val originalHead = m.beats[0].voices[0].notes[0].scoreBounds!!
         val note = m.beats[1].voices[0].notes[0].tabBounds!!
         compose.onNodeWithTag("native-viewport").performTouchInput { click(note.center*factor) }
-        compose.waitForIdle()
+        // detectTapGestures waits out the double-tap zoom window before dispatching a tap.
+        compose.waitUntil(5000) { clicked != null }
         assertEquals(m.beats[1].startTick,clicked)
         compose.runOnIdle { state.setZoom(1.5f); clicked=null }
         compose.waitForIdle()
@@ -68,11 +69,13 @@ class NativeSpacingDeviceTest {
         assertEquals(360f/1.5f,zoomed.width,.1f)
         val current = zoomed.staves[0].measures[0]
         assertEquals(1f,current.contentScale,0f)
-        assertEquals(originalHead.size,current.beats[0].voices[0].notes[0].scoreBounds!!.size)
+        val currentHead = current.beats[0].voices[0].notes[0].scoreBounds!!
+        assertEquals(originalHead.width,currentHead.width,.001f)
+        assertEquals(originalHead.height,currentHead.height,.001f)
         assertEquals(50f,current.tabBottom!!-current.tabTop!!,.01f)
         val target = current.beats[2].voices[0].notes[0].tabBounds!!
         compose.onNodeWithTag("native-viewport").performTouchInput { click(Offset(target.center.x-state.scrollX,target.center.y-state.scrollY)*factor) }
-        compose.waitForIdle()
+        compose.waitUntil(5000) { clicked != null }
         assertEquals(current.beats[2].startTick,clicked)
         zoomed.staves.flatMap { it.measures }.forEach { assertTrue(it.bounds.right <= zoomed.width+.01f) }
         assertNotNull(compose.onNodeWithTag("native-viewport").captureToImage())
