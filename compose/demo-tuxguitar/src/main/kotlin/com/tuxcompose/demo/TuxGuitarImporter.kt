@@ -73,7 +73,7 @@ object TuxGuitarImporter {
                     TGMeasure(m.number, TGMeasureHeader(
                         TGTimeSignature(m.timeSignature.numerator,m.timeSignature.denominator.value), TGKeySignature(m.keySignature),
                         m.tempo.quarterValue, m.isRepeatOpen, m.repeatClose.coerceAtLeast(0), m.header.repeatAlternative,
-                        m.header.marker?.title),
+                        m.header.marker?.title,tripletFeel=m.header.tripletFeel),
                         m.beats.sortedBy { it.start }.map { b ->
                             val voices = (0 until b.countVoices()).map { vi ->
                                 val v = b.getVoice(vi)

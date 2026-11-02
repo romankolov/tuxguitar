@@ -70,7 +70,9 @@ data class TGMeasureHeader(
     /** Bit 0 = first ending, bit 1 = second ending, etc. */
     val repeatAlternative: Int = 0,
     val marker: String? = null,
-) { init { require(tempo in 1..1000 && repeatClose in 0..99 && repeatAlternative >= 0) } }
+    /** TuxGuitar header encoding: 0 straight, 1 swung eighths, 2 swung sixteenths. */
+    val tripletFeel: Int = 0,
+) { init { require(tempo in 1..1000 && repeatClose in 0..99 && repeatAlternative >= 0 && tripletFeel in 0..2) } }
 
 @Immutable
 data class TGTimeSignature(val numerator: Int, val denominator: Int) {

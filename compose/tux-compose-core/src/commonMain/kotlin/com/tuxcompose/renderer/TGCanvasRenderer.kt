@@ -154,12 +154,44 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             digits(a, tx + (width - digitsWidth(a, h)) / 2, middle - h, h)
             digits(b, tx + (width - digitsWidth(b, h)) / 2, middle, h)
         }
+        if (m.paintTripletFeel && m.isFirstFragment) tripletFeel(m)
         if (m.paintTempo) {
             val y = (top ?: m.tabTop ?: m.bounds.top + 24) - maxOf(config.staffSpacing, config.stringSpacing) - 19
             glyph(TGNotePainter.NOTE, x, y + 12, 4f)
             line(x + 4.5f, y, x + 4.5f, y + 14, colors.noteHead)
             label("= ${m.measure.header.tempo}", x + 9, y + 6, TGTextRole.Text, colors.beatText)
         }
+    }
+
+    /** TGTripletFeelPainter's paired notes/stems/beams using the original note paths. */
+    private fun DrawScope.tripletFeel(m: TGMeasureLayout) {
+        fun rounded(v: Float) = kotlin.math.floor(v*config.renderScale+.5f)/config.renderScale
+        val x = m.headerX+if (m.paintTempo) rounded(45f) else 0f
+        val baseline = (m.staffTop ?: m.tabTop ?: m.bounds.top)-maxOf(config.staffSpacing,config.stringSpacing)
+        val equal = " = "
+        val equalWidth = text.measure(equal,TGTextRole.Text).width
+        label(equal,x+16f,baseline-3.75f-text.measure(equal,TGTextRole.Text).height,TGTextRole.Text,colors.beatText)
+        fun pair(left: Float, swung: Boolean, sixteenth: Boolean) {
+            val y = baseline-(if (swung) 22.5f else 17.5f)-2f/config.renderScale
+            val top = y+if (swung) 5f else 0f
+            val noteY = top+12.5f
+            glyph(TGNotePainter.NOTE,left,noteY,5f)
+            glyph(TGNotePainter.NOTE,left+7.5f,noteY,5f)
+            val stem1 = left+rounded(6.65f)
+            val stem2 = left+rounded(14.15f)
+            line(stem1,y+rounded((if (swung) 17.5f else 12.5f)+1.65f),stem1,top,colors.noteHead)
+            line(stem2,y+rounded((if (swung) 17.5f else 12.5f)+1.65f),stem2,top,colors.noteHead)
+            if (!swung || sixteenth) line(stem1,top,stem2,top,colors.noteHead)
+            if (sixteenth) line(if (swung) left+rounded(11.4f) else stem1,top+rounded(2.5f),stem2,top+rounded(2.5f),colors.noteHead)
+            if (swung && !sixteenth) glyph(TGNotePainter.FOOTER_UP,stem2,top+11.5f,5f)
+            if (swung) drawPath(Path().apply {
+                moveTo(left,y+6f); cubicTo(left+3.75f,y,left+17.05f,y,left+20.8f,y+6f)
+            },colors.noteHead,style=Stroke(1f))
+        }
+        val feel = m.measure.header.tripletFeel
+        val sixteenth = (if (feel == 0) m.previousTripletFeel else feel) == 2
+        pair(x,feel == 0,sixteenth)
+        pair(x+16f+equalWidth,feel != 0,sixteenth)
     }
 
     private fun DrawScope.key(m: TGMeasureLayout, startX: Float, y: Float) {
@@ -257,13 +289,15 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         drawPath(Path().apply { moveTo(x1,y1); lineTo(x2,y2); lineTo(x2,y2+2.4f); lineTo(x1,y1+2.4f); close() }, colors.noteHead)
     }
     private fun DrawScope.rest(m: TGMeasureLayout, b: TGBeatLayout, v: TGVoiceLayout) {
+        if (v.hiddenSilence) return
         val glyph = when (v.duration.value) { 1 -> TGSilencePainter.WHOLE; 2 -> TGSilencePainter.HALF; 4 -> TGSilencePainter.QUARTER; 8 -> TGSilencePainter.EIGHTH; 16 -> TGSilencePainter.SIXTEENTH; 32 -> TGSilencePainter.THIRTY_SECOND; else -> TGSilencePainter.SIXTY_FOURTH }
         val spacing = if (m.staffTop != null) config.staffSpacing else config.stringSpacing
         val scale = spacing / if (m.staffTop != null) 9 else 10
         val top = m.staffTop ?: m.tabTop ?: m.bounds.top
         val middle = if (m.staffTop != null) top + 2 * spacing else (top + (m.tabBottom ?: top)) / 2
         val y = when (v.duration.value) { 1 -> top + spacing; 2 -> top + 2 * spacing - glyph.height * scale; else -> middle - glyph.height * scale / 2 }
-        glyph(glyph, b.x, y + if (v.voice.index == 0) 0f else 8f, scale)
+        glyph(glyph,b.x-if (config.nativeSpacing && m.staffTop == null) 1f/config.renderScale else 0f,
+            v.silenceY ?: (y+if (v.voice.index == 0) 0f else 8f),scale)
         dots(v.duration, b.x + 10, middle, 1f)
     }
     private fun DrawScope.tuplets(m: TGMeasureLayout) {
@@ -296,6 +330,28 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     }
     private fun DrawScope.chord(m: TGMeasureLayout, b: TGBeatLayout, chord: TGChord) {
         val bounds = b.chordBounds ?: return
+        if (config.nativeSpacing) {
+            // TGChordImpl.paintDiagram: six fret lines, 5-unit strings, 6-unit frets.
+            val left = bounds.left+13f
+            val top = bounds.top+6f
+            val width = (chord.frets.size-1)*5f
+            if (config.showChords) {
+                label(chord.firstFret.toString(),bounds.left+8f-text.measure(chord.firstFret.toString(),TGTextRole.Chord).width,top+3f-text.measure(chord.firstFret.toString(),TGTextRole.Chord).height/2,TGTextRole.Chord,colors.beatText)
+                repeat(chord.frets.size) { i -> line(left+i*5f,top,left+i*5f,top+30f,colors.staffLines,.5f) }
+                repeat(6) { i -> line(left,top+i*6f,left+width,top+i*6f,colors.staffLines,.5f) }
+                chord.frets.forEachIndexed { i,fret ->
+                    val x = left+(chord.frets.lastIndex-i)*5f
+                    when {
+                        fret < 0 -> { line(x-2,bounds.top,x+2,bounds.top+4,colors.noteHead); line(x+2,bounds.top,x-2,bounds.top+4,colors.noteHead) }
+                        fret == 0 -> drawCircle(colors.noteHead,2f,Offset(x,bounds.top+2),style=Stroke(.6f))
+                        else -> drawCircle(colors.noteHead,2.5f,Offset(x,top+(fret-chord.firstFret+.5f)*6f))
+                    }
+                }
+            }
+            if (config.showChordNames) label(chord.name,bounds.center.x+4f-text.measure(chord.name,TGTextRole.Chord).width/2,
+                bounds.top+(if (config.showChords) 42f else 0f),TGTextRole.Chord,colors.noteHead)
+            return
+        }
         label(chord.name, bounds.left, bounds.top, TGTextRole.Chord, colors.noteHead)
         val top = bounds.top + 13; val left = bounds.left + 8; val width = (chord.frets.size - 1) * 5f
         repeat(chord.frets.size) { i -> line(left + i * 5, top, left + i * 5, top + 24, colors.staffLines, .5f) }

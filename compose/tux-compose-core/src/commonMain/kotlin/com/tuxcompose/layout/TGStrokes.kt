@@ -23,9 +23,9 @@ data class TGStrokeLayout(val direction: TGStrokeDirection, val lines: List<TGSt
     })
 }
 
-/** Preserve the original +12 placement except when a custom/wide fret glyph needs more room. */
+/** Native uses exactly +12. Adaptive may move an arrow away from a custom/wide fret glyph. */
 internal fun strokeOffset(beat: TGBeat, config: TGLayoutConfig, fonts: TGFontMetrics): Float =
-    maxOf(12f,if (config.showTablature) beat.voices.flatMap { it.notes }.maxOfOrNull {
+    if (config.nativeSpacing) 12f else maxOf(12f,if (config.showTablature) beat.voices.flatMap { it.notes }.maxOfOrNull {
         fonts.measure(tabText(it),TGTextRole.Note).width/2+4.5f
     } ?: 0f else config.noteHeadRadius*2.66f+1)
 

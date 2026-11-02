@@ -14,6 +14,12 @@ import com.tuxcompose.model.*
 import java.io.ByteArrayInputStream
 import kotlin.test.*
 
+// v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
+private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+    pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
+    typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
+
+
 /** Differential tests run the ORIGINAL Java methods alongside the common Kotlin port. */
 class PortParityTest {
     private val factory=TGFactory()
@@ -30,8 +36,8 @@ class PortParityTest {
                 val kotlin=TGDuration(value,dots==1,dots==2,TGDivisionType(enters,times))
                 assertEquals(java.time,kotlin.ticks)
                 assertEquals(java.preciseTime,kotlin.preciseTicks)
-                assertEquals(original.getDurationWidth(java),TGLayoutCalculator().durationWidth(kotlin))
-                assertEquals(original.getSpacingForQuarter(java),TGLayoutCalculator().spacingForQuarter(kotlin),.0001f)
+                assertEquals(original.getDurationWidth(java),TGLayoutCalculator(adaptiveConfig).durationWidth(kotlin))
+                assertEquals(original.getSpacingForQuarter(java),TGLayoutCalculator(adaptiveConfig).spacingForQuarter(kotlin),.0001f)
             } }
         }
     }
@@ -69,7 +75,7 @@ class PortParityTest {
             },start,lineBreak=mi==4)
         }
         val data = TGSong(tracks=listOf(TGTrack(1,"Guitar",listOf(64,59,55,50,45,40),measures)))
-        val config = TGLayoutConfig(style=TGLayoutStyles.Tablature,justifySystems=false,fitPageToWidth=!overflow)
+        val config = adaptiveConfig.copy(style=TGLayoutStyles.Tablature,justifySystems=false,fitPageToWidth=!overflow)
         val natural = TGLayoutCalculator(config.copy(orientation=TGLayoutOrientation.Horizontal)).calculate(data,10000f)
         val track = factory.newTrack()
         natural.staves[0].measures.forEachIndexed { index,m ->
@@ -120,7 +126,7 @@ class PortParityTest {
         if (version >= 4) {
             assertEquals(setOf(TGStrokeDirection.Up,TGStrokeDirection.Down),marks.map { it.pickStroke }.toSet())
         } // GP3 has strum strokes, but its file format has no separate pick-stroke field.
-        assertTrue(TGLayoutCalculator(TGLayoutConfig(multiTrack=true)).calculate(imported.score,400f).height>0)
+        assertTrue(TGLayoutCalculator(adaptiveConfig.copy(multiTrack=true)).calculate(imported.score,400f).height>0)
     }
     @Test fun originalMidiParserProducesRepeatsBendsTempoAndNotes() {
         val native=DemoSongFactory.create()

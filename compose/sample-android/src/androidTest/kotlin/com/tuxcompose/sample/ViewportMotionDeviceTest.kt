@@ -25,6 +25,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+// v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
+private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+    pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
+    typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
+
+
 /** Frame-clock and real-pointer regressions for fitting, cursor motion and cooperative follow. */
 @RunWith(AndroidJUnit4::class)
 class ViewportMotionDeviceTest {
@@ -42,7 +48,7 @@ class ViewportMotionDeviceTest {
     }
 
     private fun host(state: TablatureState, cursor: State<TGCursorConfig>,
-        config: TGLayoutConfig = TGLayoutConfig(), onLayout: (TGSongLayout) -> Unit = {}) {
+        config: TGLayoutConfig = adaptiveConfig.copy(), onLayout: (TGSongLayout) -> Unit = {}) {
         compose.setContent {
             Box(Modifier.size(320.dp,180.dp)) {
                 TablatureView(state,Modifier.fillMaxSize().testTag("viewport"),config,cursor.value,onLayout=onLayout)
@@ -125,7 +131,7 @@ class ViewportMotionDeviceTest {
         val data = raw.copy(tracks=listOf(track.copy(measures=listOf(m.copy(beats=beats.toPersistentList())).toPersistentList())).toPersistentList())
         val state = TablatureState(data,960)
         var layout: TGSongLayout? = null
-        val config = TGLayoutConfig(style=TGLayoutStyles.Tablature,colors=TGColorPalette.Paper.copy(noteHead=Color.Magenta))
+        val config = adaptiveConfig.copy(style=TGLayoutStyles.Tablature,colors=TGColorPalette.Paper.copy(noteHead=Color.Magenta))
         host(state,mutableStateOf(TGCursorConfig(visible=false,follow=false)),config,onLayout={ layout=it })
         assertTrue(layout!!.staves.size>1)
         val outgoing = layout!!.staves.first().connections.single { it.kind == TGConnectionKind.Slide && it.continuesToNext }
@@ -175,7 +181,7 @@ class ViewportMotionDeviceTest {
         val track = source.copy(measures=listOf(measure.copy(beats=beats.toPersistentList())).toPersistentList())
         val state = TablatureState(raw.copy(tracks=listOf(track).toPersistentList()),960)
         var layout: TGSongLayout? = null
-        val config = TGLayoutConfig(style=TGLayoutStyles.Tablature,colors=TGColorPalette.Paper.copy(noteHead=Color.Magenta))
+        val config = adaptiveConfig.copy(style=TGLayoutStyles.Tablature,colors=TGColorPalette.Paper.copy(noteHead=Color.Magenta))
         host(state,mutableStateOf(TGCursorConfig(visible=false,follow=false)),config,onLayout={ layout=it })
         assertTrue(layout!!.staves.size>1)
         val row = layout!!.staves.last()
@@ -228,7 +234,7 @@ class ViewportMotionDeviceTest {
     @Test fun cursorTweenRendersIntermediatePositionsInsteadOfBeatJumps() {
         val state = TablatureState(song(),960)
         val cursor = mutableStateOf(TGCursorConfig(color=Color.Magenta,follow=false,movementAnimationMillis=240))
-        host(state,cursor,TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal))
+        host(state,cursor,adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal))
         val start = magentaCursorX()
         compose.mainClock.autoAdvance = false
         compose.runOnIdle { state.cursorTick=1440 }

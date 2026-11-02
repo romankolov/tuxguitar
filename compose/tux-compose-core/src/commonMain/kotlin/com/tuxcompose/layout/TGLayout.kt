@@ -11,7 +11,9 @@ data class TGNoteLayout(val note: TGNote, val voiceIndex: Int, val pitch: Int, v
 @Immutable
 data class TGVoiceLayout(val voice: TGVoice, val duration: TGDuration, val notes: List<TGNoteLayout>, val up: Boolean, val stemX: Float, val stemStartY: Float, val stemEndY: Float, val beamGroup: Int,
     /** Presentation-only continuation of a sustained voice; no new model note or attack. */
-    val isContinuation: Boolean = false, val sourceTick: Long = 0L)
+    val isContinuation: Boolean = false, val sourceTick: Long = 0L,
+    /** Native multi-voice rest placement; null selects the Adaptive/convenience-rest fallback. */
+    val silenceY: Float? = null, val hiddenSilence: Boolean = false)
 @Immutable
 data class TGBeatLayout(val beat: TGBeat, val bounds: Rect, val x: Float, val voices: List<TGVoiceLayout>, val chordBounds: Rect?, val endX: Float = bounds.right,
     /** Visible interval, which may be only part of the unchanged source beat. */
@@ -52,6 +54,8 @@ data class TGMeasureLayout(
     val pickStrokeTop: Float = effectsTop,
     /** Effective native compact mode (disabled when more than one track is displayed). */
     val compact: Boolean = false,
+    val paintTripletFeel: Boolean = false,
+    val previousTripletFeel: Int = 0,
 ) {
     val isFirstFragment: Boolean get() = startTick == measure.start
     val isLastFragment: Boolean get() = endTick == measure.end

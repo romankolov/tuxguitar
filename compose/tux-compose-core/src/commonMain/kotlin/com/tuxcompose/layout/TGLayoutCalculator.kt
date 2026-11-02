@@ -25,22 +25,72 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         val count = tracks.maxOf { it.measures.size }
         if (count == 0) return TGSongLayout(viewportWidth,0f,emptyList())
         val compact = config.compact && tracks.size == 1
-        val metrics = tracks.map { track -> track.measures.mapIndexed { i,m -> measureMetrics(track,m,track.measures.getOrNull(i-1),compact,false) } }
+        // Native headers collect clef/key maxima from ALL song tracks, even in selected-track view.
+        val sourceTracks = if (config.nativeSpacing) song.tracks.toList() else tracks
+        val sourceMetrics = sourceTracks.map { track -> track.measures.mapIndexed { i,m -> measureMetrics(track,m,track.measures.getOrNull(i-1),compact,false) } }
+        val metrics = if (config.nativeSpacing) indices.map { sourceMetrics[it] } else sourceMetrics
         val fitPage = config.orientation == TGLayoutOrientation.Page && config.fitPageToWidth
         // At narrow widths shed optional BLANK margins before allowing an indivisible header
         // or glyph to be clipped. Never change font, note-head, staff or string dimensions.
         val minimumBeat = metrics.flatten().flatMap { it.beatWidths }.minOrNull() ?: config.durationWidths.min()
-        val indivisible = metrics.flatten().maxOf { metric ->
+        val indivisible = if (config.nativeSpacing) 0f else metrics.flatten().maxOf { metric ->
             metric.ink.lanes.maxOfOrNull { lane -> lane.maxOf { it.right+it.gap } } ?: 0f
         }
         val minimum = metrics.flatten().maxOf { it.first }+maxOf(minimumBeat,indivisible)
         val measurePadding = if (fitPage) minOf(config.measurePadding,((viewportWidth-minimum)/2).coerceAtLeast(0f)) else config.measurePadding
-        val padding = if (fitPage) minOf(config.pagePadding,((viewportWidth-minimum-2*measurePadding)/2).coerceAtLeast(0f)) else config.pagePadding
-        val available = (viewportWidth-2*padding).coerceAtLeast(1f)
+        val gutterBudget = (viewportWidth-minimum-2*measurePadding).coerceAtLeast(0f)
+        val leftMargin = if (fitPage) minOf(config.pagePadding,gutterBudget/2) else config.pagePadding
+        val rightMargin = if (config.nativeSpacing) {
+            val requested = config.pageRightPadding/config.renderScale
+            if (fitPage) minOf(requested,(gutterBudget-leftMargin).coerceAtLeast(0f)) else requested
+        } else leftMargin
+        val padding = if (config.nativeSpacing) nativeRound(leftMargin) else leftMargin
+        val available = (viewportWidth-leftMargin-rightMargin).coerceAtLeast(1f)
         fun column(index: Int, first: Boolean): Column {
             val measures = tracks.map { it.measures[index] }
-            val local = tracks.mapIndexed { ti,t ->
+            var local = tracks.mapIndexed { ti,t ->
                 if (first && config.repeatSystemSignatures) measureMetrics(t,measures[ti],t.measures.getOrNull(index-1),compact,true) else metrics[ti][index]
+            }
+            if (config.nativeSpacing) {
+                val headerMetrics = sourceTracks.mapIndexedNotNull { ti,t ->
+                    t.measures.getOrNull(index)?.takeIf { it.start == measures[0].start }?.let { m ->
+                        if (first && config.repeatSystemSignatures) measureMetrics(t,m,t.measures.getOrNull(index-1),compact,true) else sourceMetrics[ti][index]
+                    }
+                }
+                val maxClef = headerMetrics.maxOf { it.clef }
+                val maxKey = headerMetrics.maxOf { it.key }
+                local = local.map { metric ->
+                    val clef = if (metric.paintClef || config.multiTrack) maxClef else 0f
+                    val key = if (metric.paintKey || config.multiTrack) maxKey else 0f
+                    metric.copy(clef=clef,key=key,first=nativePrefix(metric,clef,key))
+                }
+                val q = local.maxOf { it.quarter }
+                val effects = local.maxOf { it.effect }
+                val rhythms = local.map { metric ->
+                    if (compact) metric.beatWidths.sum().takeIf { it > 0f } ?: (metric.quarter*metric.quarters)
+                    else (if (config.multiTrack) q else metric.quarter)*metric.quarters+(if (config.multiTrack) effects else metric.effect)
+                }
+                val maps = measures.mapIndexed { ti,m ->
+                    nativeBeatOffsets(m,local[ti].native!!,compact,if (config.multiTrack) q else local[ti].quarter,effects,config.multiTrack)
+                }
+                // This envelope is for exceptional fragment cuts ONLY. Ordinary bars retain
+                // upstream per-track positions, including its effect-slack distribution.
+                val offsets = mutableMapOf<Long,Float>()
+                val inkRights = mutableMapOf<Long,Float>()
+                val beatEffects = mutableMapOf<Long,Float>()
+                maps.forEachIndexed { ti,map ->
+                    map.forEach { (tick,x) -> offsets[tick] = maxOf(offsets[tick] ?: 0f,x) }
+                    local[ti].ink.lanes.flatten().forEach { ink ->
+                        inkRights[ink.tick] = maxOf(inkRights[ink.tick] ?: 0f,(map[ink.tick] ?: 0f)+ink.right+ink.gap)
+                    }
+                    measures[ti].beats.forEachIndexed { bi,b -> beatEffects[b.start] = maxOf(beatEffects[b.start] ?: 0f,local[ti].beatEffects[bi]) }
+                }
+                val prefix = local.maxOf { it.first }
+                val repeat = local.maxOf { it.repeatWidth }
+                val rhythm = rhythms.max()
+                return Column(index,rhythm+prefix+2*measurePadding+repeat,q,effects,prefix,maxClef,maxKey,
+                    local,local.maxOf { it.quarters },rhythm,repeat,offsets,beatEffects,inkRights,
+                    local.maxOf { it.ink.continuationRight },nativeOffsets=maps)
             }
             val q = local.maxOf { it.quarter }
             val quarters = local.maxOf { it.quarters }
@@ -75,8 +125,8 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             val m = t.measures[col.index]
             if (config.repeatSystemSignatures) {
                 val metric = measureMetrics(t,m,t.measures.getOrNull(col.index-1),compact,true)
-                metric.copy(paintTempo=false,first=round(metric.clef+metric.key+(if (metric.paintTime) 10f+config.timeSignatureSpacing else 0f)+config.firstNoteSpacing)+metric.ink.leading)
-            } else col.metrics[ti].copy(first=config.firstNoteSpacing+col.metrics[ti].ink.leading,clef=0f,key=0f,paintClef=false,paintKey=false,paintTime=false,paintTempo=false,previousKey=0)
+                metric.copy(paintTempo=false,paintTripletFeel=false,first=round(metric.clef+metric.key+(if (metric.paintTime) 10f+config.timeSignatureSpacing else 0f)+config.firstNoteSpacing)+metric.ink.leading)
+            } else col.metrics[ti].copy(first=config.firstNoteSpacing+col.metrics[ti].ink.leading,clef=0f,key=0f,paintClef=false,paintKey=false,paintTime=false,paintTempo=false,paintTripletFeel=false,previousKey=0)
         }
         val systems = mutableListOf<List<Column>>()
         val filled = mutableListOf<Boolean>()
@@ -88,14 +138,19 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             while (next < count) {
                 val col = column(next,row.isEmpty())
                 val lineBreak = row.isNotEmpty() && tracks.any { it.measures[next].lineBreak }
-                if (config.orientation == TGLayoutOrientation.Page && lineBreak) break
+                if (config.orientation == TGLayoutOrientation.Page && lineBreak) {
+                    if (config.nativeSpacing) full = used+col.width >= available
+                    break
+                }
                 if (fitPage && col.width > available) {
                     val cont = continuation(col)
                     val contPrefix = cont.maxOf { it.first }
                     val start = tracks[0].measures[next].start
                     val end = tracks.maxOf { it.measures[next].end }
-                    val fragments = wrapPageMeasure(start,end,col.offsets,col.rhythm,col.effects,available,col.first,contPrefix,measurePadding,col.repeatWidth,compact,
-                        tracks[0].measures[next].header.timeSignature.divisionTicks,col.inkRights,col.continuationRight)
+                    val wrapping = if (config.nativeSpacing && col.nativeOffsets.size > 1)
+                        nativeFragmentSpacing(col,tracks.map { it.measures[next] }) else TGMeasureSpacing(col.offsets,col.rhythm,col.inkRights)
+                    val fragments = wrapPageMeasure(start,end,wrapping.offsets,wrapping.rhythm,col.effects,available,col.first,contPrefix,measurePadding,col.repeatWidth,compact,
+                        tracks[0].measures[next].header.timeSignature.divisionTicks,wrapping.inkRights,col.continuationRight)
                     val pieces = fragments.mapIndexed { fi,fragment ->
                         val local = if (fi == 0) col.metrics else cont
                         val prefix = if (fi == 0) col.first else contPrefix
@@ -125,17 +180,18 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                     break
                 }
                 row += col; used += col.width; next++
-                if (config.orientation == TGLayoutOrientation.Page && used >= available) break
+                if (config.orientation == TGLayoutOrientation.Page && used >= available) { full = true; break }
             }
             if (row.isNotEmpty()) { systems += row; filled += full }
         }
         val staves = mutableListOf<TGStaffLayout>()
         val fragments = mutableMapOf<Pair<Int,Int>,TGMeasureFragments>()
-        var top = padding
+        var top = if (config.nativeSpacing) nativeRound(config.firstTrackSpacing) else padding
         var maxRight = viewportWidth
         systems.forEachIndexed { si,columns ->
+            val difference = (available-columns.sumOf { it.width.toDouble() }.toFloat())/columns.size
             val extra = if (config.orientation == TGLayoutOrientation.Page && filled[si] && config.justifySystems)
-                ((available-columns.sumOf { it.width.toDouble() }.toFloat())/columns.size).coerceAtLeast(0f) else 0f
+                if (config.nativeSpacing) difference else difference.coerceAtLeast(0f) else 0f
             tracks.forEachIndexed { ti,track ->
                 val lanes = staffSpacing(track,columns.map { track.measures[it.index] })
                 var left = padding
@@ -143,27 +199,191 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                     val m = track.measures[col.index]
                     val metric = col.metrics[ti]
                     val bounds = Rect(left,top,left+col.width+extra,top+lanes.height)
-                    val placed = if (col.fragment == null) placeMeasure(track,indices[ti],col.index,m,col,metric,bounds,lanes,compact,extra,measurePadding)
+                    val placed = if (col.fragment == null) placeMeasure(track,indices[ti],col.index,m,col,metric,bounds,lanes,compact,extra,measurePadding,ti)
                     else {
                         val original = col.original!!
                         val cached = fragments.getOrPut(indices[ti] to col.index) {
                             TGMeasureFragments(placeMeasure(track,indices[ti],col.index,m,original,original.metrics[ti],
-                                Rect(0f,0f,original.width,lanes.height),lanes,compact,0f,measurePadding))
+                                Rect(0f,0f,original.width,lanes.height),lanes,compact,0f,measurePadding,ti))
                         }
-                        cached.part(col.fragment,bounds,TGFragmentHeader(col.first,if (config.multiTrack && metric.paintClef) col.clef else metric.clef,
+                        val slice = if (config.nativeSpacing && original.nativeOffsets.size > 1)
+                            trackFragment(col.fragment,original,ti,m) else col.fragment
+                        cached.part(slice,bounds,TGFragmentHeader(col.first,if (config.multiTrack && metric.paintClef) col.clef else metric.clef,
                             if (config.multiTrack && metric.paintKey) col.key else metric.key,metric.previousKey,
                             metric.paintClef,metric.paintKey,metric.paintTime,metric.paintTempo),measurePadding,extra,lanes)
                     }
                     left += col.width+extra
                     placed
                 }
-                val right = if (fitPage) minOf(left,viewportWidth-padding) else left
+                val right = if (fitPage && !config.nativeSpacing) minOf(left,viewportWidth-padding) else left
                 staves += TGStaffLayout(si,indices[ti],Rect(padding,top,right,top+lanes.height),measures)
-                if (!fitPage) maxRight = maxOf(maxRight,left+padding)
-                top += lanes.height+config.systemSpacing
+                if (!fitPage) maxRight = maxOf(maxRight,if (config.nativeSpacing && config.orientation == TGLayoutOrientation.Horizontal)
+                    if (left > viewportWidth) left+config.pagePadding else viewportWidth else left+rightMargin)
+                top += if (config.nativeSpacing) nativeRound(lanes.height+config.systemSpacing+.5f/config.renderScale) else lanes.height+config.systemSpacing
             }
         }
-        return TGSongLayout(maxRight,(top-config.systemSpacing+padding).coerceAtLeast(0f),connectStaves(staves,config))
+        return TGSongLayout(maxRight,(if (config.nativeSpacing) top+config.firstTrackSpacing-nativeRound(config.firstTrackSpacing) else top-config.systemSpacing+padding).coerceAtLeast(0f),connectStaves(staves,config))
+    }
+
+    /** Java Math.round, in physical pixels, converted back to logical canvas coordinates. */
+    private fun nativeRound(value: Float): Float = kotlin.math.floor(value*config.renderScale+.5f)/config.renderScale
+
+    private data class NativeSilence(val y: Float, val height: Float, val hidden: Boolean)
+
+    /** TGMeasureImpl hidden-silence decisions followed by TGVoiceImpl.updateSilenceSpacing. */
+    private fun nativeSilences(track: TGTrack, m: TGMeasure, groups: Map<Pair<Int,Int>,Group>): Map<Pair<Int,Int>,NativeSilence> = buildMap {
+        m.beats.forEachIndexed { bi,b ->
+            val voices = b.voices.filterNot { it.empty }.sortedBy { it.index }
+            val hidden = mutableSetOf<Int>()
+            voices.filter { it.notes.isEmpty() }.forEach { v ->
+                if (voices.any { other -> other.index != v.index && (other.duration ?: b.duration) == (v.duration ?: b.duration) &&
+                        (other.notes.isNotEmpty() || other.index !in hidden) }) hidden += v.index
+            }
+            voices.filter { it.notes.isEmpty() }.forEach { v ->
+                val line = if (config.showStandardNotation) config.staffSpacing else config.stringSpacing
+                val count = if (config.showStandardNotation) 5 else track.stringTuning.size
+                val scale = line/if (config.showStandardNotation) 9f else 10f
+                val d = (v.duration ?: b.duration).value
+                val h = scale*when (d) { 1,2 -> 3.6513581f; 4,16 -> 16f; 8 -> 12f; 32 -> 24f; else -> 28f }
+                var y = when (d) {
+                    1 -> if (config.showStandardNotation) line else line*((count-1)/2)
+                    2 -> (if (config.showStandardNotation) 2*line else line*(count/2))-h
+                    else -> line*(count-1)/2-h/2
+                }
+                voices.filter { it.index != v.index }.forEach { other ->
+                    if (other.notes.isEmpty()) {
+                        if (other.index !in hidden) y = y-3*line/maxOf(2,voices.maxOf { it.index }+1)+3*line*v.index
+                    } else {
+                        val up = groups.getValue(bi to other.index).up
+                        if (config.showStandardNotation) {
+                            val positions = other.notes.map { notePosition(track,m,it)*line/2 }
+                            y = if (up) maxOf(y,positions.max()+2*line) else minOf(y,positions.min()-h-line)
+                        } else y = if (up) maxOf(y,line*other.notes.maxOf { it.string }) else minOf(y,line*(other.notes.minOf { it.string }-1)-h-line)
+                    }
+                }
+                put(bi to v.index,NativeSilence(y,h,v.index in hidden))
+            }
+        }
+    }
+
+    private fun nativePrefix(metric: Metric, clef: Float, key: Float): Float = nativeRound(maxOf(
+        (if (metric.paintTempo) nativeRound(45f) else 0f)+(if (metric.paintTripletFeel) nativeRound(55f) else 0f),
+        clef+key+(if (metric.paintTime) nativeRound(10f+config.timeSignatureSpacing) else 0f)+config.firstNoteSpacing))
+
+    /** TGMeasureImpl.checkValue and TGLayoutVertical's registration, not both stem offsets. */
+    private fun nativeStaffSpacing(track: TGTrack, measures: List<TGMeasure>): TGSpacing {
+        val lanes = TGSpacing(config.style)
+        var lineMinY = if (config.style == TGLayoutStyles.Score) -3*config.staffSpacing else 0f
+        var lineMaxY = if (config.style == TGLayoutStyles.Score) 8*config.staffSpacing else 0f
+        val pixel = 1f/config.renderScale
+        val tabHeight = (track.stringTuning.size-1)*config.stringSpacing
+        measures.forEach { m ->
+            var minY = 0f
+            var maxY = 0f
+            val groups = voiceGroups(track,m)
+            val silences = nativeSilences(track,m,groups)
+            m.beats.forEachIndexed { bi,b ->
+                val voices = b.voices.filterNot { it.empty }.sortedBy { it.index }
+                voices.forEach { v ->
+                    if (v.notes.isNotEmpty()) {
+                        if (!config.showStandardNotation) {
+                            val offset = config.stringSpacing/2*5+pixel
+                            if (groups.getValue(bi to v.index).up) minY = minOf(minY,-offset)
+                            else maxY = maxOf(maxY,tabHeight+offset)
+                        }
+                    } else {
+                        val rest = silences.getValue(bi to v.index)
+                        if (!rest.hidden) { minY = minOf(minY,rest.y); maxY = maxOf(maxY,rest.y+rest.height) }
+                    }
+                }
+            }
+            if (config.showStandardNotation) groups.values.distinctBy { it.id }.forEach { group ->
+                val positions = group.positions.flatten()
+                if (positions.isNotEmpty()) for (position in listOf(positions.min(),positions.max())) {
+                    val y = position*config.staffSpacing/2
+                    if (group.up) {
+                        if (y > maxY) maxY = y
+                        if (y-28f*config.staffSpacing/8 < minY) minY = y-28f*config.staffSpacing/8-2*pixel
+                    } else {
+                        if (y+35f*config.staffSpacing/8 > maxY) maxY = y+35f*config.staffSpacing/8+2*pixel
+                        if (y < minY) minY = y
+                    }
+                }
+            }
+            lineMinY = minOf(lineMinY,minY)
+            lineMaxY = maxOf(lineMaxY,maxY)
+        }
+        val minY = lineMinY
+        val maxY = lineMaxY
+        val beats = measures.flatMap { it.beats }
+        if (measures.any { it.header.marker != null }) lanes.register(TGTrackLane.Marker,15f)
+        if (beats.any { it.text != null }) lanes.register(TGTrackLane.Text,15f)
+        if (config.chordEnabled && beats.any { it.chord != null }) lanes.register(TGTrackLane.Chord,
+            (if (config.showChords) 42f else 0f)+(if (config.showChordNames) nativeRound(15f) else 0f))
+        if (measures.any { it.header.repeatAlternative > 0 }) lanes.register(TGTrackLane.RepeatEnding,20f)
+        if (beats.any { b -> b.voices.any { !it.empty && it.index%2 == 0 && (it.duration ?: b.duration).division != TGDivisionType() } }) lanes.register(TGTrackLane.Tuplet1,10f)
+        if (beats.any { b -> b.voices.any { !it.empty && it.index%2 == 1 && (it.duration ?: b.duration).division != TGDivisionType() } }) lanes.register(TGTrackLane.Tuplet2,10f)
+        val effectHeight = beats.maxOfOrNull { b ->
+            val effects = b.voices.filterNot { it.empty }.flatMap { it.notes }.map { it.effects }
+            listOf(effects.any { it.accented },effects.any { it.heavyAccented },
+                !config.showStandardNotation && effects.any { it.harmonic != 0 },effects.any { it.tapping },
+                effects.any { it.slapping },effects.any { it.popping },effects.any { it.palmMute },
+                effects.any { it.letRing },effects.any { it.fadeIn },effects.any { it.vibrato },effects.any { it.trill != null })
+                .count { it }*config.effectSpacing
+        } ?: 0f
+        lanes.register(TGTrackLane.Effects,effectHeight)
+        if (beats.any { it.pickStroke != TGStrokeDirection.None }) lanes.register(TGTrackLane.PickStroke,config.pickStrokeSpacing)
+        if (config.showTablature && beats.any { b -> b.voices.any { v -> !v.empty && v.notes.any { it.effects.bend != null } } }) lanes.register(TGTrackLane.Bend,8f)
+        if (config.showStandardNotation) {
+            lanes.register(TGTrackLane.ScoreUp,kotlin.math.abs(minY))
+            lanes.register(TGTrackLane.Score,5*config.staffSpacing)
+            lanes.register(TGTrackLane.ScoreDown,maxOf(0f,maxY-4*config.staffSpacing))
+        }
+        if (config.showTablature) {
+            lanes.register(TGTrackLane.TabSeparator,if (config.showStandardNotation) config.scoreTabSpacing else maxOf(kotlin.math.abs(minY),config.stringSpacing))
+            lanes.register(TGTrackLane.Tab,if (config.showStandardNotation) tabHeight+config.stringSpacing+pixel else maxOf(maxY,tabHeight+config.stringSpacing+pixel))
+        }
+        lanes.register(TGTrackLane.Lyric,10*pixel)
+        val target = if (config.showStandardNotation) TGTrackLane.ScoreUp else TGTrackLane.Tab
+        val separator = lanes.position(target)-lanes.position(TGTrackLane.Buffer)
+        if (separator < 20f) lanes.register(TGTrackLane.Buffer,20f-separator)
+        val staffTarget = if (config.showStandardNotation) TGTrackLane.Score else TGTrackLane.Tab
+        if (lanes.position(staffTarget) < config.staffPadding) lanes.register(TGTrackLane.Top,config.staffPadding-lanes.position(staffTarget))
+        return lanes
+    }
+
+    /** Native track coordinates at a common time cut. Used only by the wrapping extension. */
+    private fun trackOffset(tick: Long, col: Column, ti: Int, m: TGMeasure): Float {
+        val map = col.nativeOffsets[ti]
+        map[tick]?.let { return it }
+        if (tick >= m.end) return col.rhythm
+        val before = map.keys.filter { it < tick }.maxOrNull() ?: m.start
+        val after = map.keys.filter { it > tick }.minOrNull() ?: m.end
+        val x1 = map[before] ?: 0f
+        val x2 = map[after] ?: col.rhythm
+        val bi = m.beats.indexOfFirst { it.start == before }
+        val effect = col.metrics[ti].beatEffects.getOrElse(bi) { 0f }
+        return x1+effect+maxOf(0f,x2-x1-effect)*(tick-before).toFloat()/(after-before).coerceAtLeast(1L)
+    }
+
+    private fun nativeFragmentSpacing(col: Column, measures: List<TGMeasure>): TGMeasureSpacing {
+        val ticks = (col.offsets.keys+measures[0].start+measures.maxOf { it.end }).distinct().sorted()
+        var x = 0f
+        val offsets = mutableMapOf(ticks.first() to 0f)
+        ticks.zipWithNext().forEach { (a,b) ->
+            x += measures.indices.maxOf { ti -> maxOf(0f,trackOffset(b,col,ti,measures[ti])-trackOffset(a,col,ti,measures[ti])) }
+            offsets[b] = x
+        }
+        val rights = mutableMapOf<Long,Float>()
+        col.metrics.forEach { metric -> metric.ink.lanes.flatten().forEach { ink ->
+            rights[ink.tick] = maxOf(rights[ink.tick] ?: 0f,offsets.getValue(ink.tick)+ink.right+ink.gap)
+        } }
+        return TGMeasureSpacing(offsets,x,rights)
+    }
+
+    private fun trackFragment(slice: TGPageFragment, col: Column, ti: Int, m: TGMeasure): TGPageFragment {
+        val from = trackOffset(slice.startTick,col,ti,m)
+        return slice.copy(fromX=from,toX=trackOffset(slice.endTick,col,ti,m),contentToX=from+slice.contentToX-slice.fromX)
     }
 
     private fun validateAlignment(tracks: List<TGTrack>) {
@@ -176,11 +396,12 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
 
     private data class Metric(val quarter: Float, val effect: Float, val first: Float, val clef: Float, val key: Float,
         val quarters: Float, val repeatWidth: Float, val beatWidths: List<Float>, val beatEffects: List<Float>,
-        val paintClef: Boolean, val paintKey: Boolean, val paintTime: Boolean, val paintTempo: Boolean, val previousKey: Int, val ink: TGMeasureInk)
+        val paintClef: Boolean, val paintKey: Boolean, val paintTime: Boolean, val paintTempo: Boolean, val previousKey: Int, val ink: TGMeasureInk, val native: TGNativeSpacing? = null, val paintTripletFeel: Boolean = false)
     private data class Column(val index: Int, val width: Float, val quarter: Float, val effect: Float, val first: Float, val clef: Float, val key: Float, val metrics: List<Metric>,
         val quarters: Float, val rhythm: Float, val repeatWidth: Float, val offsets: Map<Long,Float>, val effects: Map<Long,Float>,
         val inkRights: Map<Long,Float>, val continuationRight: Float,
-        val fragment: TGPageFragment? = null, val original: Column? = null)
+        val fragment: TGPageFragment? = null, val original: Column? = null,
+        val nativeOffsets: List<Map<Long,Float>> = emptyList())
 
     private fun measureMetrics(track: TGTrack, m: TGMeasure, prev: TGMeasure?, compact: Boolean, systemFirst: Boolean): Metric {
         val score = config.showStandardNotation
@@ -188,12 +409,23 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         val paintKey = score && (prev == null || prev.header.keySignature != m.header.keySignature || systemFirst)
         val paintTime = prev == null || prev.header.timeSignature != m.header.timeSignature || systemFirst
         val paintTempo = config.showTempo && (prev == null || prev.header.tempo != m.header.tempo)
-        val clef = if (paintClef) round(16f + config.clefSpacing) else 0f
+        val clef = if (paintClef) if (config.nativeSpacing) nativeRound(16f)+nativeRound(config.clefSpacing) else round(16f+config.clefSpacing) else 0f
         val previousKey = if (systemFirst) 0 else prev?.header?.keySignature?.value ?: 0
         val keyCount = m.header.keySignature.count + if (prev != null && !systemFirst) prev.header.keySignature.count else 0
-        val key = if (paintKey && keyCount > 0) round(6f * keyCount) + config.keySignatureSpacing else 0f
+        val key = if (paintKey && keyCount > 0) (if (config.nativeSpacing)
+            nativeRound(6f*m.header.keySignature.count)+nativeRound(6f*(if (prev != null && !systemFirst) prev.header.keySignature.count else 0))
+            else round(6f*keyCount))+config.keySignatureSpacing else 0f
         val time = if (paintTime) 10f + config.timeSignatureSpacing else 0f
         val first = round(maxOf(if (paintTempo) 45f else 0f, clef + key + time + config.firstNoteSpacing))
+        if (config.nativeSpacing) {
+            val native = nativeMeasureSpacing(track,m,config,compact)
+            val metric = Metric(native.quarter,native.effects,first,clef,key,native.quarters,
+                if (m.header.repeatClose > 0) 20f else 0f,native.beatWidths,native.beatEffects,
+                paintClef,paintKey,paintTime,paintTempo,previousKey,
+                measureInk(track,m,config,fonts,compact).copy(leading=0f),native,
+                if (prev == null) m.header.tripletFeel != 0 else prev.header.tripletFeel != m.header.tripletFeel)
+            return metric.copy(first=nativePrefix(metric,clef,key))
+        }
         val durations = m.beats.flatMap { b -> b.voices.filterNot { it.empty }.map { it.duration ?: b.duration }.ifEmpty { listOf(b.duration) } }
         val minDuration = durations.minByOrNull { it.preciseTicks }
         var quarter = minDuration?.let(::spacingForQuarter) ?: config.durationWidths.min()
@@ -208,13 +440,13 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         val beatWidths = m.beats.mapIndexed { bi, beat ->
             val duration = beat.voices.filterNot { it.empty }.minByOrNull { (it.duration ?: beat.duration).preciseTicks }?.duration ?: beat.duration
             val textWidth = beat.voices.flatMap { it.notes }.maxOfOrNull { fonts.measure(tabText(it), TGTextRole.Note).width + 4f } ?: 0f
-            val chord = beat.chord?.let { maxOf(8f+5f*(track.stringTuning.size+1),fonts.measure(it.name,TGTextRole.Chord).width+4) } ?: 0f
+            val chord = beat.chord?.takeIf { config.chordEnabled }?.let { maxOf(8f+5f*(track.stringTuning.size+1),fonts.measure(it.name,TGTextRole.Chord).width+4) } ?: 0f
             val label = maxOf(beat.text?.let { fonts.measure(it,TGTextRole.Text).width+4 } ?: 0f,
                 effectLabels(beat).maxOfOrNull { fonts.measure(it,TGTextRole.Text).width+4 } ?: 0f)
             val width = if (config.optimizeSpacing) maxOf(durationWidth(duration),if (config.showTablature) textWidth else 0f,
                 if (config.showStandardNotation) config.noteHeadRadius*2.66f+4 else 0f)
                 else maxOf(durationWidth(duration),textWidth,chord,label,if (config.showStandardNotation) config.noteHeadRadius*2.66f+4 else 0f)
-            if (!config.optimizeSpacing && beat.chord != null) quarter = maxOf(quarter, chord / duration.quarters.toFloat())
+            if (!config.optimizeSpacing && config.chordEnabled && beat.chord != null) quarter = maxOf(quarter, chord / duration.quarters.toFloat())
             width + beatEffects[bi]
         }
         // Use actual precise ending for invalid/overfull measures; empty bars reserve their meter.
@@ -233,13 +465,14 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
     }
 
     private fun staffSpacing(track: TGTrack, measures: List<TGMeasure>): TGSpacing {
+        if (config.nativeSpacing) return nativeStaffSpacing(track,measures)
         val lanes = TGSpacing(config.style)
         lanes.register(TGTrackLane.Top, config.staffPadding)
         val allBeats = measures.flatMap { it.beats }
         val notes = allBeats.flatMap { it.voices }.flatMap { it.notes }
         if (measures.any { it.header.marker != null }) lanes.register(TGTrackLane.Marker, 15f)
         if (allBeats.any { it.text != null }) lanes.register(TGTrackLane.Text, maxOf(15f, fonts.measure("Mg", TGTextRole.Text).height))
-        if (allBeats.any { it.chord != null }) lanes.register(TGTrackLane.Chord, 49f)
+        if (config.showChords && allBeats.any { it.chord != null }) lanes.register(TGTrackLane.Chord, 49f)
         if (measures.any { it.header.repeatAlternative > 0 }) lanes.register(TGTrackLane.RepeatEnding, 20f)
         if (allBeats.any { b -> b.voices.any { (it.duration ?: b.duration).division.enters != 1 && it.index == 0 } }) lanes.register(TGTrackLane.Tuplet1, 10f)
         if (allBeats.any { b -> b.voices.any { (it.duration ?: b.duration).division.enters != 1 && it.index != 0 } }) lanes.register(TGTrackLane.Tuplet2, 10f)
@@ -273,20 +506,24 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         return lanes
     }
 
-    private fun placeMeasure(track: TGTrack, trackIndex: Int, index: Int, m: TGMeasure, col: Column, metric: Metric, bounds: Rect, lanes: TGSpacing, compact: Boolean, extra: Float, measurePadding: Float = config.measurePadding): TGMeasureLayout {
+    private fun placeMeasure(track: TGTrack, trackIndex: Int, index: Int, m: TGMeasure, col: Column, metric: Metric, bounds: Rect, lanes: TGSpacing, compact: Boolean, extra: Float, measurePadding: Float = config.measurePadding, localTrackIndex: Int = 0): TGMeasureLayout {
         val score = if (config.showStandardNotation) bounds.top + lanes.position(TGTrackLane.Score) else null
         val tab = if (config.showTablature) bounds.top + lanes.position(TGTrackLane.Tab) else null
         val area = bounds.left+measurePadding+col.first
         val groups = voiceGroups(track, m)
+        val silences = if (config.nativeSpacing) nativeSilences(track,m,groups) else emptyMap()
         val xs = m.beats.mapIndexed { bi,b ->
             // TGBeatImpl.getSpacing: justification changes rhythmic SPACE, never glyph size.
             val relative = (b.startQuarters-m.start.toDouble()/960).toFloat().coerceAtLeast(0f)
-            area+col.offsets.getValue(b.start)+(if (compact) extra*bi/maxOf(m.beats.size,1) else extra*relative/col.quarters)
+            if (config.nativeSpacing) area+nativeJustifiedOffset(col.nativeOffsets[localTrackIndex].getValue(b.start),
+                col.width-col.first-2*measurePadding,extra,config.durationWidths.min())
+            else area+col.offsets.getValue(b.start)+(if (compact) extra*bi/maxOf(m.beats.size,1) else extra*relative/col.quarters)
         }
         val accidentals = TGAccidentals(m.header.keySignature.value)
         val beats = m.beats.mapIndexed { bi, b ->
             val x = xs[bi]
-            val nextX = xs.getOrNull(bi + 1) ?: (bounds.right-measurePadding-metric.repeatWidth)
+            val nextX = xs.getOrNull(bi+1) ?: if (config.nativeSpacing) area+nativeJustifiedOffset(col.rhythm,
+                col.width-col.first-2*measurePadding,extra,config.durationWidths.min()) else bounds.right-measurePadding-metric.repeatWidth
             val voices = b.voices.filterNot { it.empty }.map { v ->
                 val duration = v.duration ?: b.duration
                 val g = groups.getValue(bi to v.index)
@@ -309,9 +546,17 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 } else (track.stringTuning.size - 1) * config.stringSpacing + config.stringSpacing / 2
                 val origin = score ?: tab ?: bounds.top
                 val endY = if (score != null) groupStemY(g, xs, bi) else localStart + 2 * config.stringSpacing
-                TGVoiceLayout(v, duration, notes, up, stemX, origin + localStart, origin + endY, g.id,sourceTick=b.start)
+                TGVoiceLayout(v,duration,notes,up,stemX,origin+localStart,origin+endY,g.id,sourceTick=b.start,
+                    silenceY=silences[bi to v.index]?.let { origin+it.y },hiddenSilence=silences[bi to v.index]?.hidden ?: false)
             }
-            val chordBounds = b.chord?.let { Rect(x - 4f, bounds.top + lanes.position(TGTrackLane.Chord), x + 5f * track.stringTuning.size + 8f, bounds.top + lanes.position(TGTrackLane.Chord) + 47f) }
+            val chordBounds = b.chord?.takeIf { config.chordEnabled }?.let { chord ->
+                val y = bounds.top+lanes.position(TGTrackLane.Chord)
+                if (config.nativeSpacing) {
+                    val width = 8f+5f*(chord.frets.size+1)
+                    val left = x+nativeRound(4f)-(width-8f)/2-8f
+                    Rect(left,y,left+width,y+(if (config.showChords) 42f else 0f)+(if (config.showChordNames) nativeRound(15f) else 0f))
+                } else Rect(x-4f,y,x+5f*track.stringTuning.size+8f,y+47f)
+            }
             TGBeatLayout(b, Rect(maxOf(area, x - 5f), bounds.top, maxOf(x + 5f, nextX - 5f), bounds.bottom), x, voices, chordBounds,
                 endX=nextX,endTick=m.beats.getOrNull(bi+1)?.start ?: m.end,
                 stroke=strumLayout(b.stroke.direction,x,score,tab,(track.stringTuning.size-1)*config.stringSpacing,
@@ -322,14 +567,15 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             metric.paintClef, metric.paintKey, metric.paintTime, metric.paintTempo, metric.previousKey,
             if (config.multiTrack) col.clef else metric.clef, if (config.multiTrack) col.key else metric.key,
             area, beats, bounds.top + lanes.position(TGTrackLane.Effects), bounds.top + lanes.position(TGTrackLane.Bend),
-            bounds.top + lanes.position(TGTrackLane.Text), bounds.top + lanes.position(TGTrackLane.Chord), bounds.top + lanes.position(TGTrackLane.RepeatEnding), bounds.top + lanes.position(TGTrackLane.Tuplet1), percussion=track.percussion,headerX=bounds.left+measurePadding,pickStrokeTop=bounds.top+lanes.position(TGTrackLane.PickStroke),compact=compact)
+            bounds.top + lanes.position(TGTrackLane.Text), bounds.top + lanes.position(TGTrackLane.Chord), bounds.top + lanes.position(TGTrackLane.RepeatEnding), bounds.top + lanes.position(TGTrackLane.Tuplet1), percussion=track.percussion,headerX=bounds.left+measurePadding,pickStrokeTop=bounds.top+lanes.position(TGTrackLane.PickStroke),compact=compact,
+            paintTripletFeel=metric.paintTripletFeel,previousTripletFeel=if (metric.paintTripletFeel) track.measures.getOrNull(index-1)?.header?.tripletFeel ?: 0 else 0)
     }
 
     private data class Group(val id: Int, val beats: List<Int>, val positions: List<List<Int>>, val up: Boolean)
     private fun voiceGroups(track: TGTrack, m: TGMeasure): Map<Pair<Int, Int>, Group> {
         val result = mutableMapOf<Pair<Int, Int>, Group>()
         var id = 0
-        val activeVoices = m.beats.flatMap { it.voices }.filter { !it.empty && it.notes.isNotEmpty() }.map { it.index }.distinct().size
+        val activeVoices = m.beats.flatMap { it.voices }.filter { !it.empty && (config.nativeSpacing || it.notes.isNotEmpty()) }.map { it.index }.distinct().size
         for (vi in 0..3) {
             val batches = mutableListOf<MutableList<Int>>()
             var previous: Int? = null
@@ -341,7 +587,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 val canJoin = before != null && prevVoice != null && prevVoice.notes.isNotEmpty() && voice.notes.isNotEmpty() &&
                     (prevVoice.duration ?: before.duration).value >= 8 && (voice.duration ?: b.duration).value >= 8 &&
                     (before.start - m.start) / division == (b.start - m.start) / division &&
-                    abs(before.start + (prevVoice.duration ?: before.duration).ticks - b.start) <= 1
+                    (config.nativeSpacing || abs(before.start+(prevVoice.duration ?: before.duration).ticks-b.start) <= 1)
                 if (!canJoin || batches.isEmpty()) batches += mutableListOf(bi) else batches.last() += bi
                 previous = bi
             }
