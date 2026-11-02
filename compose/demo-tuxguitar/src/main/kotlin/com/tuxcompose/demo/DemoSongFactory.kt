@@ -6,6 +6,8 @@ import app.tuxguitar.io.gtp.*
 import app.tuxguitar.song.factory.TGFactory
 import app.tuxguitar.song.models.TGDuration
 import app.tuxguitar.song.models.TGSong
+import app.tuxguitar.song.models.TGStroke
+import app.tuxguitar.song.models.TGPickStroke
 import java.io.ByteArrayOutputStream
 
 /** Original composition, generated from native TuxGuitar models; no copyrighted tab fixtures. */
@@ -61,6 +63,17 @@ object DemoSongFactory {
                             }
                         }
                         voice.addNote(note)
+                    }
+                    // Real native GP stroke/pick data, not an overlay added after decoding.
+                    if (ti == 0 && mi in listOf(0,4) && bi in listOf(0,4)) {
+                        beat.stroke.direction = if (bi == 0) TGStroke.STROKE_DOWN else TGStroke.STROKE_UP
+                        beat.stroke.value = 16
+                        beat.pickStroke.direction = if (bi == 0) TGPickStroke.PICK_STROKE_DOWN else TGPickStroke.PICK_STROKE_UP
+                        listOf(0,0,0,2,2,0).forEachIndexed { si,fret ->
+                            if (voice.notes.none { it.string == si+1 }) voice.addNote(f.newNote().apply {
+                                string = si+1; value = fret; velocity = 85
+                            })
+                        }
                     }
                     if (bi == 0 && ti == 0 && mi % 4 == 0) {
                         beat.chord = f.newChord(6).apply {

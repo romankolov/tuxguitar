@@ -9,9 +9,16 @@ import com.tuxcompose.model.*
 @Immutable
 data class TGNoteLayout(val note: TGNote, val voiceIndex: Int, val pitch: Int, val position: Int, val scoreBounds: Rect?, val tabBounds: Rect?, val accidental: TGAccidental?)
 @Immutable
-data class TGVoiceLayout(val voice: TGVoice, val duration: TGDuration, val notes: List<TGNoteLayout>, val up: Boolean, val stemX: Float, val stemStartY: Float, val stemEndY: Float, val beamGroup: Int)
+data class TGVoiceLayout(val voice: TGVoice, val duration: TGDuration, val notes: List<TGNoteLayout>, val up: Boolean, val stemX: Float, val stemStartY: Float, val stemEndY: Float, val beamGroup: Int,
+    /** Presentation-only continuation of a sustained voice; no new model note or attack. */
+    val isContinuation: Boolean = false, val sourceTick: Long = 0L)
 @Immutable
-data class TGBeatLayout(val beat: TGBeat, val bounds: Rect, val x: Float, val voices: List<TGVoiceLayout>, val chordBounds: Rect?, val endX: Float = bounds.right)
+data class TGBeatLayout(val beat: TGBeat, val bounds: Rect, val x: Float, val voices: List<TGVoiceLayout>, val chordBounds: Rect?, val endX: Float = bounds.right,
+    /** Visible interval, which may be only part of the unchanged source beat. */
+    val startTick: Long = beat.start, val endTick: Long = beat.start + beat.maxTicks,
+    val stroke: TGStrokeLayout? = null, val pickStroke: TGStrokeLayout? = null) {
+    val isContinuation: Boolean get() = startTick > beat.start
+}
 @Immutable
 data class TGMeasureLayout(
     val trackIndex: Int,
@@ -37,12 +44,20 @@ data class TGMeasureLayout(
     val endingTop: Float,
     val tupletTop: Float,
     val percussion: Boolean = false,
-    /** Uniform fit applied only to oversized page systems. All public bounds are already fitted. */
+    /** Retained for source compatibility; page reflow never scales a system (always 1). */
     val contentScale: Float = 1f,
-    internal val unscaled: TGMeasureLayout? = null,
-)
+    val startTick: Long = measure.start,
+    val endTick: Long = measure.end,
+    val headerX: Float = bounds.left+15f,
+    val pickStrokeTop: Float = effectsTop,
+) {
+    val isFirstFragment: Boolean get() = startTick == measure.start
+    val isLastFragment: Boolean get() = endTick == measure.end
+}
 @Immutable
-data class TGStaffLayout(val systemIndex: Int, val trackIndex: Int, val bounds: Rect, val measures: List<TGMeasureLayout>)
+data class TGStaffLayout(val systemIndex: Int, val trackIndex: Int, val bounds: Rect, val measures: List<TGMeasureLayout>,
+    /** Cached, row-local effect paths; no path crosses the whitespace between systems. */
+    val connections: List<TGConnectionLayout> = emptyList())
 @Immutable
 data class TGHitResult(val trackIndex: Int, val measureIndex: Int, val beatTick: Long, val string: Int?, val voiceIndex: Int? = null)
 
@@ -56,10 +71,15 @@ data class TGCursorLayout(val beat: TGBeatLayout, val x: Float, val systemIndex:
 class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaffLayout>) {
     private data class LocatedMeasure(val systemIndex: Int, val layout: TGMeasureLayout)
     private val byTrack = staves.flatMap { s -> s.measures.map { LocatedMeasure(s.systemIndex,it) } }.groupBy { it.layout.trackIndex }
+    private val connectionIndices = staves.filter { it.connections.isNotEmpty() }.associate {
+        (it.systemIndex to it.trackIndex) to TGConnectionIndex(it.connections)
+    }
+    fun visibleConnections(staff: TGStaffLayout, viewport: Rect): Sequence<TGConnectionLayout> =
+        connectionIndices[staff.systemIndex to staff.trackIndex]?.visible(viewport) ?: emptySequence()
     private fun measureAt(trackIndex: Int, tick: Long): LocatedMeasure? {
         val measures = byTrack[trackIndex] ?: return null
-        val i = floorIndex(measures.size) { measures[it].layout.measure.start <= tick }
-        return measures.getOrNull(i)?.takeIf { tick < it.layout.measure.end }
+        val i = floorIndex(measures.size) { measures[it].layout.startTick <= tick }
+        return measures.getOrNull(i)?.takeIf { tick < it.layout.endTick }
     }
     fun beatAt(trackIndex: Int, tick: Long): TGBeatLayout? = cursorAt(trackIndex,tick,false)?.beat
 
@@ -67,11 +87,11 @@ class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaff
     fun cursorAt(trackIndex: Int, tick: Long, smooth: Boolean = true): TGCursorLayout? {
         val located = measureAt(trackIndex,tick) ?: return null
         val m = located.layout
-        val i = floorIndex(m.beats.size) { m.beats[it].beat.start <= tick }
+        val i = floorIndex(m.beats.size) { m.beats[it].startTick <= tick }
         val beat = m.beats.getOrNull(i) ?: return null
-        val end = m.beats.getOrNull(i + 1)?.beat?.start ?: m.measure.end
-        val fraction = if (smooth && end > beat.beat.start)
-            ((tick - beat.beat.start).toDouble() / (end - beat.beat.start)).toFloat().coerceIn(0f,1f) else 0f
+        val end = beat.endTick
+        val fraction = if (smooth && end > beat.startTick)
+            ((tick - beat.startTick).toDouble() / (end - beat.startTick)).toFloat().coerceIn(0f,1f) else 0f
         return TGCursorLayout(beat,beat.x + (beat.endX - beat.x) * fraction,located.systemIndex,m.measureIndex,trackIndex)
     }
     fun visible(viewport: Rect): Sequence<TGStaffLayout> {
@@ -91,13 +111,13 @@ class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaff
         val measure = staff.measures.getOrNull(i)?.takeIf { it.bounds.contains(point) } ?: return null
         if (point.x < measure.beatAreaLeft || measure.beats.isEmpty()) return null
         val beat = measure.beats.minByOrNull { kotlin.math.abs(it.x - point.x) } ?: return null
-        val spacing = stringSpacing * measure.contentScale
+        val spacing = stringSpacing
         val string = measure.tabTop?.let { top ->
             if (point.y in (top - spacing / 2)..((measure.tabBottom ?: top) + spacing / 2))
                 ((point.y - top) / spacing + 1.5f).toInt().coerceIn(1, (((measure.tabBottom ?: top) - top) / spacing + 1.5f).toInt()) else null
         }
         val note = beat.voices.flatMap { it.notes }.firstOrNull { it.tabBounds?.contains(point) == true || it.scoreBounds?.contains(point) == true }
-        return TGHitResult(staff.trackIndex, measure.measureIndex, beat.beat.start, note?.note?.string ?: string, note?.voiceIndex)
+        return TGHitResult(staff.trackIndex, measure.measureIndex, beat.startTick, note?.note?.string ?: string, note?.voiceIndex)
     }
 }
 

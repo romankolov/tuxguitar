@@ -27,14 +27,12 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     fun DrawScope.render(layout: TGSongLayout, viewport: Rect) {
         layout.visible(viewport).forEach { staff ->
             layout.visibleMeasures(staff, viewport).forEach { measure -> renderMeasure(measure) }
+            layout.visibleConnections(staff,viewport).forEach { renderConnection(it) }
         }
     }
 
+    /** One fragment's notation; render() additionally draws each staff's cached connections. */
     fun DrawScope.renderMeasure(layout: TGMeasureLayout) {
-        layout.unscaled?.let { original ->
-            withTransform({ scale(layout.contentScale,layout.contentScale,layout.bounds.topLeft) }) { renderMeasure(original) }
-            return
-        }
         val b = layout.bounds
         layout.staffTop?.let { top -> repeat(5) { i -> line(b.left, top + i * config.staffSpacing, b.right, top + i * config.staffSpacing, colors.staffLines, .6f) } }
         layout.tabTop?.let { top ->
@@ -44,9 +42,9 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         barlines(layout)
         header(layout)
         layout.beats.forEach { beat ->
-            beat.beat.text?.let { label(it, beat.x, layout.textTop, TGTextRole.Text, colors.beatText) }
-            beat.beat.chord?.let { chord(layout, beat, it) }
-            effectLabels(beat.beat).forEachIndexed { i, effect ->
+            if (!beat.isContinuation) beat.beat.text?.let { label(it, beat.x, layout.textTop, TGTextRole.Text, colors.beatText) }
+            if (!beat.isContinuation) beat.beat.chord?.let { chord(layout, beat, it) }
+            (if (beat.isContinuation) emptyList() else effectLabels(beat.beat)).forEachIndexed { i, effect ->
                 val y = layout.effectsTop + i * config.effectSpacing
                 when (effect) {
                     ">" -> { line(beat.x, y + 1, beat.x + 6, y + 3, colors.noteHead); line(beat.x + 6, y + 3, beat.x, y + 5, colors.noteHead) }
@@ -63,6 +61,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             if (beat.voices.isEmpty()) rest(layout, beat, TGVoiceLayout(TGVoice(), beat.beat.duration, emptyList(), true, beat.x, 0f, 0f, -1))
         }
         stemsAndBeams(layout)
+        layout.beats.forEach { beat ->
+            beat.stroke?.lines?.forEach { drawLine(colors.noteHead,it.from,it.to,it.width) }
+            beat.pickStroke?.lines?.forEach { drawLine(colors.noteHead,it.from,it.to,it.width) }
+        }
         tuplets(layout)
         endings(layout)
     }
@@ -71,7 +73,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         if (selection == null) return
         layout.visible(viewport).filter { it.trackIndex == selection.trackIndex }.forEach { staff ->
             layout.visibleMeasures(staff, viewport).forEach { measure ->
-                measure.beats.filter { it.beat.start in selection.startTick..selection.endTick }.forEach { beat ->
+                measure.beats.filter { it.startTick <= selection.endTick && it.endTick > selection.startTick }.forEach { beat ->
                     drawRect(colors.selection, beat.bounds.topLeft, beat.bounds.size)
                 }
             }
@@ -106,14 +108,14 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     private fun DrawScope.barlines(m: TGMeasureLayout) {
         val top = m.staffTop ?: m.tabTop ?: return
         val bottom = m.tabBottom ?: (top + 4 * config.staffSpacing)
-        line(m.bounds.left, top, m.bounds.left, bottom, colors.staffLines)
-        line(m.bounds.right, top, m.bounds.right, bottom, colors.staffLines)
-        if (m.measure.header.repeatOpen) {
+        if (m.isFirstFragment) line(m.bounds.left,top,m.bounds.left,bottom,colors.staffLines)
+        if (m.isLastFragment) line(m.bounds.right,top,m.bounds.right,bottom,colors.staffLines)
+        if (m.isFirstFragment && m.measure.header.repeatOpen) {
             line(m.bounds.left + 1.5f, top, m.bounds.left + 1.5f, bottom, colors.noteHead, 3f)
             line(m.bounds.left + 6, top, m.bounds.left + 6, bottom, colors.noteHead)
             repeatDots(m, m.bounds.left + 10)
         }
-        if (m.measure.header.repeatClose > 0) {
+        if (m.isLastFragment && m.measure.header.repeatClose > 0) {
             line(m.bounds.right - 2, top, m.bounds.right - 2, bottom, colors.noteHead, 3f)
             line(m.bounds.right - 7, top, m.bounds.right - 7, bottom, colors.noteHead)
             repeatDots(m, m.bounds.right - 11)
@@ -127,10 +129,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     }
 
     private fun DrawScope.header(m: TGMeasureLayout) {
-        val x = m.bounds.left + config.measurePadding
+        val x = m.headerX
         val top = m.staffTop
-        if (config.showMeasureNumbers) label(m.measure.number.toString(), m.bounds.left + 2, m.bounds.top, TGTextRole.Measure, colors.measureNumber)
-        m.measure.header.marker?.let { label(it, x, m.bounds.top + 10, TGTextRole.Chord, colors.beatText) }
+        if (config.showMeasureNumbers && m.isFirstFragment) label(m.measure.number.toString(), m.bounds.left + 2, m.bounds.top, TGTextRole.Measure, colors.measureNumber)
+        m.measure.header.marker?.takeIf { m.isFirstFragment }?.let { label(it, x, m.bounds.top + 10, TGTextRole.Chord, colors.beatText) }
         if (m.paintClef && top != null) {
             val glyph = if (m.percussion) TGClefPainter.NEUTRAL else when (m.measure.clef) {
                 TGClef.Treble -> TGClefPainter.TREBLE
@@ -207,32 +209,19 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             ledger = staff + 5 * config.staffSpacing
             while (ledger <= centerY + .1f) { line(b.left - 2, ledger, b.right + 2, ledger, colors.staffLines); ledger += config.staffSpacing }
             dots(voice.duration, b.left + 12f * config.staffSpacing / 8, b.center.y, config.staffSpacing / 10)
-            n.note.effects.grace?.let { grace ->
+            n.note.effects.grace?.takeUnless { voice.isContinuation }?.let { grace ->
                 glyph(if (grace.dead) TGNotePainter.PERCUSSION_X else TGNotePainter.NOTE, b.left - 9, b.top + 1, b.height * .55f)
                 line(b.left - 4, b.top - 10, b.left - 4, b.top + 4, colors.noteHead, .7f)
             }
-            if (n.note.effects.staccato) drawCircle(colors.noteHead, 1.3f, Offset(b.center.x, if (voice.up) voice.stemEndY - 4 else voice.stemEndY + 4))
-            if (n.note.tied) tie(b.left - 18, b.left - 2, b.top + b.height, if (voice.up) 5f else -5f)
+            if (n.note.effects.staccato && !voice.isContinuation) drawCircle(colors.noteHead, 1.3f, Offset(b.center.x, if (voice.up) voice.stemEndY - 4 else voice.stemEndY + 4))
         }
         n.tabBounds?.let { b ->
             // Clear JUST the text box. Font result is identical to the calculator's measurement.
             drawRect(colors.background, b.topLeft, b.size)
             label(tabText(n.note), b.center.x, b.center.y, TGTextRole.Note, colors.noteText, centered = true)
-            n.note.effects.grace?.let { label(it.fret.toString(), b.left - 5, b.center.y, TGTextRole.Grace, colors.noteText, centered = true) }
-            if (n.note.tied) tie(b.left - 18, b.left - 1, b.bottom - 1, -4f)
-            n.note.effects.bend?.let { bend -> bend(m, b, bend) }
-            n.note.effects.tremoloBar?.let { vibrato(b.right + 2, m.bendTop + 7, 12f) }
-            val next = m.beats.dropWhile { it.beat.start <= beat.beat.start }.firstOrNull { b2 -> b2.voices.any { v2 -> v2.notes.any { it.note.string == n.note.string } } }
-            val nextX = next?.x ?: (b.right + 15)
-            if (n.note.effects.hammer) {
-                tie(b.right + 1, nextX - 4, b.top - 1, -4f)
-                label("H", (b.right + nextX) / 2, b.top - 9, TGTextRole.Grace, colors.beatText, centered = true)
-            }
-            if (n.note.effects.slide) {
-                val nextNote = next?.voices?.flatMap { it.notes }?.firstOrNull { it.note.string == n.note.string }
-                val up = (nextNote?.note?.value ?: (n.note.value + 1)) > n.note.value
-                line(b.right + 2, b.center.y + if (up) 3 else -3, nextX - 3, b.center.y + if (up) -3 else 3, colors.noteHead, .8f)
-            }
+            n.note.effects.grace?.takeUnless { voice.isContinuation }?.let { label(it.fret.toString(), b.left - 5, b.center.y, TGTextRole.Grace, colors.noteText, centered = true) }
+            n.note.effects.bend?.takeUnless { voice.isContinuation }?.let { bend -> bend(m, b, bend) }
+            n.note.effects.tremoloBar?.takeUnless { voice.isContinuation }?.let { vibrato(b.right + 2, m.bendTop + 7, 12f) }
         }
     }
 
@@ -260,7 +249,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
                 }
                 if (m.staffTop == null) dots(voice.duration, voice.stemX + 3, voice.stemEndY - 4, 1f)
                 val tremolo = voice.notes.maxOfOrNull { it.note.effects.tremoloPicking } ?: 0
-                if (tremolo > 0) repeat(TGDuration(tremolo).beamCount) { n -> line(voice.stemX - 3, voice.stemStartY - 10 + n * 4, voice.stemX + 4, voice.stemStartY - 12 + n * 4, colors.noteHead, 2f) }
+                if (tremolo > 0 && !voice.isContinuation) repeat(TGDuration(tremolo).beamCount) { n -> line(voice.stemX - 3, voice.stemStartY - 10 + n * 4, voice.stemX + 4, voice.stemStartY - 12 + n * 4, colors.noteHead, 2f) }
             }
         }
     }
@@ -279,11 +268,18 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     }
     private fun DrawScope.tuplets(m: TGMeasureLayout) {
         m.beats.flatMap { b -> b.voices.filter { it.duration.division.enters != 1 }.map { b to it } }
-            .groupBy { (b,v) -> Triple(v.voice.index, (b.beat.start - m.measure.start) / m.measure.header.timeSignature.divisionTicks, v.duration.division.enters) }
+            .groupBy { (b,v) -> Triple(v.voice.index, (b.startTick - m.measure.start) / m.measure.header.timeSignature.divisionTicks, v.duration.division.enters) }
             .values.forEach { group ->
                 val x1 = group.first().first.x; val x2 = group.last().first.x + config.staffSpacing
                 val y = if (group.first().second.voice.index == 0) m.tupletTop + 5 else (m.tabBottom ?: m.staffTop?.plus(40) ?: m.bounds.bottom - 10) + 10
-                line(x1,y+2,x1,y,colors.noteHead,.7f); line(x1,y,x2,y,colors.noteHead,.7f); line(x2,y,x2,y+2,colors.noteHead,.7f)
+                val division = m.measure.header.timeSignature.divisionTicks
+                val groupStart = m.measure.start+(group.first().first.startTick-m.measure.start)/division*division
+                val incoming = m.startTick > groupStart
+                val outgoing = m.endTick < minOf(m.measure.end,groupStart+division)
+                if (!incoming) line(x1,y+2,x1,y,colors.noteHead,.7f)
+                line(x1,y,x2,y,colors.noteHead,.7f)
+                if (!outgoing) line(x2,y,x2,y+2,colors.noteHead,.7f)
+                if (incoming) return@forEach
                 val label = group.first().second.duration.division.enters.toString()
                 val size = text.measure(label,TGTextRole.Text)
                 drawRect(colors.background, Offset((x1+x2-size.width)/2-2,y-size.height/2), Size(size.width+4,size.height))
@@ -294,9 +290,9 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         val mask = m.measure.header.repeatAlternative
         if (mask == 0) return
         val y = m.endingTop + 1
-        line(m.beatAreaLeft, y + 8, m.beatAreaLeft, y, colors.noteHead)
-        line(m.beatAreaLeft, y, m.bounds.right - 1, y, colors.noteHead)
-        label((0..7).filter { mask and (1 shl it) != 0 }.joinToString(",") { "${it + 1}." }, m.beatAreaLeft + 3, y + 1, TGTextRole.Text, colors.beatText)
+        if (m.isFirstFragment) line(m.beatAreaLeft,y+8,m.beatAreaLeft,y,colors.noteHead)
+        line(m.beatAreaLeft,y,m.bounds.right-1,y,colors.noteHead)
+        if (m.isFirstFragment) label((0..7).filter { mask and (1 shl it) != 0 }.joinToString(",") { "${it + 1}." }, m.beatAreaLeft + 3, y + 1, TGTextRole.Text, colors.beatText)
     }
     private fun DrawScope.chord(m: TGMeasureLayout, b: TGBeatLayout, chord: TGChord) {
         val bounds = b.chordBounds ?: return
@@ -349,9 +345,21 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         }
         drawPath(p,colors.noteHead,style=Stroke(.8f))
     }
-    private fun DrawScope.tie(x1: Float, x2: Float, y: Float, height: Float) {
-        if (x2 <= x1) return
-        drawPath(Path().apply { moveTo(x1,y); cubicTo(x1,y+height,x2,y+height,x2,y); cubicTo(x2,y+height*.65f,x1,y+height*.65f,x1,y); close() },colors.noteHead)
+    /** Draw cached row-local paths after notation. Even an incoming-only visible row has its path. */
+    fun DrawScope.renderConnection(connection: TGConnectionLayout) {
+        val from = connection.from
+        val to = connection.to
+        if (connection.kind == TGConnectionKind.Slide) drawLine(colors.noteHead,from,to,.8f)
+        else {
+            val h = connection.archHeight
+            drawPath(Path().apply {
+                moveTo(from.x,from.y)
+                cubicTo(from.x,from.y+h,to.x,to.y+h,to.x,to.y)
+                cubicTo(to.x,to.y+h*.65f,from.x,from.y+h*.65f,from.x,from.y)
+                close()
+            },colors.noteHead)
+        }
+        connection.label?.let { label(it,(from.x+to.x)/2,minOf(from.y,to.y)-9,TGTextRole.Grace,colors.beatText,centered=true) }
     }
     private fun DrawScope.glyph(g: TGVectorGlyph, x: Float, y: Float, size: Float, filled: Boolean = true) {
         withTransform({ translate(x,y); scale(size,size,Offset.Zero) }) {

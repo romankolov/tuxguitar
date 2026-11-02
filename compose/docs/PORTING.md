@@ -19,6 +19,7 @@ The reference is this repository's `common/TuxGuitar-lib` at base commit **74d67
 | `TGNoteImpl.update` | one-based string Y mapping and note bounds |
 | `graphics/control/painters/*` | generated Compose paths in `renderer/glyphs` |
 | `TGEffectBend.updateMovements` | shared `movements()` for spacing and drawing |
+| `TGStroke`, `TGPickStroke`, `TGBeatImpl.paintStroke/paintPickStroke` | beat-level model metadata + cached `layout/TGStrokes.kt` vectors |
 | `TGMeasureImpl.paint*`, `TGVoiceImpl.paint*`, `TGNoteImpl.paint*` | `renderer/TGCanvasRenderer` |
 
 ## Coordinate spaces
@@ -55,7 +56,7 @@ For a normal (not compact) measure:
 
 ```
 measureWidth = maxQuarterSpacing × ceil(actualDurationInQuarters)
-             + maxEffectWidth
+             + sum(sharedEffectWidthAtEachOnset)
              + firstNoteSpacing
              + repeatCloseAllowance
              + leftPadding + rightPadding
@@ -74,26 +75,128 @@ The beat's base display position is:
 relativeQuarters = beat.startQuarters - measure.start / 960
 beatX = left + leftPadding + firstNoteSpacing
       + relativeQuarters × adjustedQuarterWidth
-      + precedingBendMovementWidths
+      + precedingSharedEffectWidths
 ```
 
-The adjusted width spreads cross-track effect slack over the meter. Compact mode instead accumulates minimum beat widths and is disabled for more than one displayed track, as upstream does. The font-driven collision check is an intentional Compose adaptation: changing a font must not cause neighboring two-digit or ghost/harmonic fret labels to overlap.
+Effect slack is shared at the same onset on every track, not spread differently across each track's meter. Compact mode instead accumulates minimum beat widths and is disabled for more than one displayed track, as upstream does. The font-driven collision check is an intentional Compose adaptation: changing a font must not cause neighboring two-digit or ghost/harmonic fret labels to overlap.
 
 ## Wrapping and track alignment
 
-Horizontal layout has one system per track with sequential measure X positions. Page layout greedily appends natural-width columns until adding another would meet/exceed available width, or an explicit line break occurs. A too-wide single measure gets its own system. By default its geometry is uniformly fitted to the available parent width, preserving glyph/font aspect ratio and all relative positions. This is an explicit page-mode adaptation: `fitPageToWidth=false` retains the legacy oversized-bar panning behavior. Horizontal mode always retains its natural width.
+Horizontal layout has one system per track with sequential measure X positions. Like
+`TGLayoutVertical.getTempLines`, page layout greedily appends whole natural-width columns
+until adding another would meet/exceed available width, or an explicit line break occurs.
+`paintLine` justifies full lines by adding spacing, **not by scaling notation**. Differential
+tests invoke the original Java method, including the exact-fit threshold and manual breaks.
 
-For a full line, the unused width is divided equally among its measures (the upstream `defaultMeasureSpacing` rule). Within each bar, additional beat spacing is proportional to its musical position. The final incomplete line is not stretched. `repeatSystemSignatures=false` preserves upstream's signature-change behavior; opt in to repeating them for print-style systems.
+**Important difference for an oversized single measure:** the legacy Java view keeps the
+measure whole and never scales its glyphs. `paintLine` may apply negative spacing, and
+`TGMeasureImpl.getBeatSpacing` compresses rhythmic gaps with a minimum-width floor. That
+can crowd/overflow notation rather than splitting a measure. The earlier Compose 0.1.1 uniform-fit adaptation was
+incorrect for consistent row sizes and has been removed. To meet both fixed parent width
+and fixed glyph size, the default Compose page mode fragments only those exceptional bars
+at beat boundaries, preferring complete metrical/beam groups and binary subdivisions when
+at least half the usable rhythmic span remains occupied. Long rhythmic gaps may also have
+presentation cuts. Fragments are not isolated systems: the last continuation stays in the
+current row and the next measure is appended whenever `used + nextWidth < available`.
+The `>=` wrap threshold and explicit line-break behavior are the original greedy rule;
+the same rule is tested against Java using the projected fragment widths. The first piece
+of a following oversized bar may also share the row if it fits, but an ordinary bar is never
+split just to fill a previous row. Musical measures, barlines, timing and hit-test indices
+remain separate. `fitPageToWidth=false` retains the previous Compose unsplit, natural-width panning option;
+it does not reproduce the Java painter's potentially overlapping negative spacing.
 
-For an oversized system, `fitScale = availableWidth / naturalSystemWidth`; all tracks in that
-system share the same scale. Public measure/beat/note rectangles are transformed around the
-system's top-left, so culling, selection, cursor and hit testing remain in the same logical
-coordinate space. Rendering uses the original geometry beneath a uniform Canvas transform,
-including the original measured fonts, avoiding stretched glyphs or new note collisions.
-The page's reported content width is exactly its viewport width, not a floating-point sum
-of justified columns; this also removes subpixel horizontal scroll ranges.
+Each fragment references the SAME complete model measure and original measure index. Its
+`startTick/endTick` is a half-open visible interval. Shared beat/effect offsets determine a
+common cut across all tracks. Accidental memory is calculated over the complete measure
+before fragmentation; it does not reset at an artificial row break. A sparse track or longer
+second voice gets tied display continuations with its original `sourceTick`, not new model
+beats or playback events. Exact clipped durations are used when representable by the
+supported duration table; an irregular cut otherwise retains the source duration glyph.
+That last fallback is a presentation limitation, not a change in score timing.
 
-Multi-track mode shares column widths, quarter widths, effect width and prefixes. Staff height is independent per track, but all bars align horizontally.
+For a fragment whose natural rhythmic coordinates are `[a,b]`:
+
+```
+xOnRow(t) = rowLeft + padding + prefix + (xNatural(t) - a)
+           + extraSpacing * (xNatural(t) - a) / (b - a)
+```
+
+Only beat anchors and rhythmic gaps are repositioned. Fret rectangles, glyphs, fonts,
+string/staff spacing and note-head dimensions are translated, **never scaled**. Clef/key/time
+prefixes can repeat at a new system if explicitly configured; tempo, marker, measure number,
+repeat-open and ending start belong to the first fragment, and repeat-close/real final
+barline to the last. Beams are rendered from each row's local voices; a split tuplet bracket
+has an open continuation edge. No artificial full barline or new repeat is inserted at a
+fragment boundary. The final incomplete line is not stretched.
+
+Ties and hammer/slide targets are indexed by track, voice and string. `TGConnections.kt`
+caches outgoing, intervening and incoming segments on each affected staff. A segment ends
+at that row's edge and resumes after the next row's prefix, never diagonally through another
+staff or the gap between rows. Incoming segments remain available when the source row is
+culled. Rest barriers prevent ties from reconnecting to an earlier note across a rest. Bends,
+chords, beat text and effect labels reserve horizontal/vertical room and move with the beat.
+This extends the upstream local-note painters rather than claiming the legacy view itself
+split measures in this way.
+
+The reported page width equals the viewport width exactly. At very narrow widths optional
+blank margins reduce first. An indivisible glyph/header/effect wider than the parent is
+clipped without rescaling (no finite layout can preserve its size and fit it in fewer pixels).
+Horizontal mode and the overflow opt-out retain their natural widths.
+
+A fragment's full engraving is still cached once. Projection rebases score, tablature,
+stems, chord/text/effect/picking lanes independently into the shared row's lane maxima.
+Simply translating the first row's Y coordinates would misalign the continuation with a
+following bar that introduces a chord diagram or additional effects. Repeated system
+signatures belong at a row start, not at the following real measure in the middle of a row.
+
+Multi-track mode shares column widths, quarter widths and prefixes. Effect slack is shared
+at its actual onset across tracks so notes at equal ticks stay aligned, even when different
+tracks bend on different beats. Staff heights reserve the maximum needed lanes per row.
+
+## Strumming strokes and picking directions
+
+The two effects are distinct in `TGBeat`, not `TGNoteEffects`: `stroke` contains the native
+`TGStroke` direction and speed denominator (`value`), while `pickStroke` contains the
+separate picking direction. Directions preserve `None=0`, `Up=1`, `Down=-1`. Import does
+not reinterpret these by screen orientation; the original GP readers already account for
+the format-specific direction encodings. GP3/4/5 round trips test both strum directions;
+GP4/5 additionally preserve the separate picking marks (GP3 has no such field).
+
+`TGStrokes.kt` ports the actual `TGBeatImpl.paintStroke` geometry. For tab height `h`,
+string spacing `s`, staff spacing `l`, and the beat anchor `x`:
+
+```
+margin = min(2*s, h-2*s) / 2
+Tab:   y1 = tabTop + margin; y2 = tabTop + h - margin
+Score: y1 = staffTop + l;    y2 = staffTop + (4*l - l)
+arrowX = x + 12
+```
+
+Tab placement takes precedence in mixed mode, so there is one strum arrow, not two.
+`Up` has its tip at `y2`, `Down` at `y1`, with wings two units wide and five units long.
+This apparently reversed screen direction is intentional: the tablature's string numbering
+runs from high strings at the top toward bass strings below, and the source painter uses
+these musical direction names. One-/two-string tracks retain the source margin formula.
+
+Picking uses `POSITION_PICK_STROKES`: `Up` is the V from `(x±3,y)` to `(x,y+8)`;
+`Down` has six-unit legs and a six-unit-wide heavy cap. Legs/strum lines use the original
+hairline width; the down-pick cap uses width two. The default lane is eight units, matching
+Android `TGSongViewStyles`; `pickStrokeSpacing` can enlarge it but never shrinks the mark.
+The common layout caches each mark's line geometry and bounds; the Canvas paints those
+lines without Android Views, platform glyphs or per-frame geometry construction.
+
+For wide/custom fret fonts, the Compose collision extension moves the arrow outward from
+`x+12` when necessary and reserves its footprint in shared onset slack on every track,
+including compact mode. Glyphs and arrowheads are never rescaled. This additional clearance
+is not a claim that the original Java painter reserves exactly the same space. Both marks
+stay with their owning attack when wrapping; synthetic held-note continuations suppress
+them. Stroke speed is preserved as model metadata, with no scheduling or audio logic in
+core; the separate demo's native MIDI engine consumes the original native stroke data.
+
+Differential tests record `moveTo/lineTo/setLineWidth` from the **actual Java painters** via
+a `UIPainter` test double and compare the returned common geometry for score/tab/mixed,
+both directions/none, varied spacing and 1/2/4/6/7/25 strings. Android pixel tests check the
+shaft, both arrowhead wings and picking marks on a continued/offscreen-source row.
 
 ## Vertical lanes, note positions and beams
 
@@ -131,11 +234,12 @@ Fret numbers and prose use a bounded 512-entry text-layout cache, measured in un
 
 - Immutable geometry is remembered by score, style, font metrics, selected track and viewport width. Cursor movement, playback tick updates and selection do not recompute it.
 - There is no full-song bitmap and no giant Compose measurement constraint. Three viewport-sized canvases draw selection, notation and cursor independently.
+- Effect segments have per-staff balanced interval indices, including subtree maximum endpoints, so long/nested connectors remain visible without scanning an offscreen prefix. Geometry and indices are built once with layout, not during cursor frames.
 - System/measure visibility and cursor lookup use lower-bound binary searches. Indexed iteration starts at the resulting offset (not a linear `Sequence.drop`); only visible measures enter the painter. A counting-list regression test bounds reads when scrolling past 950 offscreen measures/systems.
 - Reusable musical paths are lazy, shared objects. Fonts are measured once per cached text/style, not per cursor frame.
 - The caller can use `TGLayoutCalculator` and `TGSongLayout` directly without the default component.
 
-This is not a hardware benchmark or a claim of constant-time initial layout: initial layout is proportional to the score size. Hit testing uses the visible staff/measure, then the beats in that bar. Mutate Compose state only on the UI thread; decoding and the demo's MIDI preparation run off it.
+This is not a hardware benchmark or a claim of constant-time initial layout: initial layout processes the score and builds sorted/indexed geometry; it is not constant-time or a per-frame operation. Hit testing uses the visible staff/measure, then the beats in that bar. Mutate Compose state only on the UI thread; decoding and the demo's MIDI preparation run off it.
 
 ## Continuous cursor and follow policy
 
@@ -159,8 +263,8 @@ This implementation is **not all of TuxGuitar's editor or a pixel-identical comp
 
 - No editing commands, undo stack, score serialization, lyric syllable alignment, print pagination, page headers/footers, tunings editor, chord editor or percussion-map editor in core.
 - Core expects ordered decoded data and does not auto-complete missing rest beats; the demo uses the original completer before adaptation.
-- Basic ties/hammer/slides and a broad effect set are drawn, but long cross-system tie/slur continuation, overlapping accidentals/chord notehead displacement, all voice-collision engraving and exact historical bend/conflict special cases need further visual parity work.
-- Natural and artificial harmonic identification, grace, trill and tremolo data are preserved. Some effect variants share a generic label/path rather than every legacy subvariant having a distinct engraved symbol. Pick-stroke/stroke, triplet-feel labels and lyric text are not yet modeled fully.
+- Ties, hammers and slides include cross-row continuations, but arbitrary slur grouping, overlapping accidentals/chord notehead displacement, all voice-collision engraving and exact historical bend/conflict special cases need further visual parity work.
+- Natural and artificial harmonic identification, grace, trill and tremolo data are preserved. Some effect variants share a generic label/path rather than every legacy subvariant having a distinct engraved symbol. Triplet-feel labels and lyric text are not yet modeled fully.
 - Rhythm stems/beams and rests are implemented; complex mixed-duration beam joining and multi-voice rest-placement differences are not asserted pixel-identical to every Java branch.
 - Platform text shaping/antialiasing differ from the legacy Java toolkits. Custom fonts and configurable note sizes intentionally affect collision spacing.
 - Common code is Android/JVM validated by CI. iOS targets can be enabled, but no iOS app or runtime validation is supplied here.

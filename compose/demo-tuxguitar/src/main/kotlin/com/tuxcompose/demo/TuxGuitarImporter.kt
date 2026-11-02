@@ -81,11 +81,14 @@ object TuxGuitarImporter {
                                     when (v.direction) { 1 -> TGStemDirection.Up; 2 -> TGStemDirection.Down; else -> TGStemDirection.Auto })
                             }
                             val duration = voices.filterNot { it.empty }.minByOrNull { it.duration?.preciseTicks ?: Long.MAX_VALUE }?.duration ?: TGDuration()
-                            TGBeat(b.start,duration,voices,b.text?.value,b.chord?.let { TGChord(it.name ?: "",it.strings.toList(),it.firstFret.coerceAtLeast(1)) },b.preciseStart)
+                            TGBeat(b.start,duration,voices,b.text?.value,b.chord?.let { TGChord(it.name ?: "",it.strings.toList(),it.firstFret.coerceAtLeast(1)) },b.preciseStart,
+                                stroke=TGStroke(strokeDirection(b.stroke.direction),b.stroke.value),
+                                pickStroke=strokeDirection(b.pickStroke.direction))
                         }, m.start, if (track.isPercussion) TGClef.Percussion else when (m.clef) { 2 -> TGClef.Bass; 3 -> TGClef.Tenor; 4 -> TGClef.Alto; else -> TGClef.Treble }, m.header.isLineBreak)
                 }, percussion = track.isPercussion)
         })
 
+    private fun strokeDirection(value: Int) = TGStrokeDirection.entries.firstOrNull { it.value == value } ?: TGStrokeDirection.None
     private fun duration(d: NativeDuration) = TGDuration(d.value,d.isDotted,d.isDoubleDotted,TGDivisionType(d.division.enters,d.division.times))
     private fun note(n: NativeNote): TGNote {
         val e = n.effect
