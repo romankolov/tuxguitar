@@ -37,7 +37,7 @@ data class TGLayoutConfig(
     val showTempo: Boolean = true,
     val typography: TGTypography = TGTypography(),
     val colors: TGColorPalette = TGColorPalette.Paper,
-    /** Page systems always fit the parent; uniformly scale an oversized bar rather than clip it. */
+    /** Keep page width equal to the parent; wrap oversized measures without shrinking notation. */
     val fitPageToWidth: Boolean = true,
 ) {
     init {

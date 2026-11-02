@@ -53,7 +53,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.1")
+    implementation("com.tuxcompose:tux-compose-core:0.1.2")
 }
 ```
 
@@ -158,7 +158,7 @@ The complete Android host with real decoding and playback is [MainActivity.kt](s
 
 ## Interaction and customization
 
-- Single-finger drag/fling or mouse wheel scrolls; both axes are pannable for oversized bars.
+- Single-finger drag/fling or mouse wheel scrolls. Page mode wraps at the parent width; horizontal mode (or `fitPageToWidth=false`) allows horizontal panning.
 - Pinch zoom; double-tap zoom; programmatic `setZoom`, `scrollTo`, `scrollBy`.
 - Tap selects a beat/string, moves the cursor, and reports `TGHitResult`; long-press extends a range on the same track. `selection`, `selectedString`, and cursor are controlled state.
 - Arrow keys navigate beats/measures; Escape clears selection. Accessibility exposes track/tick state and next/previous/zoom actions without thousands of invisible per-note composables.
@@ -171,10 +171,27 @@ Everything uses a **bounded viewport canvas**, not a giant song-sized surface. T
 ## Page fitting, cursor glide and cooperative auto-scroll
 
 Page/vertical mode now keeps **exactly the parent width**, including fractional density and
-zoom. If one dense bar is wider than a system, that system alone is uniformly fitted: glyphs,
-fonts, staff spacing and note hit boxes scale together. Ordinary systems keep their normal
-size. `TGLayoutConfig(fitPageToWidth = false)` opts back into the older overflow/panning
-behavior; continuous horizontal mode is unchanged.
+zoom. **Notation never shrinks to fit a row.** Ordinary measures wrap as whole units using
+TuxGuitar's greedy system/justification rules. Only a measure wider than a complete row is
+split at rhythmic boundaries, preferring metrical groups/subdivisions. Its fragments keep
+the same fonts, note-head radii and staff/string spacing as every other row.
+
+Ties, hammers/pull-offs and slides have outgoing/incoming row-local segments; beams stop at
+the break and tuplet/ending brackets continue without inventing another measure/repeat.
+Bends, chords, text and other beat effects move with their owning beats, with space reserved
+for their printed size. Tracks share the same cuts; a sustained voice is displayed with tied
+continuations rather than a new model attack. The original immutable song is untouched.
+Cursor, selection and hit testing use each fragment's visible tick interval.
+
+`TGLayoutConfig(fitPageToWidth = false)` keeps oversized measures intact and enables panning; continuous horizontal mode is unchanged. Blank margins may reduce at narrow widths,
+not glyph sizes. If even an indivisible glyph/effect/header cannot fit the viewport, it is
+clipped rather than silently shrunk; use a wider viewport, lower explicit zoom or overflow
+opt-out in that physically impossible case.
+
+`onLayout` exposes `TGMeasureLayout.startTick/endTick`, `isFirstFragment/isLastFragment`,
+`TGBeatLayout.startTick/endTick`, voice `isContinuation/sourceTick`, and each staff's cached
+`connections` for custom overlays. `measure` still references the complete source model;
+`measureIndex` is not renumbered. `contentScale` is retained for compatibility and is always 1.
 
 ```kotlin
 TablatureView(
@@ -211,8 +228,8 @@ view. The sample exposes Cursor glide, Smooth scroll, Show cursor and Follow con
 ## Tests, provenance and licensing
 
 - `commonTest`: duration/tuplet validation, immutable snapshots, spacing, wrapping, multi-track alignment, hit testing, culling, beaming, empty/extreme inputs and state navigation.
-- `demo-tuxguitar:test`: **differential tests** for every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; GP3/4/5 round trips; original MIDI event generation.
-- Android instrumentation: real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Additional frame-clock/pointer tests cover parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
+- `demo-tuxguitar:test`: **differential tests** for every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; whole-measure wrapping against `TGLayoutVertical.getTempLines`; GP3/4/5 round trips; original MIDI event generation.
+- Android instrumentation: real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, continuation hit testing and rendered incoming/outgoing effect pixels, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
 - `python3 tools/verify.py`: reproducible glyph source hashes and a fail-closed check against platform/parser/player imports or demo dependencies in core.
 
 Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The optional Gervill demo includes GPLv2 with Classpath Exception code and existing soundfont assets; their notices remain unchanged. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.

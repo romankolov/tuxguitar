@@ -19,6 +19,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.tuxcompose.component.*
 import com.tuxcompose.layout.*
 import com.tuxcompose.model.*
+import kotlinx.collections.immutable.toPersistentList
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -71,6 +72,79 @@ class ViewportMotionDeviceTest {
                 assertEquals(0f,state.scrollX,0f)
             }
         }
+    }
+
+    @Test fun densePageKeepsNormalGlyphSizesAndCanSelectTheWrappedContinuation() {
+        val normal = song(1,4).tracks[0].measures[0]
+        val fast = song(1,64).tracks[0].measures[0]
+        val dense = TGMeasure(2,TGMeasureHeader(),fast.beats.map { it.copy(start=it.start+3840) },4800)
+        val data = TGSong(tracks=listOf(TGTrack(1,"Guitar",listOf(64,59,55,50,45,40),listOf(normal,dense))))
+        val state = TablatureState(data,960)
+        var layout: TGSongLayout? = null
+        host(state,mutableStateOf(TGCursorConfig(follow=false)),onLayout={ layout=it })
+        val fragments = layout!!.staves.flatMap { it.measures }
+        val reference = fragments.first().beats.first().voices.first().notes.first()
+        val continued = fragments.filter { it.measureIndex == 1 }
+        assertTrue("Dense bars must wrap, not shrink",continued.size>1)
+        compose.runOnIdle {
+            fragments.forEach { m ->
+                assertEquals(1f,m.contentScale,0f)
+                assertEquals(50f,m.tabBottom!!-m.tabTop!!,.01f)
+                m.beats.flatMap { it.voices }.flatMap { it.notes }.forEach { note ->
+                    assertEquals(reference.tabBounds!!.width,note.tabBounds!!.width,.01f)
+                    assertEquals(reference.tabBounds.height,note.tabBounds.height,.01f)
+                    assertEquals(reference.scoreBounds!!.width,note.scoreBounds!!.width,.01f)
+                    assertEquals(reference.scoreBounds.height,note.scoreBounds.height,.01f)
+                }
+            }
+        }
+        val target = continued.last()
+        val beat = target.beats.first()
+        val point = beat.voices.first().notes.first().tabBounds!!.center
+        compose.runOnIdle { state.scrollTo(y=target.bounds.top) }
+        compose.waitForIdle()
+        val factor = compose.onNodeWithTag("viewport").fetchSemanticsNode().size.width/layout!!.width
+        compose.onNodeWithTag("viewport").performTouchInput {
+            click(Offset((point.x-state.scrollX)*factor,(point.y-state.scrollY)*factor))
+        }
+        compose.waitUntil(5000) { state.cursorTick == beat.startTick }
+        compose.runOnIdle { assertEquals(1,state.selectedString) }
+    }
+
+    @Test fun effectPathsRenderOnBothSidesOfAWrappedRowEvenWhenTheSourceIsOffscreen() {
+        val raw = song(1,64)
+        val track = raw.tracks[0]
+        val m = track.measures[0]
+        val beats = m.beats.map { b -> b.copy(voices=b.voices.map { v ->
+            v.copy(notes=v.notes.map { it.copy(effects=TGNoteEffects(slide=true)) }.toPersistentList())
+        }.toPersistentList()) }
+        val data = raw.copy(tracks=listOf(track.copy(measures=listOf(m.copy(beats=beats.toPersistentList())).toPersistentList())).toPersistentList())
+        val state = TablatureState(data,960)
+        var layout: TGSongLayout? = null
+        val config = TGLayoutConfig(style=TGLayoutStyles.Tablature,colors=TGColorPalette.Paper.copy(noteHead=Color.Magenta))
+        host(state,mutableStateOf(TGCursorConfig(visible=false,follow=false)),config,onLayout={ layout=it })
+        assertTrue(layout!!.staves.size>1)
+        val outgoing = layout!!.staves.first().connections.single { it.kind == TGConnectionKind.Slide && it.continuesToNext }
+        assertMagentaNear((outgoing.from+outgoing.to)/2f,state,layout!!)
+        val row = layout!!.staves[1]
+        val incoming = row.connections.single { it.kind == TGConnectionKind.Slide && it.continuesFromPrevious }
+        compose.runOnIdle { state.scrollTo(y=row.bounds.top) }
+        compose.waitForIdle()
+        assertMagentaNear((incoming.from+incoming.to)/2f,state,layout!!)
+    }
+    private fun assertMagentaNear(point: Offset, state: TablatureState, layout: TGSongLayout) {
+        val image = compose.onNodeWithTag("viewport").captureToImage()
+        val pixels = image.toPixelMap()
+        val factor = image.width/layout.width
+        val px = ((point.x-state.scrollX)*factor).toInt()
+        val py = ((point.y-state.scrollY)*factor).toInt()
+        var count = 0
+        for (y in (py-4).coerceAtLeast(0)..(py+4).coerceAtMost(image.height-1))
+            for (x in (px-4).coerceAtLeast(0)..(px+4).coerceAtMost(image.width-1)) {
+                val c = pixels[x,y]
+                if (c.red>.7f && c.blue>.7f && c.green<.4f) count++
+            }
+        assertTrue("A visible magenta continuation segment must be painted near $point",count>0)
     }
 
     private fun magentaCursorX(): Float {

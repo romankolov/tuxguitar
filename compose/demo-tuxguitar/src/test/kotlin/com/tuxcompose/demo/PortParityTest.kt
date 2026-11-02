@@ -2,6 +2,8 @@
 package com.tuxcompose.demo
 
 import app.tuxguitar.graphics.control.TGLayout
+import app.tuxguitar.graphics.control.TGLayoutVertical
+import app.tuxguitar.graphics.control.TGMeasureImpl
 import app.tuxguitar.graphics.control.TGTrackSpacing
 import app.tuxguitar.song.factory.TGFactory
 import app.tuxguitar.ui.resource.UIPainter
@@ -51,6 +53,52 @@ class PortParityTest {
             TGTrackLane.entries.forEachIndexed { i,lane -> java.setSize(i,i+1f); kotlin.register(lane,i+1f) }
             TGTrackLane.entries.forEachIndexed { i,lane -> assertEquals(java.getPosition(i),kotlin.position(lane)) }
             assertEquals(java.size,kotlin.height)
+        }
+    }
+    @Test fun wholeMeasureWrappingMatchesTheOriginalVerticalLayout() {
+        compareVerticalWrap(listOf(300f,307f,400f,800f),false)
+    }
+    @Test fun oversizedMeasuresStayWholeInTheOriginalAndInTheOverflowOptOut() {
+        compareVerticalWrap(listOf(80f),true)
+    }
+    private fun compareVerticalWrap(widths: List<Float>, overflow: Boolean) {
+        val measures = List(12) { mi ->
+            val start = 960+mi*3840L
+            TGMeasure(mi+1,TGMeasureHeader(),List(4) { bi ->
+                TGBeat(start+bi*960,TGDuration(4),listOf(TGVoice(notes=listOf(TGNote(5,1)))))
+            },start,lineBreak=mi==4)
+        }
+        val data = TGSong(tracks=listOf(TGTrack(1,"Guitar",listOf(64,59,55,50,45,40),measures)))
+        val config = TGLayoutConfig(style=TGLayoutStyles.Tablature,justifySystems=false,fitPageToWidth=!overflow)
+        val natural = TGLayoutCalculator(config.copy(orientation=TGLayoutOrientation.Horizontal)).calculate(data,10000f)
+        val track = factory.newTrack()
+        natural.staves[0].measures.forEachIndexed { index,m ->
+            track.addMeasure(object : TGMeasureImpl(factory.newHeader()) {
+                override fun getWidth(layout: TGLayout?) = m.bounds.width
+                override fun getMaxY() = 0f
+                override fun getMinY() = 0f
+                override fun isLineBreak() = measures[index].lineBreak
+                override fun registerSpacing(layout: TGLayout?, spacing: TGTrackSpacing?) = Unit
+            })
+        }
+        val original = TGLayoutVertical(null,TGLayout.DISPLAY_TABLATURE)
+        val maximum = TGLayoutVertical::class.java.getDeclaredField("maximumWidth").apply { isAccessible=true }
+        val method = TGLayoutVertical::class.java.methods.single { it.name == "getTempLines" }
+        for (width in widths) {
+            maximum.setFloat(original,width-2*config.pagePadding)
+            val expected = mutableListOf<List<Int>>()
+            var from = 0
+            while (from < measures.size) {
+                val line = method.invoke(original,track,from,TGTrackSpacing(original))
+                val field = line.javaClass.getDeclaredField("measures").apply { isAccessible=true }
+                @Suppress("UNCHECKED_CAST")
+                val indices = field.get(line) as List<Int>
+                expected += indices
+                from = indices.last()+1
+            }
+            val actual = TGLayoutCalculator(config).calculate(data,width)
+            assertEquals(expected,actual.staves.map { row -> row.measures.map { it.measureIndex } },"width=$width")
+            assertTrue(actual.staves.flatMap { it.measures }.all { it.contentScale == 1f })
         }
     }
     @Test fun gp3RoundTrip() = roundTrip(3)

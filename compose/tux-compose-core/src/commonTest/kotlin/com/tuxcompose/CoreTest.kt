@@ -92,32 +92,32 @@ class CoreTest {
     }
     @Test fun pageWidthAlwaysMatchesParentEvenForDenseBarsAndFractionalZoomWidths() {
         val data = song(2,TGDuration(64))
-        for (width in listOf(1f,20f,100f,331.42856f,400f,999.9f)) {
+        for (width in listOf(128f,180f,300f,331.42856f,400f,999.9f)) {
             val layout = TGLayoutCalculator().calculate(data,width)
             assertEquals(width,layout.width)
-            assertEquals(2,layout.staves.size)
+            assertTrue(layout.staves.size > 2)
             layout.staves.forEach { staff ->
                 assertTrue(staff.bounds.left >= 0 && staff.bounds.right <= width + .001f)
                 staff.measures.forEach { measure ->
-                    assertTrue(measure.contentScale > 0 && measure.contentScale <= 1)
+                    assertEquals(1f,measure.contentScale)
                     assertTrue(measure.beats.last().endX <= width + .001f)
                     assertTrue(measure.beats.all { it.x in measure.bounds.left..measure.bounds.right })
                 }
             }
         }
     }
-    @Test fun pageFitPreservesAspectAndHitCoordinatesIncludingEmptyStrings() {
+    @Test fun pageWrapPreservesSizeAndHitCoordinatesIncludingEmptyStrings() {
         val data = song(1,TGDuration(64))
         val fitted = TGLayoutCalculator().calculate(data,300f).staves[0].measures[0]
         val original = TGLayoutCalculator(TGLayoutConfig(fitPageToWidth=false)).calculate(data,300f).staves[0].measures[0]
         val a = original.beats[0].voices[0].notes[0]
         val b = fitted.beats[0].voices[0].notes[0]
-        assertEquals(a.tabBounds!!.width*fitted.contentScale,b.tabBounds!!.width,.001f)
-        assertEquals(a.tabBounds.height*fitted.contentScale,b.tabBounds.height,.001f)
-        assertEquals(a.scoreBounds!!.height*fitted.contentScale,b.scoreBounds!!.height,.001f)
+        assertEquals(a.tabBounds!!.width,b.tabBounds!!.width,.001f)
+        assertEquals(a.tabBounds.height,b.tabBounds.height,.001f)
+        assertEquals(a.scoreBounds!!.height,b.scoreBounds!!.height,.001f)
         val layout = TGLayoutCalculator().calculate(data,300f)
         assertEquals(1,layout.hitTest(b.tabBounds.center,10f)!!.string)
-        val stringThree = Offset(fitted.beats[0].x,fitted.tabTop!!+20f*fitted.contentScale)
+        val stringThree = Offset(fitted.beats[0].x,fitted.tabTop!!+20f)
         assertEquals(3,layout.hitTest(stringThree,10f)!!.string)
         assertEquals(300f,layout.width)
     }
