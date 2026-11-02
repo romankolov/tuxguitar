@@ -176,11 +176,12 @@ Fret numbers and prose use a bounded 512-entry text-layout cache, measured in un
 
 - Immutable geometry is remembered by score, style, font metrics, selected track and viewport width. Cursor movement, playback tick updates and selection do not recompute it.
 - There is no full-song bitmap and no giant Compose measurement constraint. Three viewport-sized canvases draw selection, notation and cursor independently.
+- Effect segments have per-staff balanced interval indices, including subtree maximum endpoints, so long/nested connectors remain visible without scanning an offscreen prefix. Geometry and indices are built once with layout, not during cursor frames.
 - System/measure visibility and cursor lookup use lower-bound binary searches. Indexed iteration starts at the resulting offset (not a linear `Sequence.drop`); only visible measures enter the painter. A counting-list regression test bounds reads when scrolling past 950 offscreen measures/systems.
 - Reusable musical paths are lazy, shared objects. Fonts are measured once per cached text/style, not per cursor frame.
 - The caller can use `TGLayoutCalculator` and `TGSongLayout` directly without the default component.
 
-This is not a hardware benchmark or a claim of constant-time initial layout: initial layout is proportional to the score size. Hit testing uses the visible staff/measure, then the beats in that bar. Mutate Compose state only on the UI thread; decoding and the demo's MIDI preparation run off it.
+This is not a hardware benchmark or a claim of constant-time initial layout: initial layout processes the score and builds sorted/indexed geometry; it is not constant-time or a per-frame operation. Hit testing uses the visible staff/measure, then the beats in that bar. Mutate Compose state only on the UI thread; decoding and the demo's MIDI preparation run off it.
 
 ## Continuous cursor and follow policy
 

@@ -69,6 +69,11 @@ data class TGCursorLayout(val beat: TGBeatLayout, val x: Float, val systemIndex:
 class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaffLayout>) {
     private data class LocatedMeasure(val systemIndex: Int, val layout: TGMeasureLayout)
     private val byTrack = staves.flatMap { s -> s.measures.map { LocatedMeasure(s.systemIndex,it) } }.groupBy { it.layout.trackIndex }
+    private val connectionIndices = staves.filter { it.connections.isNotEmpty() }.associate {
+        (it.systemIndex to it.trackIndex) to TGConnectionIndex(it.connections)
+    }
+    fun visibleConnections(staff: TGStaffLayout, viewport: Rect): Sequence<TGConnectionLayout> =
+        connectionIndices[staff.systemIndex to staff.trackIndex]?.visible(viewport) ?: emptySequence()
     private fun measureAt(trackIndex: Int, tick: Long): LocatedMeasure? {
         val measures = byTrack[trackIndex] ?: return null
         val i = floorIndex(measures.size) { measures[it].layout.startTick <= tick }

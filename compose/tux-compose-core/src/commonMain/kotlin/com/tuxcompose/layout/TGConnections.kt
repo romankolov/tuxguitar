@@ -141,3 +141,33 @@ internal fun connectStaves(staves: List<TGStaffLayout>, config: TGLayoutConfig):
     }
     return staves.mapIndexed { i,staff -> if (paths[i].isEmpty()) staff else staff.copy(connections=paths[i]) }
 }
+
+/** Balanced interval index: nested long connectors must not force a scan of offscreen paths. */
+internal class TGConnectionIndex(connections: List<TGConnectionLayout>) {
+    private data class Entry(val connection: TGConnectionLayout, val bounds: Rect)
+    private val entries = connections.map { Entry(it,it.bounds) }.sortedBy { it.bounds.left }
+    private val maxRight = FloatArray(entries.size)
+    init {
+        fun build(from: Int, until: Int): Float {
+            if (from >= until) return Float.NEGATIVE_INFINITY
+            val mid = (from+until) ushr 1
+            val right = maxOf(entries[mid].bounds.right,build(from,mid),build(mid+1,until))
+            maxRight[mid] = right
+            return right
+        }
+        build(0,entries.size)
+    }
+    fun visible(viewport: Rect): Sequence<TGConnectionLayout> = sequence {
+        suspend fun SequenceScope<TGConnectionLayout>.visit(from: Int, until: Int) {
+            if (from >= until) return
+            val mid = (from+until) ushr 1
+            if (maxRight[mid] < viewport.left) return
+            visit(from,mid)
+            val entry = entries[mid]
+            if (entry.bounds.left > viewport.right) return
+            if (entry.bounds.overlaps(viewport)) yield(entry.connection)
+            visit(mid+1,until)
+        }
+        visit(0,entries.size)
+    }
+}

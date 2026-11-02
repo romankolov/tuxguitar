@@ -27,7 +27,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     fun DrawScope.render(layout: TGSongLayout, viewport: Rect) {
         layout.visible(viewport).forEach { staff ->
             layout.visibleMeasures(staff, viewport).forEach { measure -> renderMeasure(measure) }
-            staff.connections.filter { it.bounds.overlaps(viewport) }.forEach { renderConnection(it) }
+            layout.visibleConnections(staff,viewport).forEach { renderConnection(it) }
         }
     }
 

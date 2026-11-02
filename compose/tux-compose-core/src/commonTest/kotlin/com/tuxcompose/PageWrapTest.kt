@@ -2,6 +2,7 @@
 package com.tuxcompose
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import com.tuxcompose.layout.*
 import com.tuxcompose.model.*
 import kotlinx.collections.immutable.toPersistentList
@@ -205,6 +206,19 @@ class PageWrapTest {
             assertEquals(1f,m.contentScale)
             assertTrue(m.beats.all { it.endX <= m.bounds.right })
         }
+    }
+    @Test fun connectionCullingFindsNestedLongSpansWithoutReturningOffscreenPaths() {
+        val paths = List(4000) { i -> TGConnectionLayout(TGConnectionKind.Slide,Offset(i*20f,10f),Offset(i*20f+10,10f),
+            voiceIndex=0,string=1,sourceTick=i.toLong()) } +
+            TGConnectionLayout(TGConnectionKind.Hammer,Offset(0f,20f),Offset(80000f,20f),
+                voiceIndex=1,string=2,sourceTick=0)
+        val index = TGConnectionIndex(paths)
+        for (viewport in listOf(Rect(75000f,0f,75050f,50f),Rect(-50f,0f,25f,50f),
+            Rect(79980f,0f,81000f,50f),Rect(75000f,100f,75050f,150f),Rect(-50f,0f,81000f,50f))) {
+            assertEquals(paths.filter { it.bounds.overlaps(viewport) }.toSet(),index.visible(viewport).toSet())
+        }
+        assertEquals(0,index.visible(Rect(90000f,0f,91000f,50f)).count())
+        assertEquals(0,TGConnectionIndex(emptyList()).visible(Rect(0f,0f,100f,100f)).count())
     }
     @Test fun veryNarrowViewsTerminateAndNeverApplyAutomaticGlyphScaling() {
         for (width in listOf(1f,20f,100f)) {
