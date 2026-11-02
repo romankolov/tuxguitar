@@ -318,9 +318,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         val top = m.staffTop ?: m.tabTop ?: m.bounds.top
         val middle = if (m.staffTop != null) top + 2 * spacing else (top + (m.tabBottom ?: top)) / 2
         val y = when (v.duration.value) { 1 -> top + spacing; 2 -> top + 2 * spacing - glyph.height * scale; else -> middle - glyph.height * scale / 2 }
-        glyph(glyph,b.x-if (config.nativeSpacing && m.staffTop == null) 1f/config.renderScale else 0f,
-            v.silenceY ?: (y+if (v.voice.index == 0) 0f else 8f),scale)
-        dots(v.duration, b.x + 10, middle, 1f)
+        val x = b.x-if (config.nativeSpacing && m.staffTop == null) 1f/config.renderScale else 0f
+        val restY = v.silenceY ?: (y+if (v.voice.index == 0) 0f else 8f)
+        glyph(glyph,x,restY,scale)
+        dots(v.duration,x+10,if (config.nativeSpacing) restY+2 else middle,1f)
     }
     private fun DrawScope.tuplets(m: TGMeasureLayout) {
         m.beats.flatMap { b -> b.voices.filter { it.duration.division.enters != 1 }.map { b to it } }
@@ -412,8 +413,9 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     }
     private fun DrawScope.dots(duration: TGDuration, x: Float, y: Float, scale: Float) {
         if (!duration.dotted && !duration.doubleDotted) return
-        drawCircle(colors.noteHead, 1.2f * scale, Offset(x,y))
-        if (duration.doubleDotted) drawCircle(colors.noteHead, 1.2f*scale, Offset(x+4*scale,y))
+        val radius = if (config.nativeSpacing) 1.5f else 1.2f
+        drawCircle(colors.noteHead, radius*scale, Offset(x,y))
+        if (duration.doubleDotted) drawCircle(colors.noteHead, radius*scale, Offset(x+(if (config.nativeSpacing) 5f else 4f)*scale,y))
     }
     private fun DrawScope.vibrato(x: Float, y: Float, width: Float) {
         val p = Path().apply {

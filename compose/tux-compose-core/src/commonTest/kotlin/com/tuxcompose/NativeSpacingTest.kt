@@ -104,8 +104,10 @@ class NativeSpacingTest {
     @Test fun oversizedNativeMeasureWrapsAtFixedSizeAndItsTailSharesTheNextBar() {
         val first = bar(values=List(64) { 64 })
         val song = data(first,bar(1,values=List(4) { 4 }))
-        val page = TGLayoutCalculator().calculate(song,350f)
-        assertEquals(350f,page.width,0f)
+        // At 350 the final full metrical group + next bar genuinely does NOT fit.
+        // At 400 the native-grid final tail is eight notes and shares the next bar.
+        val page = TGLayoutCalculator().calculate(song,400f)
+        assertEquals(400f,page.width,0f)
         assertTrue(page.staves.size > 2)
         val tailRow = page.staves.last { row -> row.measures.any { it.measureIndex==0 } }
         assertEquals(listOf(0,1),tailRow.measures.map { it.measureIndex })
@@ -117,7 +119,7 @@ class NativeSpacingTest {
         assertEquals(64,parts.sumOf { p -> p.beats.count { !it.isContinuation } })
         parts.forEach { m ->
             assertEquals(1f,m.contentScale,0f)
-            assertTrue(m.bounds.right <= 350.01f)
+            assertTrue(m.bounds.right <= 400.01f)
             assertEquals(50f,m.tabBottom!!-m.tabTop!!,.001f)
             m.beats.forEach { beat -> beat.voices.flatMap { it.notes }.forEach { n ->
                 assertEquals(8f,n.scoreBounds!!.height,.001f)

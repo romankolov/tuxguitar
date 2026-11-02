@@ -219,7 +219,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 staves += TGStaffLayout(si,indices[ti],Rect(padding,top,right,top+lanes.height),measures)
                 if (!fitPage) maxRight = maxOf(maxRight,if (config.nativeSpacing && config.orientation == TGLayoutOrientation.Horizontal)
                     if (left-padding+leftMargin > viewportWidth) left-padding+leftMargin+config.pagePadding else viewportWidth else left+rightMargin)
-                top += if (config.nativeSpacing) nativeRound(lanes.height+config.systemSpacing+.5f/config.renderScale) else lanes.height+config.systemSpacing
+                top += if (config.nativeSpacing) kotlin.math.floor(lanes.physicalHeight+config.systemSpacing*config.renderScale+.5f+.5f)/config.renderScale else lanes.height+config.systemSpacing
             }
         }
         return TGSongLayout(maxRight,(if (config.nativeSpacing) top+config.firstTrackSpacing-nativeRound(config.firstTrackSpacing) else top-config.systemSpacing+padding).coerceAtLeast(0f),connectStaves(staves,config))
@@ -231,7 +231,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
     private data class NativeSilence(val y: Float, val height: Float, val hidden: Boolean)
 
     /** TGMeasureImpl hidden-silence decisions followed by TGVoiceImpl.updateSilenceSpacing. */
-    private fun nativeSilences(track: TGTrack, m: TGMeasure, groups: Map<Pair<Int,Int>,Group>): Map<Pair<Int,Int>,NativeSilence> = buildMap {
+    private fun nativeSilences(track: TGTrack, m: TGMeasure, groups: Map<Pair<Int,Int>,Group>, metricScale: Float = 1f): Map<Pair<Int,Int>,NativeSilence> = buildMap {
         m.beats.forEachIndexed { bi,b ->
             val voices = b.voices.filterNot { it.empty }.sortedBy { it.index }
             val hidden = mutableSetOf<Int>()
@@ -240,7 +240,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                         (other.notes.isNotEmpty() || other.index !in hidden) }) hidden += v.index
             }
             voices.filter { it.notes.isEmpty() }.forEach { v ->
-                val line = if (config.showStandardNotation) config.staffSpacing else config.stringSpacing
+                val line = (if (config.showStandardNotation) config.staffSpacing else config.stringSpacing)*metricScale
                 val count = if (config.showStandardNotation) 5 else track.stringTuning.size
                 val scale = line/if (config.showStandardNotation) 9f else 10f
                 val d = (v.duration ?: b.duration).value
@@ -270,24 +270,31 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         (if (metric.paintTempo) nativeRound(45f) else 0f)+(if (metric.paintTripletFeel) nativeRound(55f) else 0f),
         clef+key+(if (metric.paintTime) nativeRound(10f+config.timeSignatureSpacing) else 0f)+config.firstNoteSpacing))
 
-    /** TGMeasureImpl.checkValue and TGLayoutVertical's registration, not both stem offsets. */
+    /**
+     * TGMeasureImpl.checkValue and TGLayoutVertical registration, using actual stem directions.
+     * Accumulate PHYSICAL floats, as Java does: a logical round-trip at 1.25x can move the
+     * track-height + .5 rounding across its threshold, shifting the following row by a pixel.
+     */
     private fun nativeStaffSpacing(track: TGTrack, measures: List<TGMeasure>): TGSpacing {
-        val lanes = TGSpacing(config.style)
-        var lineMinY = if (config.style == TGLayoutStyles.Score) -3*config.staffSpacing else 0f
-        var lineMaxY = if (config.style == TGLayoutStyles.Score) 8*config.staffSpacing else 0f
-        val pixel = 1f/config.renderScale
-        val tabHeight = (track.stringTuning.size-1)*config.stringSpacing
+        val scale = config.renderScale
+        val staffSpacing = config.staffSpacing*scale
+        val stringSpacing = config.stringSpacing*scale
+        val lanes = TGSpacing(config.style,scale)
+        var lineMinY = if (config.style == TGLayoutStyles.Score) -3*staffSpacing else 0f
+        var lineMaxY = if (config.style == TGLayoutStyles.Score) 8*staffSpacing else 0f
+        val pixel = 1f
+        val tabHeight = (track.stringTuning.size-1)*stringSpacing
         measures.forEach { m ->
             var minY = 0f
             var maxY = 0f
             val groups = voiceGroups(track,m)
-            val silences = nativeSilences(track,m,groups)
+            val silences = nativeSilences(track,m,groups,scale)
             m.beats.forEachIndexed { bi,b ->
                 val voices = b.voices.filterNot { it.empty }.sortedBy { it.index }
                 voices.forEach { v ->
                     if (v.notes.isNotEmpty()) {
                         if (!config.showStandardNotation) {
-                            val offset = config.stringSpacing/2*5+pixel
+                            val offset = stringSpacing/2*5+pixel
                             if (groups.getValue(bi to v.index).up) minY = minOf(minY,-offset)
                             else maxY = maxOf(maxY,tabHeight+offset)
                         }
@@ -300,12 +307,12 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             if (config.showStandardNotation) groups.values.distinctBy { it.id }.forEach { group ->
                 val positions = group.positions.flatten()
                 if (positions.isNotEmpty()) for (position in listOf(positions.min(),positions.max())) {
-                    val y = position*config.staffSpacing/2
+                    val y = position*staffSpacing/2
                     if (group.up) {
                         if (y > maxY) maxY = y
-                        if (y-28f*config.staffSpacing/8 < minY) minY = y-28f*config.staffSpacing/8-2*pixel
+                        if (y-28f*(staffSpacing/8) < minY) minY = y-28f*(staffSpacing/8)-2*pixel
                     } else {
-                        if (y+35f*config.staffSpacing/8 > maxY) maxY = y+35f*config.staffSpacing/8+2*pixel
+                        if (y+35f*(staffSpacing/8) > maxY) maxY = y+35f*(staffSpacing/8)+2*pixel
                         if (y < minY) minY = y
                     }
                 }
@@ -316,39 +323,39 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         val minY = lineMinY
         val maxY = lineMaxY
         val beats = measures.flatMap { it.beats }
-        if (measures.any { it.header.marker != null }) lanes.register(TGTrackLane.Marker,15f)
-        if (beats.any { it.text != null }) lanes.register(TGTrackLane.Text,15f)
-        if (config.chordEnabled && beats.any { it.chord != null }) lanes.register(TGTrackLane.Chord,
-            (if (config.showChords) 42f else 0f)+(if (config.showChordNames) nativeRound(15f) else 0f))
-        if (measures.any { it.header.repeatAlternative > 0 }) lanes.register(TGTrackLane.RepeatEnding,20f)
-        if (beats.any { b -> b.voices.any { !it.empty && it.index%2 == 0 && (it.duration ?: b.duration).division != TGDivisionType() } }) lanes.register(TGTrackLane.Tuplet1,10f)
-        if (beats.any { b -> b.voices.any { !it.empty && it.index%2 == 1 && (it.duration ?: b.duration).division != TGDivisionType() } }) lanes.register(TGTrackLane.Tuplet2,10f)
+        if (measures.any { it.header.marker != null }) lanes.registerPhysical(TGTrackLane.Marker,15f*scale)
+        if (beats.any { it.text != null }) lanes.registerPhysical(TGTrackLane.Text,15f*scale)
+        if (config.chordEnabled && beats.any { it.chord != null }) lanes.registerPhysical(TGTrackLane.Chord,
+            (if (config.showChords) 42f*scale else 0f)+(if (config.showChordNames) kotlin.math.floor(15f*scale+.5f) else 0f))
+        if (measures.any { it.header.repeatAlternative > 0 }) lanes.registerPhysical(TGTrackLane.RepeatEnding,20f*scale)
+        if (beats.any { b -> b.voices.any { !it.empty && it.index%2 == 0 && (it.duration ?: b.duration).division != TGDivisionType() } }) lanes.registerPhysical(TGTrackLane.Tuplet1,10f*scale)
+        if (beats.any { b -> b.voices.any { !it.empty && it.index%2 == 1 && (it.duration ?: b.duration).division != TGDivisionType() } }) lanes.registerPhysical(TGTrackLane.Tuplet2,10f*scale)
         val effectHeight = beats.maxOfOrNull { b ->
             val effects = b.voices.filterNot { it.empty }.flatMap { it.notes }.map { it.effects }
             listOf(effects.any { it.accented },effects.any { it.heavyAccented },
                 !config.showStandardNotation && effects.any { it.harmonic != 0 },effects.any { it.tapping },
                 effects.any { it.slapping },effects.any { it.popping },effects.any { it.palmMute },
                 effects.any { it.letRing },effects.any { it.fadeIn },effects.any { it.vibrato },effects.any { it.trill != null })
-                .count { it }*config.effectSpacing
+                .count { it }*(config.effectSpacing*scale)
         } ?: 0f
-        lanes.register(TGTrackLane.Effects,effectHeight)
-        if (beats.any { it.pickStroke != TGStrokeDirection.None }) lanes.register(TGTrackLane.PickStroke,config.pickStrokeSpacing)
-        if (config.showTablature && beats.any { b -> b.voices.any { v -> !v.empty && v.notes.any { it.effects.bend != null } } }) lanes.register(TGTrackLane.Bend,8f)
+        lanes.registerPhysical(TGTrackLane.Effects,effectHeight)
+        if (beats.any { it.pickStroke != TGStrokeDirection.None }) lanes.registerPhysical(TGTrackLane.PickStroke,config.pickStrokeSpacing*scale)
+        if (config.showTablature && beats.any { b -> b.voices.any { v -> !v.empty && v.notes.any { it.effects.bend != null } } }) lanes.registerPhysical(TGTrackLane.Bend,8f*scale)
         if (config.showStandardNotation) {
-            lanes.register(TGTrackLane.ScoreUp,kotlin.math.abs(minY))
-            lanes.register(TGTrackLane.Score,5*config.staffSpacing)
-            lanes.register(TGTrackLane.ScoreDown,maxOf(0f,maxY-4*config.staffSpacing))
+            lanes.registerPhysical(TGTrackLane.ScoreUp,kotlin.math.abs(minY))
+            lanes.registerPhysical(TGTrackLane.Score,5*staffSpacing)
+            lanes.registerPhysical(TGTrackLane.ScoreDown,maxOf(0f,maxY-4*staffSpacing))
         }
         if (config.showTablature) {
-            lanes.register(TGTrackLane.TabSeparator,if (config.showStandardNotation) config.scoreTabSpacing else maxOf(kotlin.math.abs(minY),config.stringSpacing))
-            lanes.register(TGTrackLane.Tab,if (config.showStandardNotation) tabHeight+config.stringSpacing+pixel else maxOf(maxY,tabHeight+config.stringSpacing+pixel))
+            lanes.registerPhysical(TGTrackLane.TabSeparator,if (config.showStandardNotation) config.scoreTabSpacing*scale else maxOf(kotlin.math.abs(minY),stringSpacing))
+            lanes.registerPhysical(TGTrackLane.Tab,if (config.showStandardNotation) tabHeight+stringSpacing+pixel else maxOf(maxY,tabHeight+stringSpacing+pixel))
         }
-        lanes.register(TGTrackLane.Lyric,10*pixel)
+        lanes.registerPhysical(TGTrackLane.Lyric,10*pixel)
         val target = if (config.showStandardNotation) TGTrackLane.ScoreUp else TGTrackLane.Tab
-        val separator = lanes.position(target)-lanes.position(TGTrackLane.Buffer)
-        if (separator < 20f) lanes.register(TGTrackLane.Buffer,20f-separator)
+        val separator = lanes.physicalPosition(target)-lanes.physicalPosition(TGTrackLane.Buffer)
+        if (separator < 20f*scale) lanes.registerPhysical(TGTrackLane.Buffer,20f*scale-separator)
         val staffTarget = if (config.showStandardNotation) TGTrackLane.Score else TGTrackLane.Tab
-        if (lanes.position(staffTarget) < config.staffPadding) lanes.register(TGTrackLane.Top,config.staffPadding-lanes.position(staffTarget))
+        if (lanes.physicalPosition(staffTarget) < config.staffPadding*scale) lanes.registerPhysical(TGTrackLane.Top,config.staffPadding*scale-lanes.physicalPosition(staffTarget))
         return lanes
     }
 

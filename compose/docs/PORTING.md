@@ -246,6 +246,8 @@ on the **actual group's direction**, not both possible stems:
   visible. Tremolo-bar data does not silently become a bend-spacing reservation.
 - Buffer/top minima are applied after the actual lanes; there is no unconditional extra
   top block. Track increments use the original `round(height+trackSpacing+0.5)`.
+  Lane accumulation remains in physical float units until the final conversion, preserving
+  Java's rounding thresholds even at fractional density/zoom (not a tolerance adjustment).
 
 Tab strings remain `tabTop + (stringNumber-1)×stringSpacing`. Pitched score positions use
 `clefOffset - diatonicIndex - 7×octave`, with offsets `[30,18,22,24]`. The spelling tables
