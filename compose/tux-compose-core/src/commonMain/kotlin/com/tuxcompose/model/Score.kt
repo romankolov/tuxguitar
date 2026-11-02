@@ -100,15 +100,31 @@ data class TGBeat(
     val chord: TGChord? = null,
     /** Optional upstream precise start; preserves non-integral ticks for 7/11/13 tuplets. */
     val preciseStart: Long? = null,
+    /** A strumming arrow across the strings (or score), distinct from the picking mark. */
+    val stroke: TGStroke = TGStroke(),
+    val pickStroke: TGStrokeDirection = TGStrokeDirection.None,
 ) {
-    constructor(start: Long, duration: TGDuration = TGDuration(), voices: List<TGVoice>, text: String? = null, chord: TGChord? = null, preciseStart: Long? = null) :
-        this(start, duration, voices.toPersistentList(), text, chord, preciseStart)
+    constructor(start: Long, duration: TGDuration = TGDuration(), voices: List<TGVoice>, text: String? = null, chord: TGChord? = null, preciseStart: Long? = null,
+        stroke: TGStroke = TGStroke(), pickStroke: TGStrokeDirection = TGStrokeDirection.None) :
+        this(start, duration, voices.toPersistentList(), text, chord, preciseStart, stroke, pickStroke)
     init {
         require(start >= 0 && (preciseStart == null || preciseStart >= 0))
         require(voices.map { it.index }.distinct().size == voices.size) { "Duplicate voice index" }
     }
     val maxTicks: Long get() = voices.filterNot { it.empty }.maxOfOrNull { (it.duration ?: duration).ticks } ?: duration.ticks
     val startQuarters: Double get() = preciseStart?.toDouble()?.div(TGDuration.PRECISE_QUARTER) ?: (start.toDouble() / TGDuration.QUARTER_TIME)
+}
+
+/**
+ * Original TGStroke/TGPickStroke encoding. These are musical directions, not screen coordinates:
+ * with high strings at the top, TuxGuitar draws Up toward increasing Y and Down toward decreasing Y.
+ */
+enum class TGStrokeDirection(val value: Int) { None(0), Up(1), Down(-1) }
+
+/** Value preserves the original strum-speed denominator as metadata; core never schedules audio. */
+@Immutable
+data class TGStroke(val direction: TGStrokeDirection = TGStrokeDirection.None, val value: Int = 0) {
+    init { require(value >= 0) }
 }
 
 /** Duration is per VOICE in TuxGuitar. Null inherits the beat convenience duration. */

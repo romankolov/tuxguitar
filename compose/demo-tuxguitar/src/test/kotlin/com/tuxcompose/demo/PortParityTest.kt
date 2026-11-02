@@ -112,6 +112,14 @@ class PortParityTest {
         assertEquals(2,imported.score.tracks.size)
         assertEquals(12,imported.score.tracks[0].measures.size)
         assertEquals(listOf(64,59,55,50,45,40),imported.score.tracks[0].stringTuning)
+        val marks = imported.score.tracks[0].measures.flatMap { it.beats }
+            .filter { it.stroke.direction != TGStrokeDirection.None }
+        assertEquals(4,marks.size)
+        assertEquals(setOf(TGStrokeDirection.Up,TGStrokeDirection.Down),marks.map { it.stroke.direction }.toSet())
+        assertTrue(marks.all { it.stroke.value == 16 })
+        if (version >= 4) {
+            assertEquals(setOf(TGStrokeDirection.Up,TGStrokeDirection.Down),marks.map { it.pickStroke }.toSet())
+        } // GP3 has strum strokes, but its file format has no separate pick-stroke field.
         assertTrue(TGLayoutCalculator(TGLayoutConfig(multiTrack=true)).calculate(imported.score,400f).height>0)
     }
     @Test fun originalMidiParserProducesRepeatsBendsTempoAndNotes() {

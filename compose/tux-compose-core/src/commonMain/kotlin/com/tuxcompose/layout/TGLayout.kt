@@ -15,7 +15,8 @@ data class TGVoiceLayout(val voice: TGVoice, val duration: TGDuration, val notes
 @Immutable
 data class TGBeatLayout(val beat: TGBeat, val bounds: Rect, val x: Float, val voices: List<TGVoiceLayout>, val chordBounds: Rect?, val endX: Float = bounds.right,
     /** Visible interval, which may be only part of the unchanged source beat. */
-    val startTick: Long = beat.start, val endTick: Long = beat.start + beat.maxTicks) {
+    val startTick: Long = beat.start, val endTick: Long = beat.start + beat.maxTicks,
+    val stroke: TGStrokeLayout? = null, val pickStroke: TGStrokeLayout? = null) {
     val isContinuation: Boolean get() = startTick > beat.start
 }
 @Immutable
@@ -48,6 +49,7 @@ data class TGMeasureLayout(
     val startTick: Long = measure.start,
     val endTick: Long = measure.end,
     val headerX: Float = bounds.left+15f,
+    val pickStrokeTop: Float = effectsTop,
 ) {
     val isFirstFragment: Boolean get() = startTick == measure.start
     val isLastFragment: Boolean get() = endTick == measure.end

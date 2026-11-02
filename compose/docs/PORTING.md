@@ -19,6 +19,7 @@ The reference is this repository's `common/TuxGuitar-lib` at base commit **74d67
 | `TGNoteImpl.update` | one-based string Y mapping and note bounds |
 | `graphics/control/painters/*` | generated Compose paths in `renderer/glyphs` |
 | `TGEffectBend.updateMovements` | shared `movements()` for spacing and drawing |
+| `TGStroke`, `TGPickStroke`, `TGBeatImpl.paintStroke/paintPickStroke` | beat-level model metadata + cached `layout/TGStrokes.kt` vectors |
 | `TGMeasureImpl.paint*`, `TGVoiceImpl.paint*`, `TGNoteImpl.paint*` | `renderer/TGCanvasRenderer` |
 
 ## Coordinate spaces
@@ -74,7 +75,7 @@ The beat's base display position is:
 relativeQuarters = beat.startQuarters - measure.start / 960
 beatX = left + leftPadding + firstNoteSpacing
       + relativeQuarters × adjustedQuarterWidth
-      + precedingBendMovementWidths
+      + precedingSharedEffectWidths
 ```
 
 Effect slack is shared at the same onset on every track, not spread differently across each track's meter. Compact mode instead accumulates minimum beat widths and is disabled for more than one displayed track, as upstream does. The font-driven collision check is an intentional Compose adaptation: changing a font must not cause neighboring two-digit or ghost/harmonic fret labels to overlap.
@@ -95,7 +96,13 @@ incorrect for consistent row sizes and has been removed. To meet both fixed pare
 and fixed glyph size, the default Compose page mode fragments only those exceptional bars
 at beat boundaries, preferring complete metrical/beam groups and binary subdivisions when
 at least half the usable rhythmic span remains occupied. Long rhythmic gaps may also have
-presentation cuts. `fitPageToWidth=false` retains the previous Compose unsplit, natural-width panning option;
+presentation cuts. Fragments are not isolated systems: the last continuation stays in the
+current row and the next measure is appended whenever `used + nextWidth < available`.
+The `>=` wrap threshold and explicit line-break behavior are the original greedy rule;
+the same rule is tested against Java using the projected fragment widths. The first piece
+of a following oversized bar may also share the row if it fits, but an ordinary bar is never
+split just to fill a previous row. Musical measures, barlines, timing and hit-test indices
+remain separate. `fitPageToWidth=false` retains the previous Compose unsplit, natural-width panning option;
 it does not reproduce the Java painter's potentially overlapping negative spacing.
 
 Each fragment references the SAME complete model measure and original measure index. Its
@@ -136,9 +143,60 @@ blank margins reduce first. An indivisible glyph/header/effect wider than the pa
 clipped without rescaling (no finite layout can preserve its size and fit it in fewer pixels).
 Horizontal mode and the overflow opt-out retain their natural widths.
 
+A fragment's full engraving is still cached once. Projection rebases score, tablature,
+stems, chord/text/effect/picking lanes independently into the shared row's lane maxima.
+Simply translating the first row's Y coordinates would misalign the continuation with a
+following bar that introduces a chord diagram or additional effects. Repeated system
+signatures belong at a row start, not at the following real measure in the middle of a row.
+
 Multi-track mode shares column widths, quarter widths and prefixes. Effect slack is shared
 at its actual onset across tracks so notes at equal ticks stay aligned, even when different
 tracks bend on different beats. Staff heights reserve the maximum needed lanes per row.
+
+## Strumming strokes and picking directions
+
+The two effects are distinct in `TGBeat`, not `TGNoteEffects`: `stroke` contains the native
+`TGStroke` direction and speed denominator (`value`), while `pickStroke` contains the
+separate picking direction. Directions preserve `None=0`, `Up=1`, `Down=-1`. Import does
+not reinterpret these by screen orientation; the original GP readers already account for
+the format-specific direction encodings. GP3/4/5 round trips test both strum directions;
+GP4/5 additionally preserve the separate picking marks (GP3 has no such field).
+
+`TGStrokes.kt` ports the actual `TGBeatImpl.paintStroke` geometry. For tab height `h`,
+string spacing `s`, staff spacing `l`, and the beat anchor `x`:
+
+```
+margin = min(2*s, h-2*s) / 2
+Tab:   y1 = tabTop + margin; y2 = tabTop + h - margin
+Score: y1 = staffTop + l;    y2 = staffTop + (4*l - l)
+arrowX = x + 12
+```
+
+Tab placement takes precedence in mixed mode, so there is one strum arrow, not two.
+`Up` has its tip at `y2`, `Down` at `y1`, with wings two units wide and five units long.
+This apparently reversed screen direction is intentional: the tablature's string numbering
+runs from high strings at the top toward bass strings below, and the source painter uses
+these musical direction names. One-/two-string tracks retain the source margin formula.
+
+Picking uses `POSITION_PICK_STROKES`: `Up` is the V from `(x±3,y)` to `(x,y+8)`;
+`Down` has six-unit legs and a six-unit-wide heavy cap. Legs/strum lines use the original
+hairline width; the down-pick cap uses width two. The default lane is eight units, matching
+Android `TGSongViewStyles`; `pickStrokeSpacing` can enlarge it but never shrinks the mark.
+The common layout caches each mark's line geometry and bounds; the Canvas paints those
+lines without Android Views, platform glyphs or per-frame geometry construction.
+
+For wide/custom fret fonts, the Compose collision extension moves the arrow outward from
+`x+12` when necessary and reserves its footprint in shared onset slack on every track,
+including compact mode. Glyphs and arrowheads are never rescaled. This additional clearance
+is not a claim that the original Java painter reserves exactly the same space. Both marks
+stay with their owning attack when wrapping; synthetic held-note continuations suppress
+them. Stroke speed is preserved as model metadata, with no scheduling or audio logic in
+core; the separate demo's native MIDI engine consumes the original native stroke data.
+
+Differential tests record `moveTo/lineTo/setLineWidth` from the **actual Java painters** via
+a `UIPainter` test double and compare the returned common geometry for score/tab/mixed,
+both directions/none, varied spacing and 1/2/4/6/7/25 strings. Android pixel tests check the
+shaft, both arrowhead wings and picking marks on a continued/offscreen-source row.
 
 ## Vertical lanes, note positions and beams
 
@@ -206,7 +264,7 @@ This implementation is **not all of TuxGuitar's editor or a pixel-identical comp
 - No editing commands, undo stack, score serialization, lyric syllable alignment, print pagination, page headers/footers, tunings editor, chord editor or percussion-map editor in core.
 - Core expects ordered decoded data and does not auto-complete missing rest beats; the demo uses the original completer before adaptation.
 - Ties, hammers and slides include cross-row continuations, but arbitrary slur grouping, overlapping accidentals/chord notehead displacement, all voice-collision engraving and exact historical bend/conflict special cases need further visual parity work.
-- Natural and artificial harmonic identification, grace, trill and tremolo data are preserved. Some effect variants share a generic label/path rather than every legacy subvariant having a distinct engraved symbol. Pick-stroke/stroke, triplet-feel labels and lyric text are not yet modeled fully.
+- Natural and artificial harmonic identification, grace, trill and tremolo data are preserved. Some effect variants share a generic label/path rather than every legacy subvariant having a distinct engraved symbol. Triplet-feel labels and lyric text are not yet modeled fully.
 - Rhythm stems/beams and rests are implemented; complex mixed-duration beam joining and multi-voice rest-placement differences are not asserted pixel-identical to every Java branch.
 - Platform text shaping/antialiasing differ from the legacy Java toolkits. Custom fonts and configurable note sizes intentionally affect collision spacing.
 - Common code is Android/JVM validated by CI. iOS targets can be enabled, but no iOS app or runtime validation is supplied here.

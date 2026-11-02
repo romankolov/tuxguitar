@@ -207,6 +207,86 @@ class PageWrapTest {
             assertTrue(m.beats.all { it.endX <= m.bounds.right })
         }
     }
+    @Test fun finalContinuationPacksWithTheFollowingBarOnEveryDisplayedTrack() {
+        val data = song(measure(),measure(1,TGDuration(4)))
+        for (multi in listOf(false,true)) {
+            val source = if (!multi) data else data.copy(tracks=(data.tracks+TGTrack(2,"Held",tuning,
+                listOf(measure(duration=TGDuration(1)),measure(1,TGDuration(4))))).toPersistentList())
+            val page = TGLayoutCalculator(TGLayoutConfig(multiTrack=multi,justifySystems=false)).calculate(source,400f)
+            val lastSystem = page.staves.maxOf { it.systemIndex }
+            page.staves.filter { it.systemIndex == lastSystem }.forEach { row ->
+                assertEquals(listOf(0,1),row.measures.map { it.measureIndex })
+                val tail = row.measures[0]
+                val next = row.measures[1]
+                assertFalse(tail.isFirstFragment); assertTrue(tail.isLastFragment)
+                assertTrue(next.isFirstFragment && next.isLastFragment)
+                assertEquals(tail.bounds.right,next.bounds.left,.001f)
+                assertEquals(tail.endTick,next.startTick)
+                assertTrue(next.bounds.right <= 400f)
+                row.measures.forEach { m -> m.beats.forEach { b ->
+                    val hit = page.hitTest(b.voices[0].notes[0].tabBounds!!.center,10f)!!
+                    assertEquals(m.measureIndex,hit.measureIndex)
+                    assertEquals(b.startTick,hit.beatTick)
+                    assertEquals(row.systemIndex,page.cursorAt(row.trackIndex,b.startTick)!!.systemIndex)
+                } }
+            }
+            if (multi) {
+                val rows = page.staves.filter { it.systemIndex == lastSystem }
+                assertEquals(rows[0].measures.map { it.bounds.left to it.bounds.right },
+                    rows[1].measures.map { it.bounds.left to it.bounds.right })
+            }
+        }
+    }
+    @Test fun explicitBreakAfterAContinuationStillStartsANewRow() {
+        val next = measure(1,TGDuration(4)).copy(lineBreak=true)
+        val page = TGLayoutCalculator().calculate(song(measure(),next),400f)
+        assertEquals(listOf(1),page.staves.last().measures.map { it.measureIndex })
+        assertTrue(page.staves.dropLast(1).all { row -> row.measures.all { it.measureIndex == 0 } })
+        assertTrue(page.staves[page.staves.lastIndex-1].bounds.right < 400-12)
+    }
+    @Test fun repeatedSignaturesBelongOnlyToTheRowStartNotTheBarFollowingATail() {
+        val config = TGLayoutConfig(repeatSystemSignatures=true,multiTrack=true)
+        val a = TGTrack(1,"Fast",tuning,listOf(measure(),measure(1,TGDuration(4))))
+        val b = a.copy(id=2)
+        val page = TGLayoutCalculator(config).calculate(TGSong(tracks=listOf(a,b)),400f)
+        page.staves.filter { it.systemIndex == page.staves.last().systemIndex }.forEach { row ->
+            assertEquals(2,row.measures.size)
+            assertTrue(row.measures[0].paintClef && row.measures[0].paintTime)
+            assertFalse(row.measures[1].paintClef || row.measures[1].paintTime)
+            assertEquals(46f,row.measures[0].clefWidth,.001f)
+        }
+    }
+    @Test fun sharedRowRebasesCachedFragmentsIntoTheFollowingBarsLanes() {
+        val source = measure()
+        val marked = source.copy(beats=source.beats.mapIndexed { i,b -> if (i == source.beats.lastIndex)
+            b.copy(stroke=TGStroke(TGStrokeDirection.Up,16),pickStroke=TGStrokeDirection.Down) else b
+        }.toPersistentList())
+        val beat = TGBeat(4800,voices=listOf(TGVoice(notes=listOf(TGNote(5,1,effects=TGNoteEffects(
+            bend=TGBendEffect(listOf(0 to 0,6 to 4,12 to 0)),vibrato=true))))),
+            text="Strum",chord=TGChord("Em",listOf(0,0,0,2,2,0)),
+            stroke=TGStroke(TGStrokeDirection.Down,16),pickStroke=TGStrokeDirection.Up)
+        val next = TGMeasure(2,TGMeasureHeader(timeSignature=TGTimeSignature(1,4),marker="Chorus"),listOf(beat),4800)
+        val page = TGLayoutCalculator().calculate(song(marked,next),400f)
+        val row = page.staves.last()
+        assertEquals(2,row.measures.size)
+        val tail = row.measures[0]
+        val following = row.measures[1]
+        assertEquals(following.staffTop,tail.staffTop)
+        assertEquals(following.tabTop,tail.tabTop)
+        assertEquals(following.effectsTop,tail.effectsTop)
+        assertEquals(following.pickStrokeTop,tail.pickStrokeTop)
+        val first = page.staves.first().measures.first()
+        val a = first.beats.first().voices.first().notes.first()
+        val b = tail.beats.last().voices.first().notes.first()
+        assertEquals(a.scoreBounds!!.center.y-first.staffTop!!,b.scoreBounds!!.center.y-tail.staffTop!!,.001f)
+        assertEquals(a.tabBounds!!.center.y-first.tabTop!!,b.tabBounds!!.center.y-tail.tabTop!!,.001f)
+        assertEquals(a.scoreBounds.size,b.scoreBounds.size)
+        assertEquals(a.tabBounds.size,b.tabBounds.size)
+        assertTrue(tail.staffTop!!-tail.bounds.top > first.staffTop!!-first.bounds.top)
+        assertEquals(tail.tabTop!!+10,tail.beats.last().stroke!!.lines[0].from.y,.001f)
+        assertEquals(tail.pickStrokeTop,tail.beats.last().pickStroke!!.lines.last().from.y,.001f)
+        assertTrue(row.measures.all { it.contentScale == 1f })
+    }
     @Test fun connectionCullingFindsNestedLongSpansWithoutReturningOffscreenPaths() {
         val paths = List(4000) { i -> TGConnectionLayout(TGConnectionKind.Slide,Offset(i*20f,10f),Offset(i*20f+10,10f),
             voiceIndex=0,string=1,sourceTick=i.toLong()) } +

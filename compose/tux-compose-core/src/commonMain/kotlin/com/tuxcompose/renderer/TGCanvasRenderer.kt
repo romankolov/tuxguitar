@@ -61,6 +61,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             if (beat.voices.isEmpty()) rest(layout, beat, TGVoiceLayout(TGVoice(), beat.beat.duration, emptyList(), true, beat.x, 0f, 0f, -1))
         }
         stemsAndBeams(layout)
+        layout.beats.forEach { beat ->
+            beat.stroke?.lines?.forEach { drawLine(colors.noteHead,it.from,it.to,it.width) }
+            beat.pickStroke?.lines?.forEach { drawLine(colors.noteHead,it.from,it.to,it.width) }
+        }
         tuplets(layout)
         endings(layout)
     }

@@ -39,11 +39,13 @@ data class TGLayoutConfig(
     val colors: TGColorPalette = TGColorPalette.Paper,
     /** Keep page width equal to the parent; wrap oversized measures without shrinking notation. */
     val fitPageToWidth: Boolean = true,
+    /** Reserved picking-mark lane; the fixed eight-unit symbol is never shrunk. */
+    val pickStrokeSpacing: Float = 8f,
 ) {
     init {
         require(scale.isFinite() && scale in 0.1f..8f)
         require(listOf(stringSpacing, staffSpacing, noteHeadRadius).all { it.isFinite() && it > 0 })
-        require(listOf(measurePadding, firstNoteSpacing, clefSpacing, keySignatureSpacing, timeSignatureSpacing, staffPadding, systemSpacing, scoreTabSpacing, pagePadding, effectSpacing).all { it.isFinite() && it >= 0 })
+        require(listOf(measurePadding, firstNoteSpacing, clefSpacing, keySignatureSpacing, timeSignatureSpacing, staffPadding, systemSpacing, scoreTabSpacing, pagePadding, effectSpacing, pickStrokeSpacing).all { it.isFinite() && it >= 0 })
         require(durationWidths.isNotEmpty() && durationWidths.all { it.isFinite() && it > 0 })
     }
     val showStandardNotation: Boolean get() = style != TGLayoutStyles.Tablature

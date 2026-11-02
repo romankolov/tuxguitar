@@ -136,19 +136,80 @@ class ViewportMotionDeviceTest {
         compose.waitForIdle()
         assertMagentaNear((incoming.from+incoming.to)/2f,state,layout!!)
     }
-    private fun assertMagentaNear(point: Offset, state: TablatureState, layout: TGSongLayout) {
+    @Test fun finalContinuationAndTheFollowingMeasureShareARowAndRemainSelectable() {
+        val raw = song(1,64)
+        val next = TGMeasure(2,TGMeasureHeader(timeSignature=TGTimeSignature(1,4)),
+            listOf(TGBeat(4800,voices=listOf(TGVoice(notes=listOf(TGNote(7,1)))))),4800)
+        val track = raw.tracks[0].copy(measures=(raw.tracks[0].measures+next).toPersistentList())
+        val state = TablatureState(raw.copy(tracks=listOf(track).toPersistentList()),960)
+        var layout: TGSongLayout? = null
+        host(state,mutableStateOf(TGCursorConfig(visible=false,follow=false)),onLayout={ layout=it })
+        val row = layout!!.staves.last()
+        assertEquals(listOf(0,1),row.measures.map { it.measureIndex })
+        assertEquals(row.measures[0].bounds.right,row.measures[1].bounds.left,.01f)
+        compose.runOnIdle { state.scrollTo(y=row.bounds.top) }
+        compose.waitForIdle()
+        val factor = compose.onNodeWithTag("viewport").fetchSemanticsNode().size.width/layout!!.width
+        row.measures.forEach { m ->
+            val beat = m.beats.first()
+            val point = beat.voices.first().notes.first().tabBounds!!.center
+            compose.onNodeWithTag("viewport").performTouchInput {
+                click(Offset((point.x-state.scrollX)*factor,(point.y-state.scrollY)*factor))
+            }
+            compose.waitUntil(5000) { state.cursorTick == beat.startTick }
+            compose.runOnIdle {
+                assertEquals(1,state.selectedString)
+                assertEquals(0f,state.maxScrollX,0f)
+            }
+        }
+    }
+
+    @Test fun strumArrowheadsAndPickingMarksRenderInBothDirectionsOnAContinuedRow() {
+        val raw = song(1,64)
+        val source = raw.tracks[0]
+        val measure = source.measures[0]
+        val beats = measure.beats.mapIndexed { i,b ->
+            val direction = if (i%2 == 0) TGStrokeDirection.Down else TGStrokeDirection.Up
+            b.copy(stroke=TGStroke(direction,16),pickStroke=direction)
+        }
+        val track = source.copy(measures=listOf(measure.copy(beats=beats.toPersistentList())).toPersistentList())
+        val state = TablatureState(raw.copy(tracks=listOf(track).toPersistentList()),960)
+        var layout: TGSongLayout? = null
+        val config = TGLayoutConfig(style=TGLayoutStyles.Tablature,colors=TGColorPalette.Paper.copy(noteHead=Color.Magenta))
+        host(state,mutableStateOf(TGCursorConfig(visible=false,follow=false)),config,onLayout={ layout=it })
+        assertTrue(layout!!.staves.size>1)
+        val row = layout!!.staves.last()
+        compose.runOnIdle { state.scrollTo(y=row.bounds.top) }
+        compose.waitForIdle()
+        for (direction in listOf(TGStrokeDirection.Up,TGStrokeDirection.Down)) {
+            val beat = row.measures.flatMap { it.beats }.first { it.stroke?.direction == direction }
+            val arrow = beat.stroke!!
+            assertMagentaNear((arrow.lines[0].from+arrow.lines[0].to)/2f,state,layout!!,radius=1,maxGreen=.85f)
+            // Sample the wings away from the shaft: a missing/inverted arrowhead must fail.
+            arrow.lines.drop(1).forEach {
+                assertMagentaNear(it.from,state,layout!!,radius=1,maxGreen=.85f)
+            }
+            val pick = beat.pickStroke!!
+            pick.lines.forEach {
+                assertMagentaNear((it.from+it.to)/2f,state,layout!!,radius=1,maxGreen=.85f)
+            }
+        }
+    }
+
+    private fun assertMagentaNear(point: Offset, state: TablatureState, layout: TGSongLayout,
+        radius: Int = 4, maxGreen: Float = .4f) {
         val image = compose.onNodeWithTag("viewport").captureToImage()
         val pixels = image.toPixelMap()
         val factor = image.width/layout.width
         val px = ((point.x-state.scrollX)*factor).toInt()
         val py = ((point.y-state.scrollY)*factor).toInt()
         var count = 0
-        for (y in (py-4).coerceAtLeast(0)..(py+4).coerceAtMost(image.height-1))
-            for (x in (px-4).coerceAtLeast(0)..(px+4).coerceAtMost(image.width-1)) {
+        for (y in (py-radius).coerceAtLeast(0)..(py+radius).coerceAtMost(image.height-1))
+            for (x in (px-radius).coerceAtLeast(0)..(px+radius).coerceAtMost(image.width-1)) {
                 val c = pixels[x,y]
-                if (c.red>.7f && c.blue>.7f && c.green<.4f) count++
+                if (c.red>.7f && c.blue>.7f && c.green<maxGreen) count++
             }
-        assertTrue("A visible magenta continuation segment must be painted near $point",count>0)
+        assertTrue("Magenta notation must be painted near $point at scroll ${state.scrollY}",count>0)
     }
 
     private fun magentaCursorX(): Float {

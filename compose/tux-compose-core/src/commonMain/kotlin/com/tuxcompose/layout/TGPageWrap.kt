@@ -80,29 +80,41 @@ internal fun wrapPageMeasure(
     return result
 }
 
-/** Cache the complete, unscaled engraving once; fragment extraction is indexed, not quadratic. */
+/**
+ * Cache the complete, unscaled engraving once; fragment extraction is indexed, not quadratic.
+ * Rebase each vertical lane independently: a following bar sharing the row may add a chord,
+ * text or picking lane, moving the staff without changing any glyph's size.
+ */
 internal class TGMeasureFragments(private val full: TGMeasureLayout) {
     private val voices = full.beats.flatMap { beat -> beat.voices.map { beat to it } }
         .groupBy { it.second.voice.index }
 
-    fun part(slice: TGPageFragment, bounds: Rect, header: TGFragmentHeader, padding: Float, extra: Float): TGMeasureLayout {
+    fun part(slice: TGPageFragment, bounds: Rect, header: TGFragmentHeader, padding: Float, extra: Float, lanes: TGSpacing): TGMeasureLayout {
         val area = bounds.left + padding + header.first
-        val dy = bounds.top - full.bounds.top
+        fun top(lane: TGTrackLane) = bounds.top+lanes.position(lane)
+        val score = full.staffTop?.let { top(TGTrackLane.Score) }
+        val tab = full.tabTop?.let { top(TGTrackLane.Tab) }
+        val scoreDelta = (score ?: 0f)-(full.staffTop ?: 0f)
+        val tabDelta = (tab ?: 0f)-(full.tabTop ?: 0f)
+        val stemDelta = if (score != null) scoreDelta else tabDelta
+        val chordDelta = top(TGTrackLane.Chord)-full.chordTop
+        val pickDelta = top(TGTrackLane.PickStroke)-full.pickStrokeTop
         val span = slice.toX - slice.fromX
         fun x(offset: Float): Float {
             val local = offset - slice.fromX
             return area + local + if (span > 0) extra * local / span else 0f
         }
         fun voiceAt(source: TGBeatLayout, voice: TGVoiceLayout, anchor: Float, tick: Long, continued: Boolean): TGVoiceLayout {
-            val delta = Offset(anchor-source.x,dy)
+            val dx = anchor-source.x
             val remaining = (source.startTick + voice.duration.ticks - tick).coerceAtLeast(1L)
             val visible = minOf(remaining,(slice.endTick-tick).coerceAtLeast(1L))
             return voice.copy(
                 duration = fragmentDuration(voice.duration,visible),
                 notes = voice.notes.map { note -> note.copy(
-                    scoreBounds=note.scoreBounds?.translate(delta),tabBounds=note.tabBounds?.translate(delta),
+                    scoreBounds=note.scoreBounds?.translate(Offset(dx,scoreDelta)),
+                    tabBounds=note.tabBounds?.translate(Offset(dx,tabDelta)),
                     accidental=if (continued) null else note.accidental) },
-                stemX=voice.stemX+delta.x,stemStartY=voice.stemStartY+dy,stemEndY=voice.stemEndY+dy,
+                stemX=voice.stemX+dx,stemStartY=voice.stemStartY+stemDelta,stemEndY=voice.stemEndY+stemDelta,
                 isContinuation=continued,sourceTick=source.startTick,
             )
         }
@@ -110,12 +122,14 @@ internal class TGMeasureFragments(private val full: TGMeasureLayout) {
             val tick = maxOf(slice.startTick,source.startTick)
             val anchor = if (continued) area else x(source.x-full.beatAreaLeft)
             val endX = x(minOf(slice.toX,source.endX-full.beatAreaLeft))
-            val delta = Offset(anchor-source.x,dy)
+            val dx = anchor-source.x
             return source.copy(
                 x=anchor,endX=endX,startTick=tick,endTick=minOf(source.endTick,slice.endTick),
                 bounds=Rect(maxOf(area,anchor-5),bounds.top,maxOf(anchor+5,endX-5),bounds.bottom),
                 voices=if (continued) emptyList() else source.voices.map { voiceAt(source,it,anchor,tick,false) },
-                chordBounds=if (continued) null else source.chordBounds?.translate(delta),
+                chordBounds=if (continued) null else source.chordBounds?.translate(Offset(dx,chordDelta)),
+                stroke=if (continued) null else source.stroke?.translated(Offset(dx,if (tab != null) tabDelta else scoreDelta)),
+                pickStroke=if (continued) null else source.pickStroke?.translated(Offset(dx,pickDelta)),
             )
         }
         val from = floorIndex(full.beats.size) { full.beats[it].startTick < slice.startTick } + 1
@@ -137,11 +151,12 @@ internal class TGMeasureFragments(private val full: TGMeasureLayout) {
             beats[0] = first.copy(voices=(first.voices+continuing).sortedBy { it.voice.index })
         }
         return full.copy(
-            bounds=bounds,staffTop=full.staffTop?.plus(dy),tabTop=full.tabTop?.plus(dy),tabBottom=full.tabBottom?.plus(dy),
+            bounds=bounds,staffTop=score,tabTop=tab,tabBottom=full.tabBottom?.plus(tabDelta),
             paintClef=header.paintClef,paintKey=header.paintKey,paintTime=header.paintTime,paintTempo=header.paintTempo,
             previousKey=header.previousKey,clefWidth=header.clef,keyWidth=header.key,beatAreaLeft=area,beats=beats,
-            effectsTop=full.effectsTop+dy,bendTop=full.bendTop+dy,textTop=full.textTop+dy,
-            chordTop=full.chordTop+dy,endingTop=full.endingTop+dy,tupletTop=full.tupletTop+dy,
+            effectsTop=top(TGTrackLane.Effects),bendTop=top(TGTrackLane.Bend),textTop=top(TGTrackLane.Text),
+            chordTop=top(TGTrackLane.Chord),endingTop=top(TGTrackLane.RepeatEnding),tupletTop=top(TGTrackLane.Tuplet1),
+            pickStrokeTop=top(TGTrackLane.PickStroke),
             contentScale=1f,startTick=slice.startTick,endTick=slice.endTick,headerX=bounds.left+padding,
         )
     }

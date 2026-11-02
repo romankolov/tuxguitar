@@ -53,7 +53,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.2")
+    implementation("com.tuxcompose:tux-compose-core:0.1.3")
 }
 ```
 
@@ -174,13 +174,17 @@ Page/vertical mode now keeps **exactly the parent width**, including fractional 
 zoom. **Notation never shrinks to fit a row.** Ordinary measures wrap as whole units using
 TuxGuitar's greedy system/justification rules. Only a measure wider than a complete row is
 split at rhythmic boundaries, preferring metrical groups/subdivisions. Its fragments keep
-the same fonts, note-head radii and staff/string spacing as every other row.
+the same fonts, note-head radii and staff/string spacing as every other row. The final
+continuation shares its row with following measures whenever they fit, using the same
+greedy packing rule instead of forcing another row. The musical bars are not merged,
+and explicit line breaks remain authoritative.
 
 Ties, hammers/pull-offs and slides have outgoing/incoming row-local segments; beams stop at
 the break and tuplet/ending brackets continue without inventing another measure/repeat.
 Bends, chords, text and other beat effects move with their owning beats, with space reserved
 for their printed size. Tracks share the same cuts; a sustained voice is displayed with tied
-continuations rather than a new model attack. The original immutable song is untouched.
+continuations rather than a new model attack. The original immutable song is untouched. A shared row uses common vertical lanes,
+so a following chord/text/picking mark also repositions the preceding continuation correctly.
 Cursor, selection and hit testing use each fragment's visible tick interval.
 
 `TGLayoutConfig(fitPageToWidth = false)` keeps oversized measures intact and enables panning; continuous horizontal mode is unchanged. Blank margins may reduce at narrow widths,
@@ -190,8 +194,28 @@ opt-out in that physically impossible case.
 
 `onLayout` exposes `TGMeasureLayout.startTick/endTick`, `isFirstFragment/isLastFragment`,
 `TGBeatLayout.startTick/endTick`, voice `isContinuation/sourceTick`, and each staff's cached
-`connections` for custom overlays. `measure` still references the complete source model;
+`connections` and each beat's cached `stroke` / `pickStroke` line geometry for custom overlays. `measure` still references the complete source model;
 `measureIndex` is not renumbered. `contentScale` is retained for compatibility and is always 1.
+
+Strumming arrows and picking marks are separate, **beat-level** properties, matching
+`TGBeatImpl.paintStroke/paintPickStroke` rather than generic text arrows:
+
+```kotlin
+val strummedBeat = TGBeat(
+    start = 960,
+    voices = listOf(TGVoice(notes = listOf(TGNote(0, 1), TGNote(2, 5), TGNote(0, 6)))),
+    stroke = TGStroke(TGStrokeDirection.Down, value = 16),
+    pickStroke = TGStrokeDirection.Down, // optional, independent picking symbol
+)
+```
+
+`Up/Down` retain TuxGuitar's musical direction encoding (`1/-1`), **not screen Y**. With
+high strings drawn at the top, its `Up` strum arrow points down the page and `Down` points
+up; the picking marks are the original V and heavy-capped staple. Mixed mode draws the
+strum once on the tablature; score-only mode uses the score staff. `None` hides a mark.
+`pickStrokeSpacing` reserves at least the eight-unit symbol height. A synthetic sustained
+continuation does not reprint either attack mark. The demo's GP5 study now contains both
+directions, written/read by the actual TuxGuitar codec, with stroke speed metadata preserved.
 
 ```kotlin
 TablatureView(
@@ -228,8 +252,8 @@ view. The sample exposes Cursor glide, Smooth scroll, Show cursor and Follow con
 ## Tests, provenance and licensing
 
 - `commonTest`: duration/tuplet validation, immutable snapshots, spacing, wrapping, multi-track alignment, hit testing, culling, beaming, empty/extreme inputs and state navigation.
-- `demo-tuxguitar:test`: **differential tests** for every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; whole-measure wrapping against `TGLayoutVertical.getTempLines`; GP3/4/5 round trips; original MIDI event generation.
-- Android instrumentation: real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, continuation hit testing and rendered incoming/outgoing effect pixels, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
+- `demo-tuxguitar:test`: **differential tests** for every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; whole-measure and projected-fragment row packing against `TGLayoutVertical.getTempLines`; recorded strum/picking vectors against the actual Java painters; GP3/4/5 strum round trips (plus GP4/5 picking marks); original MIDI event generation.
+- Android instrumentation: real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
 - `python3 tools/verify.py`: reproducible glyph source hashes and a fail-closed check against platform/parser/player imports or demo dependencies in core.
 
 Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The optional Gervill demo includes GPLv2 with Classpath Exception code and existing soundfont assets; their notices remain unchanged. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.
