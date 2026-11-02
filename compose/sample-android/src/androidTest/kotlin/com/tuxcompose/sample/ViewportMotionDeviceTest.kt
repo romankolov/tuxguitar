@@ -84,6 +84,8 @@ class ViewportMotionDeviceTest {
         host(state,mutableStateOf(TGCursorConfig(follow=false)),onLayout={ layout=it })
         val fragments = layout!!.staves.flatMap { it.measures }
         val reference = fragments.first().beats.first().voices.first().notes.first()
+        val referenceTab = reference.tabBounds!!
+        val referenceScore = reference.scoreBounds!!
         val continued = fragments.filter { it.measureIndex == 1 }
         assertTrue("Dense bars must wrap, not shrink",continued.size>1)
         compose.runOnIdle {
@@ -91,10 +93,12 @@ class ViewportMotionDeviceTest {
                 assertEquals(1f,m.contentScale,0f)
                 assertEquals(50f,m.tabBottom!!-m.tabTop!!,.01f)
                 m.beats.flatMap { it.voices }.flatMap { it.notes }.forEach { note ->
-                    assertEquals(reference.tabBounds!!.width,note.tabBounds!!.width,.01f)
-                    assertEquals(reference.tabBounds.height,note.tabBounds.height,.01f)
-                    assertEquals(reference.scoreBounds!!.width,note.scoreBounds!!.width,.01f)
-                    assertEquals(reference.scoreBounds.height,note.scoreBounds.height,.01f)
+                    val tab = note.tabBounds!!
+                    val score = note.scoreBounds!!
+                    assertEquals(referenceTab.width,tab.width,.01f)
+                    assertEquals(referenceTab.height,tab.height,.01f)
+                    assertEquals(referenceScore.width,score.width,.01f)
+                    assertEquals(referenceScore.height,score.height,.01f)
                 }
             }
         }

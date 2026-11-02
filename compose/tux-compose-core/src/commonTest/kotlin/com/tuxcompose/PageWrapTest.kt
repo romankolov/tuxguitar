@@ -155,6 +155,38 @@ class PageWrapTest {
         assertEquals(0,hammer.voiceIndex)
         assertEquals(2880L,hammer.targetTick)
     }
+    @Test fun scoreOnlyLegatoAlsoContinuesAcrossRowsWithoutTabBounds() {
+        val config = TGLayoutConfig(style=TGLayoutStyles.Score)
+        val base = measure()
+        val cut = TGLayoutCalculator(config).calculate(song(base),300f).measures()[0].beats.size
+        for (kind in listOf(TGConnectionKind.Hammer,TGConnectionKind.Slide)) {
+            val beats = base.beats.mapIndexed { i,b -> if (i != cut-1) b else b.copy(voices=b.voices.map { v ->
+                v.copy(notes=v.notes.map { n -> n.copy(effects=TGNoteEffects(hammer=kind==TGConnectionKind.Hammer,slide=kind==TGConnectionKind.Slide)) }.toPersistentList())
+            }.toPersistentList()) }
+            val page = TGLayoutCalculator(config).calculate(song(base.copy(beats=beats.toPersistentList())),300f)
+            val paths = page.staves.flatMap { it.connections }.filter { it.kind == kind }
+            assertTrue(paths.all { it.onScore })
+            assertTrue(paths.any { it.continuesToNext })
+            assertTrue(paths.any { it.continuesFromPrevious })
+        }
+    }
+    @Test fun bendsOnDifferentTrackOnsetsDoNotMisalignSharedBeats() {
+        val bend = TGBendEffect(listOf(0 to 0,6 to 4,12 to 0))
+        fun withBend(at: Int): TGMeasure {
+            val base = measure()
+            return base.copy(beats=base.beats.mapIndexed { i,b -> if (i != at) b else b.copy(voices=b.voices.map { v ->
+                v.copy(notes=v.notes.map { it.copy(effects=TGNoteEffects(bend=bend)) }.toPersistentList())
+            }.toPersistentList()) }.toPersistentList())
+        }
+        val data = TGSong(tracks=listOf(TGTrack(1,"A",tuning,listOf(withBend(1))),TGTrack(2,"B",tuning,listOf(withBend(4)))))
+        for (orientation in TGLayoutOrientation.entries) {
+            val page = TGLayoutCalculator(TGLayoutConfig(multiTrack=true,orientation=orientation)).calculate(data,300f)
+            val a = page.staves.filter { it.trackIndex == 0 }.flatMap { it.measures }
+            val b = page.staves.filter { it.trackIndex == 1 }.flatMap { it.measures }
+            assertEquals(a.map { it.startTick to it.endTick },b.map { it.startTick to it.endTick })
+            assertEquals(a.flatMap { it.beats }.map { it.startTick to it.x },b.flatMap { it.beats }.map { it.startTick to it.x })
+        }
+    }
     @Test fun bendsChordsTextAndTupletsMoveWithTheirBeatsWithoutShrinking() {
         val duration = TGDuration(16,division=TGDivisionType(3,2))
         val bend = TGBendEffect(listOf(0 to 0,6 to 4,12 to 0))

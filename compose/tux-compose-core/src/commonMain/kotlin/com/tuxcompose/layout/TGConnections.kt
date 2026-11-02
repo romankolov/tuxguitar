@@ -131,7 +131,8 @@ internal fun connectStaves(staves: List<TGStaffLayout>, config: TGLayoutConfig):
                     }
                     if (kind != null) {
                         val target = next
-                        if (target == null) stub(current,kind,false) else connect(current,target,kind)
+                        val scoreOnly = current.note.tabBounds == null
+                        if (target == null) stub(current,kind,false,scoreOnly) else connect(current,target,kind,scoreOnly)
                     }
                     next = current
                 }
