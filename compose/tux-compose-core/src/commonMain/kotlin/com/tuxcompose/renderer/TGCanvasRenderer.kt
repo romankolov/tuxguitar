@@ -155,12 +155,34 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             digits(b, tx + (width - digitsWidth(b, h)) / 2, middle, h)
         }
         if (m.paintTripletFeel && m.isFirstFragment) tripletFeel(m)
-        if (m.paintTempo) {
+        if (m.paintTempo && config.nativeSpacing) tempo(m)
+        if (m.paintTempo && !config.nativeSpacing) {
             val y = (top ?: m.tabTop ?: m.bounds.top + 24) - maxOf(config.staffSpacing, config.stringSpacing) - 19
             glyph(TGNotePainter.NOTE, x, y + 12, 4f)
             line(x + 4.5f, y, x + 4.5f, y + 14, colors.noteHead)
             label("= ${m.measure.header.tempo}", x + 9, y + 6, TGTextRole.Text, colors.beatText)
         }
+    }
+
+    /** TGTempoPainter with native base/dot metadata; all geometry stays display-only. */
+    private fun DrawScope.tempo(m: TGMeasureLayout) {
+        fun rounded(v: Float) = kotlin.math.floor(v*config.renderScale+.5f)/config.renderScale
+        val mark = m.measure.header.tempoMark ?: TGTempoMark(m.measure.header.tempo)
+        val x = m.headerX
+        val lineSpacing = maxOf(config.staffSpacing,config.stringSpacing)
+        val baseline = (m.staffTop ?: m.tabTop ?: m.bounds.top)-lineSpacing*
+            (if (m.staffTop == null && m.tabTop == m.tabBottom) 2 else 1)
+        val pixel = 1f/config.renderScale
+        val height = rounded(17.5f)
+        val width = rounded(6.65f)
+        val y = baseline-height-2*pixel
+        glyph(TGNotePainter.NOTE,x+width-6.65f,y+height-5f,5f,filled=mark.base>=4)
+        if (mark.base!=1) line(x+width,y,x+width,y+height-3.3f,colors.noteHead)
+        if (mark.base==8 || mark.base==16) glyph(TGNotePainter.FOOTER_UP,x+width,y+11.5f,5f)
+        if (mark.base==16) glyph(TGNotePainter.FOOTER_UP,x+width,y+15f,5f)
+        if (mark.dotted) drawCircle(colors.noteHead,1f,Offset(x+10f,baseline-2*pixel-3.3f))
+        val value = " = ${mark.value}"
+        label(value,x+rounded(8.75f)+pixel,baseline-3.75f-text.measure(value,TGTextRole.Text).height,TGTextRole.Text,colors.beatText)
     }
 
     /** TGTripletFeelPainter's paired notes/stems/beams using the original note paths. */

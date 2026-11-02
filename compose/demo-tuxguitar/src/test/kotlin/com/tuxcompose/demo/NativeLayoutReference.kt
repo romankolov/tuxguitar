@@ -43,11 +43,11 @@ internal class NativeLayoutReference(input: NativeSong, val config: TGLayoutConf
     private val resources = TGResourceBuffer()
     private val controller = object : TGController {
         override fun getResourceFactory(): UIResourceFactory = HeadlessResources
-        override fun getResourceBuffer() = resources
-        override fun getSongManager() = manager
-        override fun getSong() = song
-        override fun getStyles() = styles
-        override fun getTrackSelection() = if (config.multiTrack) -1 else song.getTrack(selectedTrack).number
+        override fun getResourceBuffer(): TGResourceBuffer = this@NativeLayoutReference.resources
+        override fun getSongManager(): TGSongManager = this@NativeLayoutReference.manager
+        override fun getSong(): NativeSong = this@NativeLayoutReference.song
+        override fun getStyles(): TGSongViewStyles = this@NativeLayoutReference.styles
+        override fun getTrackSelection() = if (config.multiTrack) -1 else this@NativeLayoutReference.song.getTrack(selectedTrack).number
         override fun isRunning(beat: app.tuxguitar.song.models.TGBeat?) = false
         override fun isRunning(measure: app.tuxguitar.song.models.TGMeasure?) = false
         override fun isLoopSHeader(header: app.tuxguitar.song.models.TGMeasureHeader?) = false
@@ -135,7 +135,7 @@ private object HeadlessResources : UIResourceFactory {
         override fun isDisposed() = false
         override fun dispose() = Unit
     }
-    override fun createColor(model: UIColorModel) = createColor(model.r,model.g,model.b)
+    override fun createColor(model: UIColorModel) = createColor(model.red,model.green,model.blue)
     override fun createImage(width: Float, height: Float): UIImage = error("Reference must not rasterise")
     override fun createImage(stream: InputStream): UIImage = error("Reference must not load images")
 }

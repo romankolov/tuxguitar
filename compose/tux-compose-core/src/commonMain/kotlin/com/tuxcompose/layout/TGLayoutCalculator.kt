@@ -218,7 +218,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 val right = if (fitPage && !config.nativeSpacing) minOf(left,viewportWidth-padding) else left
                 staves += TGStaffLayout(si,indices[ti],Rect(padding,top,right,top+lanes.height),measures)
                 if (!fitPage) maxRight = maxOf(maxRight,if (config.nativeSpacing && config.orientation == TGLayoutOrientation.Horizontal)
-                    if (left > viewportWidth) left+config.pagePadding else viewportWidth else left+rightMargin)
+                    if (left-padding+leftMargin > viewportWidth) left-padding+leftMargin+config.pagePadding else viewportWidth else left+rightMargin)
                 top += if (config.nativeSpacing) nativeRound(lanes.height+config.systemSpacing+.5f/config.renderScale) else lanes.height+config.systemSpacing
             }
         }
@@ -408,7 +408,8 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         val paintClef = score && (prev == null || prev.clef != m.clef || systemFirst)
         val paintKey = score && (prev == null || prev.header.keySignature != m.header.keySignature || systemFirst)
         val paintTime = prev == null || prev.header.timeSignature != m.header.timeSignature || systemFirst
-        val paintTempo = config.showTempo && (prev == null || prev.header.tempo != m.header.tempo)
+        val paintTempo = config.showTempo && (prev == null || prev.header.tempo != m.header.tempo ||
+            (config.nativeSpacing && (prev.header.tempoMark ?: TGTempoMark(prev.header.tempo)) != (m.header.tempoMark ?: TGTempoMark(m.header.tempo))))
         val clef = if (paintClef) if (config.nativeSpacing) nativeRound(16f)+nativeRound(config.clefSpacing) else round(16f+config.clefSpacing) else 0f
         val previousKey = if (systemFirst) 0 else prev?.header?.keySignature?.value ?: 0
         val keyCount = m.header.keySignature.count + if (prev != null && !systemFirst) prev.header.keySignature.count else 0

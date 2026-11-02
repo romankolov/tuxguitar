@@ -7,6 +7,7 @@ import app.tuxguitar.song.factory.TGFactory
 import app.tuxguitar.song.models.TGDuration as NativeDuration
 import app.tuxguitar.song.models.TGSong as NativeSong
 import com.tuxcompose.layout.*
+import com.tuxcompose.layout.TGLayoutStyles
 import java.io.ByteArrayInputStream
 import java.io.File
 import kotlin.test.*
@@ -41,6 +42,7 @@ class NativeLayoutParityTest {
                 assertEquals(original.compactMode,m.compact,"$prefix effective compact")
                 assertEquals(original.isPaintClef,m.paintClef,"$prefix clef flag")
                 assertEquals(original.isPaintKeySignature,m.paintKey,"$prefix key flag")
+                assertEquals(original.headerImpl.shouldPaintTempo(),m.paintTempo,"$prefix tempo flag")
                 assertEquals(original.headerImpl.shouldPaintTimeSignature(),m.paintTime,"$prefix meter flag")
                 assertEquals(original.headerImpl.shouldPaintTripletFeel(),m.paintTripletFeel,"$prefix triplet-feel flag")
                 close(original.getClefSpacing(ref.layout),m.clefWidth*scale,"$prefix shared clef maximum")
@@ -170,6 +172,18 @@ class NativeLayoutParityTest {
         val ref = NativeLayoutReference(input,base,700f)
         compare(ref)
         assertEquals(listOf(1,1,2,0),ref.model.tracks[0].measures.map { it.header.tripletFeel })
+    }
+
+    @Test fun rawTempoAnnotationChangesAreNotLostWhenQuarterBpmStaysEqual() {
+        val input = simple(listOf(2,4,8,8),4)
+        input.getMeasureHeader(0).tempo.setValueBase(120,4,false)
+        input.getMeasureHeader(1).tempo.setValueBase(60,2,false)
+        input.getMeasureHeader(2).tempo.setValueBase(240,8,false)
+        input.getMeasureHeader(3).tempo.setValueBase(80,4,true)
+        val ref = NativeLayoutReference(input,base,700f)
+        compare(ref)
+        assertEquals(listOf(120,120,120,120),ref.model.tracks[0].measures.map { it.header.tempo })
+        assertEquals(listOf(120,60,240,80),ref.model.tracks[0].measures.map { it.header.tempoMark!!.value })
     }
 
     private fun simple(values: List<Int>, bars: Int): NativeSong {

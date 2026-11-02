@@ -72,7 +72,15 @@ data class TGMeasureHeader(
     val marker: String? = null,
     /** TuxGuitar header encoding: 0 straight, 1 swung eighths, 2 swung sixteenths. */
     val tripletFeel: Int = 0,
+    /** Optional original tempo annotation; preserves raw/base/dotted changes at equal quarter BPM. */
+    val tempoMark: TGTempoMark? = null,
 ) { init { require(tempo in 1..1000 && repeatClose in 0..99 && repeatAlternative >= 0 && tripletFeel in 0..2) } }
+
+/** Display-only metadata, not a playback clock or scheduler. */
+@Immutable
+data class TGTempoMark(val value: Int, val base: Int = 4, val dotted: Boolean = false) {
+    init { require(value in 1..1000 && base in listOf(1,2,4,8,16,32,64)) }
+}
 
 @Immutable
 data class TGTimeSignature(val numerator: Int, val denominator: Int) {

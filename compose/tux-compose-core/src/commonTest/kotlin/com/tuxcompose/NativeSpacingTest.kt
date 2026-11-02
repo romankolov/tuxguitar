@@ -122,7 +122,7 @@ class NativeSpacingTest {
             m.beats.forEach { beat -> beat.voices.flatMap { it.notes }.forEach { n ->
                 assertEquals(8f,n.scoreBounds!!.height,.001f)
                 val bounds = n.tabBounds!!
-                assertNotNull(page.hitTest(bounds.center))
+                assertNotNull(page.hitTest(bounds.center,base.stringSpacing))
             } }
         }
     }
