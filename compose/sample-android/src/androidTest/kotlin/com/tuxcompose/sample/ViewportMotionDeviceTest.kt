@@ -4,9 +4,6 @@ package com.tuxcompose.sample
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.snapshotFlow
-import kotlinx.coroutines.flow.collect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -44,16 +41,8 @@ class ViewportMotionDeviceTest {
     }
 
     private fun host(state: TablatureState, cursor: State<TGCursorConfig>,
-        config: TGLayoutConfig = TGLayoutConfig(), onLayout: (TGSongLayout) -> Unit = {},
-        trace: MutableList<String>? = null) {
+        config: TGLayoutConfig = TGLayoutConfig(), onLayout: (TGSongLayout) -> Unit = {}) {
         compose.setContent {
-            if (trace != null) LaunchedEffect(state) {
-                val generation = state.javaClass.methods.first { it.name.startsWith("getUserScrollGeneration") }
-                val request = state.javaClass.methods.first { it.name.startsWith("getFollowRequestGeneration") }
-                snapshotFlow {
-                    listOf(state.cursorTick,state.isUserScrolling,state.isAutoScrollSuspended,generation.invoke(state),request.invoke(state))
-                }.collect { trace.add("$it y=${state.scrollY}") }
-            }
             Box(Modifier.size(320.dp,180.dp)) {
                 TablatureView(state,Modifier.fillMaxSize().testTag("viewport"),config,cursor.value,onLayout=onLayout)
             }
@@ -131,12 +120,37 @@ class ViewportMotionDeviceTest {
         compose.runOnIdle { assertEquals(destination,state.scrollY,.1f) }
     }
 
+    @Test fun systemChangesDoNotResetSuspendedFollowAfterProgrammaticBrowsing() {
+        val state = TablatureState(song(),960)
+        val cursor = mutableStateOf(TGCursorConfig(smoothScroll=false,followResumeDelayMillis=0,movementAnimationMillis=0))
+        var layout: TGSongLayout? = null
+        host(state,cursor,onLayout={ layout=it })
+        compose.mainClock.autoAdvance = false
+        val browsingY = layout!!.staves[5].bounds.top
+        compose.runOnIdle { state.scrollTo(y=browsingY) }
+        compose.mainClock.advanceTimeBy(100)
+        compose.runOnIdle { assertTrue(state.isAutoScrollSuspended) }
+        for (measure in listOf(30,31,10,0)) {
+            compose.runOnIdle { state.cursorTick=960+measure*3840L }
+            compose.mainClock.advanceTimeBy(500)
+            compose.runOnIdle {
+                assertTrue("System changes must preserve manual browsing",state.isAutoScrollSuspended)
+                assertEquals(browsingY,state.scrollY,.1f)
+            }
+        }
+        compose.runOnIdle { state.resumeAutoScroll() }
+        compose.mainClock.advanceTimeBy(100)
+        compose.runOnIdle {
+            assertFalse(state.isAutoScrollSuspended)
+            assertTrue("An explicit Follow must still work",state.scrollY<browsingY)
+        }
+    }
+
     @Test fun draggingInterruptsFollowAndBrowsingAwayDoesNotSnapBack() {
         val state = TablatureState(song(),960)
         val cursor = mutableStateOf(TGCursorConfig(scrollAnimationMillis=400,followResumeDelayMillis=0,movementAnimationMillis=0))
         var layout: TGSongLayout? = null
-        val trace = mutableListOf<String>()
-        host(state,cursor,onLayout={ layout=it },trace=trace)
+        host(state,cursor,onLayout={ layout=it })
         compose.mainClock.autoAdvance = false
         compose.runOnIdle { state.cursorTick=960+15*3840L }
         compose.mainClock.advanceTimeByFrame()
@@ -166,7 +180,7 @@ class ViewportMotionDeviceTest {
         compose.runOnIdle {
             assertFalse(state.isUserScrolling)
             assertEquals("Releasing a drag must not select a beat",playingTick,state.cursorTick)
-            assertTrue("Browsing away must remain suspended: before=$beforeDrag held=$heldY tick=${state.cursorTick}, scroll=${state.scrollY}, cursor=${layout!!.cursorAt(0,state.cursorTick)?.beat?.bounds}; trace=${trace.joinToString(" | ")}",state.isAutoScrollSuspended)
+            assertTrue("Browsing away must remain suspended: before=$beforeDrag held=$heldY tick=${state.cursorTick}, scroll=${state.scrollY}, cursor=${layout!!.cursorAt(0,state.cursorTick)?.beat?.bounds}",state.isAutoScrollSuspended)
         }
         val browsingY = state.scrollY
         compose.runOnIdle { state.cursorTick+=100 }

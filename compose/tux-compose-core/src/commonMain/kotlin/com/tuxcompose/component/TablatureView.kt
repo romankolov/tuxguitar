@@ -106,19 +106,8 @@ fun TablatureView(
         val old = state.scrollY; state.scrollBy(y = -delta/currentFactor); (old - state.scrollY) * currentFactor
     }
     val cursorPosition = layout.cursorAt(selectedTrack,state.cursorTick,cursorConfig.smoothMovement)
-    // A system change/reflow/track switch starts at the new position, never glides diagonally
-    // back across the page. Backward seeks/repeats also snap instead of traversing old notes.
-    val cursorX = key(layout,selectedTrack,cursorPosition?.systemIndex) {
-        val previousTick = remember { longArrayOf(state.cursorTick) }
-        val jump = state.cursorTick - previousTick[0]
-        val snapMovement = !cursorConfig.visible || !cursorConfig.smoothMovement || jump < 0 ||
-            jump > (cursorPosition?.beat?.beat?.maxTicks ?: 960L) * 2
-        SideEffect { previousTick[0] = state.cursorTick }
-        animateFloatAsState(cursorPosition?.x ?: 0f,
-            animationSpec = if (snapMovement) snap() else tween(cursorConfig.movementAnimationMillis,easing=LinearEasing),
-            label = "Cursor movement")
-    }
-
+    // Navigation state/effects precede the keyed cursor animation: changing systems
+    // must reset visual interpolation only, never the user's suspended-follow epoch.
     var pointerHeld by remember(state) { mutableStateOf(false) }
     val userScrolling = pointerHeld || horizontal.isScrollInProgress || vertical.isScrollInProgress || transform.isTransformInProgress
     val userGeneration = state.userScrollGeneration
@@ -186,6 +175,19 @@ fun TablatureView(
             }
         }
     }
+    // A system change/reflow/track switch starts at the new position, never glides diagonally
+    // back across the page. Backward seeks/repeats also snap instead of traversing old notes.
+    val cursorX = key(layout,selectedTrack,cursorPosition?.systemIndex) {
+        val previousTick = remember { longArrayOf(state.cursorTick) }
+        val jump = state.cursorTick - previousTick[0]
+        val snapMovement = !cursorConfig.visible || !cursorConfig.smoothMovement || jump < 0 ||
+            jump > (cursorPosition?.beat?.beat?.maxTicks ?: 960L) * 2
+        SideEffect { previousTick[0] = state.cursorTick }
+        animateFloatAsState(cursorPosition?.x ?: 0f,
+            animationSpec = if (snapMovement) snap() else tween(cursorConfig.movementAnimationMillis,easing=LinearEasing),
+            label = "Cursor movement")
+    }
+
     fun tapped(point: Offset, extend: Boolean) {
         val p = Offset(point.x/currentFactor+state.scrollX,point.y/currentFactor+state.scrollY)
         currentLayout.hitTest(p,config.stringSpacing)?.let { result ->
