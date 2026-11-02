@@ -1,0 +1,123 @@
+name: Tux Compose · build, test & APK
+on:
+  push:
+    branches: ["master", "arena/ab965ff2-tuxguitar"]
+    paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
+  pull_request:
+    paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tux-compose-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: compose
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-read-only: false
+      - name: Verify generated upstream glyphs and dependency boundary
+        run: python3 tools/verify.py
+      - name: Build library, run tests, lint demo, assemble APKs
+        run: python3 tools/ci_build.py
+      - name: Upload latest installable demo and library
+        uses: actions/upload-artifact@v7
+        with:
+          name: tux-compose-apk-${{ github.run_number }}
+          path: |
+            compose/sample-android/build/outputs/apk/debug/*.apk
+            compose/tux-compose-core/build/outputs/aar/*release.aar
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tux-compose-diagnostics-${{ github.run_number }}
+          path: |
+            compose/build/ci.log
+            compose/build/ci-summary.json
+            compose/**/build/reports/**
+            compose/**/build/test-results/**
+          retention-days: 14
+  device-test:
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-read-only: false
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Compose interaction, decoder and audio tests on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: bash compose/tools/device_test.sh
+      - name: Upload device reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tux-compose-device-${{ github.run_number }}
+          path: |
+            compose/sample-android/build/device-*
+            compose/build/ci.log
+            compose/build/ci-summary.json
+            compose/sample-android/build/reports/androidTests/**
+            compose/sample-android/build/outputs/androidTest-results/**
+          retention-days: 14
+
+  preview-apk:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/ab965ff2-tuxguitar')
+    needs: [build, device-test]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: tux-compose-apk-${{ github.run_number }}
+          path: verified-artifacts
+      - name: Publish the latest verified demo APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          apk=$(find verified-artifacts -name '*debug.apk' -print -quit)
+          aar=$(find verified-artifacts -name '*release.aar' -print -quit)
+          test -n "$apk" && test -n "$aar"
+          mkdir release
+          cp "$apk" release/sample-android-debug.apk
+          cp "$aar" release/tux-compose-core-release.aar
+          (cd release && sha256sum *.apk *.aar > SHA256SUMS.txt)
+          notes="Debug-signed sample APK and release library AAR. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build and emulator interaction/PCM tests passed. Evaluation build, not a Play Store release. See compose/README.md and compose/docs/PORTING.md for scope and parity limits."
+          if gh release view tux-compose-preview >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GH_REPO/git/refs/tags/tux-compose-preview" -f sha="$GITHUB_SHA" -F force=true
+            gh release edit tux-compose-preview --notes "$notes"
+          else
+            gh release create tux-compose-preview --target "$GITHUB_SHA" --prerelease --title "Tux Compose · latest verified Android demo" --notes "$notes"
+          fi
+          gh release upload tux-compose-preview release/* --clobber

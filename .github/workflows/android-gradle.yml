@@ -8,7 +8,11 @@
 
 name: Android Java CI with Gradle
 
-on: [push]
+on:
+  push:
+    paths-ignore:
+      - 'compose/**'
+      - '.github/workflows/tux-compose.yml'
 #on:
 #  push:
 #    branches: [ "master" ]
