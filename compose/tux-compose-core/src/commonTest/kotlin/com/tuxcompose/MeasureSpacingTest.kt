@@ -105,6 +105,17 @@ class MeasureSpacingTest {
         assertTrue(first.left >= after.bounds.left)
     }
 
+    @Test fun wideBendLabelsReserveTheirNegativeBearingAndRightEdgeLocally() {
+        val fonts = TGFontMetrics { _,role -> TGTextSize(if (role == TGTextRole.Grace) 80f else 6f,10f) }
+        val original = bar().edit { i,b -> if (i == 0) b.noteEffects(TGNoteEffects(bend=TGBendEffect(listOf(0 to 0,12 to 4)))) else b }
+        val config = horizontal.copy(style=TGLayoutStyles.Tablature)
+        val m = layout(original,config,fonts)
+        val labelCenter = m.beats[0].voices[0].notes[0].tabBounds!!.right+1+10
+        assertTrue(labelCenter-40 >= m.bounds.left+config.measurePadding)
+        assertTrue(labelCenter+40 < m.beats[1].voices[0].notes[0].tabBounds!!.left)
+        assertEquals(20f,m.beats[2].x-m.beats[1].x,.001f)
+    }
+
     @Test fun hiddenFretFontsDoNotWidenScoreOnlyNotation() {
         val fonts = TGFontMetrics { _,role -> TGTextSize(if (role == TGTextRole.Note) 90f else 6f,10f) }
         val config = horizontal.copy(style=TGLayoutStyles.Score)
@@ -210,6 +221,17 @@ class MeasureSpacingTest {
         }
     }
 
+    @Test fun optionalBlankMarginsAreShedBeforeBreakingAnOtherwiseFittingLabel() {
+        val original = bar(duration=TGDuration(1)).edit { _,b -> b.copy(text="keep this long instruction whole") }
+        val page = TGLayoutCalculator(TGLayoutConfig(showTempo=false)).calculate(data(original),300f)
+        val m = page.staves.single().measures.single()
+        assertTrue(m.isFirstFragment && m.isLastFragment)
+        assertTrue(m.bounds.right <= 300f)
+        assertEquals(300f,page.width)
+        val label = TGFontMetrics.Approximate.measure(original.beats[0].text!!,TGTextRole.Text).width
+        assertTrue(m.beats[0].x+label <= m.bounds.right-15f+.001f)
+    }
+
     @Test fun annotationOverhangIsReservedSeparatelyFromTheFragmentTimeSpan() {
         val offsets = (0 until 8).associate { it*60L to it*18f }
         val pieces = wrapPageMeasure(0,480,offsets,144f,emptyMap(),70f,10f,10f,0f,0f,false,960,
@@ -269,7 +291,7 @@ class MeasureSpacingTest {
             base.keys.zipWithNext().forEach { (a,b) -> assertTrue(result.offsets.getValue(b)-result.offsets.getValue(a) >= 17.999f) }
             groups.forEach { group -> group.lanes.forEach { lane ->
                 lane.zipWithNext().forEach { (a,b) ->
-                    assertTrue(result.offsets.getValue(b)+b.left >= result.offsets.getValue(a)+a.right+a.gap-.001f)
+                    assertTrue(result.offsets.getValue(b.tick)+b.left >= result.offsets.getValue(a.tick)+a.right+a.gap-.001f)
                 }
                 lane.lastOrNull()?.let { assertTrue(result.rhythm >= result.offsets.getValue(it.tick)+it.right+it.gap-.001f) }
             } }

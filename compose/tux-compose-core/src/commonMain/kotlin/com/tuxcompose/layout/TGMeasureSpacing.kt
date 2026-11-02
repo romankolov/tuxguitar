@@ -81,7 +81,9 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
                         else movements.forEachIndexed { index,movement ->
                             val amount = abs(movement).let { if (it%4 == 0) (it/4).toString() else "$it/4" }
                             val labelHalf = fonts.measure(amount,TGTextRole.Grace).width/2
-                            right = maxOf(right,half+1+(index+1)*(if (compact) 3f else 10f)+maxOf(2.5f,labelHalf))
+                            val tip = half+1+(index+1)*(if (compact) 3f else 10f)
+                            left = minOf(left,tip-labelHalf)
+                            right = maxOf(right,tip+maxOf(2.5f,labelHalf))
                         }
                     }
                     if (note.effects.tremoloBar != null) right = maxOf(right,half+14.5f)

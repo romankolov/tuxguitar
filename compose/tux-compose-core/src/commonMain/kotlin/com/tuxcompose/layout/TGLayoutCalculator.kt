@@ -30,7 +30,10 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         // At narrow widths shed optional BLANK margins before allowing an indivisible header
         // or glyph to be clipped. Never change font, note-head, staff or string dimensions.
         val minimumBeat = metrics.flatten().flatMap { it.beatWidths }.minOrNull() ?: config.durationWidths.min()
-        val minimum = metrics.flatten().maxOf { it.first }+minimumBeat
+        val indivisible = metrics.flatten().maxOf { metric ->
+            metric.ink.lanes.maxOfOrNull { lane -> lane.maxOf { it.right+it.gap } } ?: 0f
+        }
+        val minimum = metrics.flatten().maxOf { it.first }+maxOf(minimumBeat,indivisible)
         val measurePadding = if (fitPage) minOf(config.measurePadding,((viewportWidth-minimum)/2).coerceAtLeast(0f)) else config.measurePadding
         val padding = if (fitPage) minOf(config.pagePadding,((viewportWidth-minimum-2*measurePadding)/2).coerceAtLeast(0f)) else config.pagePadding
         val available = (viewportWidth-2*padding).coerceAtLeast(1f)

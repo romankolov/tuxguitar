@@ -153,7 +153,7 @@ fun TuxComposeDemo() {
                         TextButton(onClick={spacing=if (spacing==10f) 14f else 10f}) { Text("Strings ${spacing.toInt()}") }
                         TextButton(onClick={export.launch("greenwood-study.gp5")}) { Text("Export demo GP5") }
                     }
-                    val compactAvailable = !multiTrack || state.song.tracks.size <= 1
+                    val compactAvailable = !multiTrack || (state.song?.tracks?.size ?: 0) <= 1
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                         FilterChip(selected=optimizeSpacing,onClick={optimizeSpacing=!optimizeSpacing},label={Text("Balanced spacing")},modifier=Modifier.testTag("balanced-spacing"))
                         FilterChip(selected=compact&&compactAvailable,onClick={compact=!compact},enabled=compactAvailable,label={Text("Compact")},modifier=Modifier.testTag("compact-spacing"))
