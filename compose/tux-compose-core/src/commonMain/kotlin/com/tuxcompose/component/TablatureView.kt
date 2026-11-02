@@ -6,6 +6,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -22,12 +24,15 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import com.tuxcompose.layout.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collect
 
 /**
  * Viewport-sized canvas, not a song-sized bitmap. Scroll/zoom use logical coordinates; visible
@@ -83,7 +88,7 @@ fun TablatureView(
         state.scrollTo(anchorX - centerX / next,anchorY - centerY / next)
     }
     val zoomHandler by rememberUpdatedState<(Float) -> Unit> { zoom(it) }
-    val cursorAlpha: State<Float> = if (cursorConfig.animation == CursorAnimation.Solid) remember { mutableStateOf(1f) } else {
+    val cursorAlpha: State<Float> = if (!cursorConfig.visible || cursorConfig.animation == CursorAnimation.Solid) remember { mutableStateOf(1f) } else {
         val transition = rememberInfiniteTransition(label = "Notation cursor")
         transition.animateFloat(1f, if (cursorConfig.animation == CursorAnimation.Blink) 0f else .3f,
             animationSpec = infiniteRepeatable(
@@ -100,12 +105,85 @@ fun TablatureView(
     val vertical = rememberScrollableState { delta ->
         val old = state.scrollY; state.scrollBy(y = -delta/currentFactor); (old - state.scrollY) * currentFactor
     }
-    LaunchedEffect(state.cursorTick,state.selectedTrackIndex,layout,cursorConfig.follow) {
-        if (cursorConfig.follow) layout.beatAt(state.selectedTrackIndex,state.cursorTick)?.let { b ->
-            var x = state.scrollX; var y = state.scrollY
-            if (b.x < x + 12 || b.x > x + width - 12) x = (b.x - width * .25f).coerceAtLeast(0f)
-            if (b.bounds.top < y || b.bounds.bottom > y + height) y = (b.bounds.top - 8).coerceAtLeast(0f)
-            state.scrollTo(x,y)
+    val cursorPosition = layout.cursorAt(selectedTrack,state.cursorTick,cursorConfig.smoothMovement)
+    // A system change/reflow/track switch starts at the new position, never glides diagonally
+    // back across the page. Backward seeks/repeats also snap instead of traversing old notes.
+    val cursorX = key(layout,selectedTrack,cursorPosition?.systemIndex) {
+        val previousTick = remember { longArrayOf(state.cursorTick) }
+        val jump = state.cursorTick - previousTick[0]
+        val snapMovement = !cursorConfig.visible || !cursorConfig.smoothMovement || jump < 0 ||
+            jump > (cursorPosition?.beat?.beat?.maxTicks ?: 960L) * 2
+        SideEffect { previousTick[0] = state.cursorTick }
+        animateFloatAsState(cursorPosition?.x ?: 0f,
+            animationSpec = if (snapMovement) snap() else tween(cursorConfig.movementAnimationMillis,easing=LinearEasing),
+            label = "Cursor movement")
+    }
+
+    var pointerHeld by remember(state) { mutableStateOf(false) }
+    val userScrolling = pointerHeld || horizontal.isScrollInProgress || vertical.isScrollInProgress || transform.isTransformInProgress
+    val userGeneration = state.userScrollGeneration
+    var quietGeneration by remember(state) { mutableLongStateOf(userGeneration) }
+    var followingGeneration by remember(state) { mutableLongStateOf(userGeneration) }
+    val enabled = cursorConfig.follow && cursorConfig.visible
+    val latestEnabled by rememberUpdatedState(enabled)
+    LaunchedEffect(state,userScrolling,userGeneration,cursorConfig.followResumeDelayMillis) {
+        if (!userScrolling) {
+            if (quietGeneration != userGeneration) delay(cursorConfig.followResumeDelayMillis.toLong())
+            quietGeneration = userGeneration
+        }
+    }
+    // An explicit Follow action, track/song change or re-enabling the cursor rejoins even
+    // when the playhead is offscreen. Merely ending a drag does NOT snap the user back.
+    LaunchedEffect(state,enabled,state.followRequestGeneration,song,selectedTrack) {
+        if (enabled) {
+            followingGeneration = state.userScrollGeneration
+            quietGeneration = state.userScrollGeneration
+        }
+    }
+    val viewport = Rect(state.scrollX,state.scrollY,state.scrollX+width,state.scrollY+height)
+    val cursorInView = cursorIntersectsViewport(cursorPosition,viewport)
+    LaunchedEffect(enabled,userScrolling,quietGeneration,userGeneration,cursorInView) {
+        if (enabled && !userScrolling && quietGeneration == userGeneration && cursorInView)
+            followingGeneration = userGeneration
+    }
+    val canFollow = enabled && !userScrolling && quietGeneration == userGeneration && followingGeneration == userGeneration
+    SideEffect {
+        state.isUserScrolling = userScrolling
+        state.isAutoScrollSuspended = enabled && !canFollow
+    }
+    DisposableEffect(state) { onDispose { state.isUserScrolling = false; state.isAutoScrollSuspended = false } }
+    LaunchedEffect(state,layout,selectedTrack,width,height,canFollow,cursorConfig.smoothMovement,
+        cursorConfig.smoothScroll,cursorConfig.scrollAnimationMillis) {
+        if (!canFollow || size.width == 0 || size.height == 0) return@LaunchedEffect
+        val generation = state.userScrollGeneration
+        coroutineScope {
+            var planned = Offset(state.scrollX,state.scrollY)
+            var motion: Job? = null
+            snapshotFlow { state.cursorTick }.collect { tick ->
+                val position = layout.cursorAt(selectedTrack,tick,cursorConfig.smoothMovement)
+                if (position == null) {
+                    motion?.cancelAndJoin()
+                    planned = Offset(state.scrollX,state.scrollY)
+                    return@collect
+                }
+                val destination = cursorFollowDestination(position,planned,width,height,state.maxScrollX,state.maxScrollY)
+                if (destination != planned) {
+                    planned = destination
+                    motion?.cancelAndJoin()
+                    motion = launch {
+                        fun move(fraction: Float, from: Offset) {
+                            // Check the epoch on every frame: even a pointer-down arriving
+                            // before recomposition must interrupt automatic movement.
+                            if (!latestEnabled || state.isUserScrolling || state.userScrollGeneration != generation)
+                                throw CancellationException("User interrupted cursor follow")
+                            state.scrollFromFollow(from.x+(destination.x-from.x)*fraction,from.y+(destination.y-from.y)*fraction)
+                        }
+                        val from = Offset(state.scrollX,state.scrollY)
+                        if (!cursorConfig.smoothScroll || cursorConfig.scrollAnimationMillis == 0) move(1f,from)
+                        else animate(0f,1f,animationSpec=tween(cursorConfig.scrollAnimationMillis,easing=FastOutSlowInEasing)) { value,_ -> move(value,from) }
+                    }
+                }
+            }
         }
     }
     fun tapped(point: Offset, extend: Boolean) {
@@ -116,7 +194,18 @@ fun TablatureView(
         }
     }
     val interactions = if (!gesturesEnabled) Modifier else Modifier
-        .scrollable(horizontal,Orientation.Horizontal)
+        .pointerInput(state) {
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed=false,pass=PointerEventPass.Initial)
+                state.notifyUserInteraction()
+                pointerHeld = true
+                try {
+                    do { val event = awaitPointerEvent(PointerEventPass.Initial) }
+                    while (event.changes.any { it.pressed })
+                } finally { pointerHeld = false }
+            }
+        }
+        .scrollable(horizontal,Orientation.Horizontal,enabled=config.orientation != TGLayoutOrientation.Page || !config.fitPageToWidth)
         .scrollable(vertical,Orientation.Vertical)
         .transformable(transform,canPan = { false })
         .pointerInput(state, config.stringSpacing) {
@@ -126,10 +215,10 @@ fun TablatureView(
         .then(interactions)
         .onPreviewKeyEvent { event ->
             if (event.type != KeyEventType.KeyDown) false else when (event.key) {
-                Key.DirectionRight -> state.cursor.nextBeat()
-                Key.DirectionLeft -> state.cursor.previousBeat()
-                Key.DirectionDown -> state.cursor.nextMeasure()
-                Key.DirectionUp -> state.cursor.previousMeasure()
+                Key.DirectionRight -> state.cursor.nextBeat().also { if (it) state.resumeAutoScroll() }
+                Key.DirectionLeft -> state.cursor.previousBeat().also { if (it) state.resumeAutoScroll() }
+                Key.DirectionDown -> state.cursor.nextMeasure().also { if (it) state.resumeAutoScroll() }
+                Key.DirectionUp -> state.cursor.previousMeasure().also { if (it) state.resumeAutoScroll() }
                 Key.Escape -> { state.clearSelection(); true }
                 else -> false
             }
@@ -139,8 +228,9 @@ fun TablatureView(
             contentDescription = "${song?.title?.ifBlank { "Untitled" } ?: "Empty score"}, tablature and score"
             stateDescription = "Track ${state.selectedTrackIndex+1}, tick ${state.cursorTick}"
             customActions = listOf(
-                CustomAccessibilityAction("Next beat") { state.cursor.nextBeat() },
-                CustomAccessibilityAction("Previous beat") { state.cursor.previousBeat() },
+                CustomAccessibilityAction("Next beat") { state.cursor.nextBeat().also { if (it) state.resumeAutoScroll() } },
+                CustomAccessibilityAction("Previous beat") { state.cursor.previousBeat().also { if (it) state.resumeAutoScroll() } },
+                CustomAccessibilityAction("Follow cursor") { state.resumeAutoScroll(); true },
                 CustomAccessibilityAction("Zoom in") { zoom(1.25f); true },
                 CustomAccessibilityAction("Zoom out") { zoom(.8f); true },
             )
@@ -153,7 +243,7 @@ fun TablatureView(
             canvasViewport(state,factor) { viewport -> with(renderer) { render(layout,viewport) } }
         }
         Canvas(Modifier.fillMaxSize()) {
-            canvasViewport(state,factor) { with(renderer) { renderCursor(layout,state.selectedTrackIndex,state.cursorTick,cursorConfig,cursorAlpha.value) }; overlay(layout) }
+            canvasViewport(state,factor) { with(renderer) { renderCursor(cursorPosition,cursorConfig,cursorAlpha.value,cursorX.value) }; overlay(layout) }
         }
     }
 }

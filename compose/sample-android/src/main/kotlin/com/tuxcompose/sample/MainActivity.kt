@@ -54,6 +54,10 @@ fun TuxComposeDemo() {
     var orientation by remember { mutableStateOf(TGLayoutOrientation.Page) }
     var palette by remember { mutableIntStateOf(0) }
     var cursorStyle by remember { mutableStateOf(CursorStyle.Line) }
+    var smoothCursor by remember { mutableStateOf(true) }
+    var smoothFollow by remember { mutableStateOf(true) }
+    var cursorVisible by remember { mutableStateOf(true) }
+    var followCursor by remember { mutableStateOf(true) }
     var multiTrack by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var midiMenu by remember { mutableStateOf(false) }
@@ -125,6 +129,9 @@ fun TuxComposeDemo() {
                     imported?.score?.tracks?.forEachIndexed { i,track ->
                         FilterChip(selected=state.selectedTrackIndex==i,onClick={state.selectedTrackIndex=i;state.clearSelection()},label={Text(track.name,fontSize=11.sp)},modifier=Modifier.testTag("track-$i"))
                     }
+                    FilterChip(selected=followCursor&&!state.isAutoScrollSuspended,
+                        onClick={ if (!followCursor || state.isAutoScrollSuspended) { followCursor=true;state.resumeAutoScroll() } else followCursor=false },
+                        label={Text(if (state.isAutoScrollSuspended) "Resume follow" else "Follow",fontSize=11.sp)},modifier=Modifier.testTag("follow-cursor"))
                 }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalAlignment=Alignment.CenterVertically) {
                     TGLayoutStyles.entries.forEach { style -> FilterChip(selected=mode==style,onClick={mode=style},label={Text(style.name,fontSize=11.sp)},modifier=Modifier.testTag("mode-${style.name}")) }
@@ -135,6 +142,9 @@ fun TuxComposeDemo() {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
                         TextButton(onClick={palette=(palette+1)%3},modifier=Modifier.testTag("palette")) { Text(listOf("Paper","Dark","Contrast")[palette]) }
                         TextButton(onClick={cursorStyle=CursorStyle.entries[(cursorStyle.ordinal+1)%3]}) { Text("Cursor: ${cursorStyle.name}") }
+                        FilterChip(selected=smoothCursor,onClick={smoothCursor=!smoothCursor},label={Text("Cursor glide")},modifier=Modifier.testTag("smooth-cursor"))
+                        FilterChip(selected=smoothFollow,onClick={smoothFollow=!smoothFollow},label={Text("Smooth scroll")},modifier=Modifier.testTag("smooth-follow"))
+                        FilterChip(selected=cursorVisible,onClick={cursorVisible=!cursorVisible},label={Text("Show cursor")},modifier=Modifier.testTag("show-cursor"))
                         FilterChip(selected=multiTrack,onClick={multiTrack=!multiTrack},label={Text("All tracks")})
                         TextButton(onClick={spacing=if (spacing==10f) 14f else 10f}) { Text("Strings ${spacing.toInt()}") }
                         TextButton(onClick={export.launch("greenwood-study.gp5")}) { Text("Export demo GP5") }
@@ -142,7 +152,7 @@ fun TuxComposeDemo() {
                 }
                 HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    TablatureView(state,Modifier.fillMaxSize().testTag("score-canvas"),layout,TGCursorConfig(style=cursorStyle),onBeatClicked={tick,_ -> player.seek(tick)})
+                    TablatureView(state,Modifier.fillMaxSize().testTag("score-canvas"),layout,TGCursorConfig(style=cursorStyle,visible=cursorVisible,follow=followCursor,smoothMovement=smoothCursor,smoothScroll=smoothFollow),onBeatClicked={tick,_ -> player.seek(tick)})
                     if (busy) CircularProgressIndicator(Modifier.align(Alignment.Center))
                 }
                 HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
@@ -154,10 +164,10 @@ fun TuxComposeDemo() {
                     TextButton(onClick={player.pause();player.speedPercent=if (player.speedPercent==100) 75 else if (player.speedPercent==75) 125 else 100}) { Text("${player.speedPercent}%",fontSize=11.sp) }
                 }
                 Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=4.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                    OutlinedButton(onClick={player.pause();state.cursor.previousBeat();player.seek(state.cursorTick)},enabled=!busy,modifier=Modifier.testTag("previous")) { Text("‹") }
+                    OutlinedButton(onClick={player.pause();state.cursor.previousBeat();state.resumeAutoScroll();player.seek(state.cursorTick)},enabled=!busy,modifier=Modifier.testTag("previous")) { Text("‹") }
                     Button(onClick={if (player.playing) player.pause() else player.play()},enabled=!busy&&!player.loading&&imported!=null,modifier=Modifier.weight(1f).testTag("play")) { Text(if (player.loading) "Loading audio…" else if (player.playing) "Pause" else "Play") }
                     OutlinedButton(onClick={player.stop()},enabled=!busy,modifier=Modifier.testTag("stop")) { Text("■") }
-                    OutlinedButton(onClick={player.pause();state.cursor.nextBeat();player.seek(state.cursorTick)},enabled=!busy,modifier=Modifier.testTag("next")) { Text("›") }
+                    OutlinedButton(onClick={player.pause();state.cursor.nextBeat();state.resumeAutoScroll();player.seek(state.cursorTick)},enabled=!busy,modifier=Modifier.testTag("next")) { Text("›") }
                 }
                 Box {
                     TextButton(onClick={midiMenu=true},modifier=Modifier.padding(horizontal=12.dp)) { Text("MIDI · $midiStatus",fontSize=10.sp) }

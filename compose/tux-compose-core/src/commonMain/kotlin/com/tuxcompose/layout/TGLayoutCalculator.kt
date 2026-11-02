@@ -40,7 +40,9 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             }
             return Column(index, width, q, effect, firstSpace, clefSpace, keySpace, measures)
         }
-        val available = (viewportWidth - 2 * config.pagePadding).coerceAtLeast(1f)
+        val fitPage = config.orientation == TGLayoutOrientation.Page && config.fitPageToWidth
+        val padding = if (fitPage) minOf(config.pagePadding, (viewportWidth - 1f).coerceAtLeast(0f) / 2) else config.pagePadding
+        val available = (viewportWidth - 2 * padding).coerceAtLeast(1f)
         val systems = mutableListOf<List<Column>>()
         val filled = mutableListOf<Boolean>()
         var next = 0
@@ -56,35 +58,40 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                     break
                 }
                 row += col; used += col.width; next++
-                // A single oversized measure is never compressed; allow cross-axis panning.
+                // A single oversized measure gets its own system; fit it uniformly during placement.
                 if (config.orientation == TGLayoutOrientation.Page && used >= available) { full = false; break }
             }
             systems += row; filled += full
         }
         val staves = mutableListOf<TGStaffLayout>()
-        var top = config.pagePadding
+        var top = padding
         var maxRight = viewportWidth
         systems.forEachIndexed { si, columns ->
+            val naturalWidth = columns.sumOf { it.width.toDouble() }.toFloat()
+            val fitScale = if (fitPage && naturalWidth > available) available / naturalWidth else 1f
             val extra = if (config.orientation == TGLayoutOrientation.Page && filled[si] && config.justifySystems)
                 ((available - columns.sumOf { it.width.toDouble() }.toFloat()) / columns.size).coerceAtLeast(0f) else 0f
             tracks.forEachIndexed { ti, track ->
                 val lanes = staffSpacing(track, columns.mapNotNull { track.measures.getOrNull(it.index) })
                 val measures = mutableListOf<TGMeasureLayout>()
-                var left = config.pagePadding
+                var left = padding
                 columns.forEach { col ->
                     val m = track.measures.getOrNull(col.index)
                     if (m != null) {
                         val localMetric = col.metrics[ti]
-                        measures += placeMeasure(track, indices[ti], col.index, m, col, localMetric, Rect(left, top, left + col.width + extra, top + lanes.height), lanes, compact, extra)
+                        measures += placeMeasure(track, indices[ti], col.index, m, col, localMetric,
+                            Rect(left, top, left + col.width + extra, top + lanes.height), lanes, compact, extra).fitted(fitScale)
                     }
-                    left += col.width + extra
+                    left += (col.width + extra) * fitScale
                 }
-                staves += TGStaffLayout(si, indices[ti], Rect(config.pagePadding, top, left, top + lanes.height), measures)
-                maxRight = maxOf(maxRight, left + config.pagePadding)
-                top += lanes.height + config.systemSpacing
+                val right = if (fitPage) minOf(left, viewportWidth - padding) else left
+                staves += TGStaffLayout(si, indices[ti], Rect(padding, top, right, top + lanes.height * fitScale), measures)
+                // Keep the declared page width exact, including at fractional densities/zoom.
+                if (!fitPage) maxRight = maxOf(maxRight, left + padding)
+                top += lanes.height * fitScale + config.systemSpacing
             }
         }
-        return TGSongLayout(maxRight, (top - config.systemSpacing + config.pagePadding).coerceAtLeast(0f), staves)
+        return TGSongLayout(maxRight, (top - config.systemSpacing + padding).coerceAtLeast(0f), staves)
     }
 
     private fun validateAlignment(tracks: List<TGTrack>) {
@@ -220,7 +227,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 TGVoiceLayout(v, duration, notes, up, stemX, origin + localStart, origin + endY, g.id)
             }
             val chordBounds = b.chord?.let { Rect(x - 4f, bounds.top + lanes.position(TGTrackLane.Chord), x + 5f * track.stringTuning.size + 8f, bounds.top + lanes.position(TGTrackLane.Chord) + 47f) }
-            TGBeatLayout(b, Rect(maxOf(area, x - 5f), bounds.top, maxOf(x + 5f, nextX - 5f), bounds.bottom), x, voices, chordBounds)
+            TGBeatLayout(b, Rect(maxOf(area, x - 5f), bounds.top, maxOf(x + 5f, nextX - 5f), bounds.bottom), x, voices, chordBounds, endX = nextX)
         }
         return TGMeasureLayout(trackIndex, index, m, bounds, score, tab, tab?.plus((track.stringTuning.size - 1) * config.stringSpacing),
             metric.paintClef, metric.paintKey, metric.paintTime, metric.paintTempo, metric.previousKey,

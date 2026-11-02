@@ -19,6 +19,7 @@ kotlin {
             api(compose.ui)
             implementation(compose.foundation)
             implementation(compose.animation)
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             api("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.8")
         }
         commonTest.dependencies { implementation(kotlin("test")) }

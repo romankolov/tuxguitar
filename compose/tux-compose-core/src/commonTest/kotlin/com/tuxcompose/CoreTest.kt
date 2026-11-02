@@ -86,9 +86,82 @@ class CoreTest {
         l.staves.dropLast(1).forEach { assertEquals(588f,it.bounds.right,.01f) }
         l.staves.zipWithNext().forEach { (a,b) -> assertTrue(a.bounds.bottom < b.bounds.top) }
     }
-    @Test fun singleOversizedBarDoesNotDisappearOrCompress() {
-        val l=TGLayoutCalculator().calculate(song(2,TGDuration(64)),100f)
+    @Test fun oversizedBarPanningRemainsAnExplicitOptOut() {
+        val l=TGLayoutCalculator(TGLayoutConfig(fitPageToWidth=false)).calculate(song(2,TGDuration(64)),100f)
         assertEquals(2,l.staves.size); assertTrue(l.width>100f)
+    }
+    @Test fun pageWidthAlwaysMatchesParentEvenForDenseBarsAndFractionalZoomWidths() {
+        val data = song(2,TGDuration(64))
+        for (width in listOf(1f,20f,100f,331.42856f,400f,999.9f)) {
+            val layout = TGLayoutCalculator().calculate(data,width)
+            assertEquals(width,layout.width)
+            assertEquals(2,layout.staves.size)
+            layout.staves.forEach { staff ->
+                assertTrue(staff.bounds.left >= 0 && staff.bounds.right <= width + .001f)
+                staff.measures.forEach { measure ->
+                    assertTrue(measure.contentScale > 0 && measure.contentScale <= 1)
+                    assertTrue(measure.beats.last().endX <= width + .001f)
+                    assertTrue(measure.beats.all { it.x in measure.bounds.left..measure.bounds.right })
+                }
+            }
+        }
+    }
+    @Test fun pageFitPreservesAspectAndHitCoordinatesIncludingEmptyStrings() {
+        val data = song(1,TGDuration(64))
+        val fitted = TGLayoutCalculator().calculate(data,300f).staves[0].measures[0]
+        val original = TGLayoutCalculator(TGLayoutConfig(fitPageToWidth=false)).calculate(data,300f).staves[0].measures[0]
+        val a = original.beats[0].voices[0].notes[0]
+        val b = fitted.beats[0].voices[0].notes[0]
+        assertEquals(a.tabBounds!!.width*fitted.contentScale,b.tabBounds!!.width,.001f)
+        assertEquals(a.tabBounds.height*fitted.contentScale,b.tabBounds.height,.001f)
+        assertEquals(a.scoreBounds!!.height*fitted.contentScale,b.scoreBounds!!.height,.001f)
+        val layout = TGLayoutCalculator().calculate(data,300f)
+        assertEquals(1,layout.hitTest(b.tabBounds.center,10f)!!.string)
+        val stringThree = Offset(fitted.beats[0].x,fitted.tabTop!!+20f*fitted.contentScale)
+        assertEquals(3,layout.hitTest(stringThree,10f)!!.string)
+        assertEquals(300f,layout.width)
+    }
+    @Test fun cursorCanSweepThroughBeatsAndTheLastBeatWithoutCrossingRows() {
+        val layout=TGLayoutCalculator().calculate(song(3),300f)
+        val first=layout.cursorAt(0,960)!!
+        val half=layout.cursorAt(0,1200)!!
+        val next=layout.cursorAt(0,1440)!!
+        assertEquals((first.x+next.x)/2,half.x,.001f)
+        assertEquals(first.beat,half.beat)
+        assertEquals(first.x,layout.cursorAt(0,1200,false)!!.x)
+        val last=layout.cursorAt(0,4799)!!
+        assertTrue(last.x>last.beat.x)
+        assertTrue(last.x<=last.beat.endX)
+        val wrapped=layout.cursorAt(0,4800)!!
+        assertNotEquals(last.systemIndex,wrapped.systemIndex)
+        assertEquals(wrapped.beat.x,wrapped.x)
+    }
+    @Test fun followUsesThePlannedViewportAndDoesNotRetargetEveryTick() {
+        val layout=TGLayoutCalculator(TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal)).calculate(song(20),300f)
+        val cursor=layout.cursorAt(0,960+3840*4)!!
+        val target=cursorFollowDestination(cursor,Offset.Zero,300f,500f,layout.width-300f,0f)
+        assertTrue(target.x>0)
+        assertEquals(target,cursorFollowDestination(cursor,target,300f,500f,layout.width-300f,0f))
+        assertFalse(cursorIntersectsViewport(cursor,Rect(0f,0f,300f,500f)))
+        assertTrue(cursorIntersectsViewport(cursor,Rect(target.x,0f,target.x+300f,500f)))
+    }
+    @Test fun manualScrollingIsDistinctFromViewportClampingAndFollowFrames() {
+        val state=TablatureState(song())
+        val epoch=state.userScrollGeneration
+        state.updateViewport(1000f,1000f,300f,300f)
+        state.scrollFromFollow(10f,20f)
+        assertEquals(epoch,state.userScrollGeneration)
+        state.scrollBy(y=30f)
+        assertTrue(state.userScrollGeneration>epoch)
+        val request=state.followRequestGeneration
+        state.resumeAutoScroll()
+        assertEquals(request+1,state.followRequestGeneration)
+        assertEquals(50f,state.scrollY)
+    }
+    @Test fun cursorMotionTimingMustBeNonnegative() {
+        assertFailsWith<IllegalArgumentException> { TGCursorConfig(movementAnimationMillis=-1) }
+        assertFailsWith<IllegalArgumentException> { TGCursorConfig(scrollAnimationMillis=-1) }
+        assertFailsWith<IllegalArgumentException> { TGCursorConfig(followResumeDelayMillis=-1) }
     }
     @Test fun emptySongsAndMeasuresAreSafe() {
         assertEquals(0f,TGLayoutCalculator().calculate(TGSong(),320f).height)

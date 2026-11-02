@@ -53,7 +53,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.0")
+    implementation("com.tuxcompose:tux-compose-core:0.1.1")
 }
 ```
 
@@ -168,11 +168,51 @@ The complete Android host with real decoding and playback is [MainActivity.kt](s
 
 Everything uses a **bounded viewport canvas**, not a giant song-sized surface. Text metrics are cached and shared with layout. Cursor/selection are independent layers; cursor updates do not rebuild notation geometry. Layout exposes bounds and hit testing directly for custom editor shells and export implementations.
 
+## Page fitting, cursor glide and cooperative auto-scroll
+
+Page/vertical mode now keeps **exactly the parent width**, including fractional density and
+zoom. If one dense bar is wider than a system, that system alone is uniformly fitted: glyphs,
+fonts, staff spacing and note hit boxes scale together. Ordinary systems keep their normal
+size. `TGLayoutConfig(fitPageToWidth = false)` opts back into the older overflow/panning
+behavior; continuous horizontal mode is unchanged.
+
+```kotlin
+TablatureView(
+    state = state,
+    cursorConfig = TGCursorConfig(
+        visible = true,
+        follow = true,
+        smoothMovement = true,          // sweep through each beat using the supplied tick
+        movementAnimationMillis = 80,   // short tween for coarse position updates; 0 = exact tick
+        smoothScroll = true,
+        scrollAnimationMillis = 280,
+        followResumeDelayMillis = 1200,
+    ),
+)
+// Explicit Follow button after browsing away:
+// Button(onClick = { state.resumeAutoScroll() }) { Text("Follow cursor") }
+```
+
+Continue feeding `state.cursor.seek(tick)` from your own transport on the UI thread. Core
+never starts a musical clock or guesses playback timing. Continuous ticks give a continuous
+sweep; `smoothMovement = false` restores beat-snapped movement. Backward seeks/repeats,
+track changes and wrapped-system transitions do not animate backwards across the page.
+Note highlighting remains attached to the actual active beat.
+
+Auto-follow requires **both `visible` and `follow`**. Pointer holds, drag, wheel, pinch and
+fling immediately interrupt an in-flight follow animation. Programmatic `scrollTo`/`scrollBy`
+also yield to the caller. After the idle grace, following resumes only if the playhead is
+still/again in the visible viewport: browsing to other bars does not snap you back. Call
+`state.resumeAutoScroll()` (or toggle Follow on) to rejoin explicitly. Read
+`state.isUserScrolling` / `state.isAutoScrollSuspended` for your own UI. When following is
+already active it continues smoothly across systems, including bringing the next row into
+view. The sample exposes Cursor glide, Smooth scroll, Show cursor and Follow controls.
+
 ## Tests, provenance and licensing
 
 - `commonTest`: duration/tuplet validation, immutable snapshots, spacing, wrapping, multi-track alignment, hit testing, culling, beaming, empty/extreme inputs and state navigation.
 - `demo-tuxguitar:test`: **differential tests** for every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; GP3/4/5 round trips; original MIDI event generation.
-- Android instrumentation: real import, screen controls, theme/layout changes and **non-silent PCM from the bundled guitar soundfont**. Audio rendering is verified, not a claim that a human auditioned speaker output.
+- Android instrumentation: real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Additional frame-clock/pointer tests cover parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
 - `python3 tools/verify.py`: reproducible glyph source hashes and a fail-closed check against platform/parser/player imports or demo dependencies in core.
 
 Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The optional Gervill demo includes GPLv2 with Classpath Exception code and existing soundfont assets; their notices remain unchanged. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.

@@ -81,9 +81,17 @@ The adjusted width spreads cross-track effect slack over the meter. Compact mode
 
 ## Wrapping and track alignment
 
-Horizontal layout has one system per track with sequential measure X positions. Page layout greedily appends natural-width columns until adding another would meet/exceed available width, or an explicit line break occurs. A too-wide single measure gets its own system and remains pannable rather than being crushed below readable size.
+Horizontal layout has one system per track with sequential measure X positions. Page layout greedily appends natural-width columns until adding another would meet/exceed available width, or an explicit line break occurs. A too-wide single measure gets its own system. By default its geometry is uniformly fitted to the available parent width, preserving glyph/font aspect ratio and all relative positions. This is an explicit page-mode adaptation: `fitPageToWidth=false` retains the legacy oversized-bar panning behavior. Horizontal mode always retains its natural width.
 
 For a full line, the unused width is divided equally among its measures (the upstream `defaultMeasureSpacing` rule). Within each bar, additional beat spacing is proportional to its musical position. The final incomplete line is not stretched. `repeatSystemSignatures=false` preserves upstream's signature-change behavior; opt in to repeating them for print-style systems.
+
+For an oversized system, `fitScale = availableWidth / naturalSystemWidth`; all tracks in that
+system share the same scale. Public measure/beat/note rectangles are transformed around the
+system's top-left, so culling, selection, cursor and hit testing remain in the same logical
+coordinate space. Rendering uses the original geometry beneath a uniform Canvas transform,
+including the original measured fonts, avoiding stretched glyphs or new note collisions.
+The page's reported content width is exactly its viewport width, not a floating-point sum
+of justified columns; this also removes subpixel horizontal scroll ranges.
 
 Multi-track mode shares column widths, quarter widths, effect width and prefixes. Staff height is independent per track, but all bars align horizontally.
 
@@ -128,6 +136,22 @@ Fret numbers and prose use a bounded 512-entry text-layout cache, measured in un
 - The caller can use `TGLayoutCalculator` and `TGSongLayout` directly without the default component.
 
 This is not a hardware benchmark or a claim of constant-time initial layout: initial layout is proportional to the score size. Hit testing uses the visible staff/measure, then the beats in that bar. Mutate Compose state only on the UI thread; decoding and the demo's MIDI preparation run off it.
+
+## Continuous cursor and follow policy
+
+`cursorAt(track,tick,smooth=true)` interpolates from the active beat's X to its next rhythmic
+boundary: `x = beatX + (endX - beatX) × (tick - beatStart)/(beatEnd - beatStart)`. The last beat
+uses the end of its measure's rhythmic area, never the next row's first X. This changes only
+presentation; active-beat lookup, selection and note highlighting stay discrete. An optional
+short Compose tween smooths coarse updates; new systems/reflows and backward seeks reset
+rather than sweeping across unrelated notation. The component owns no playback clock.
+
+Follow is eligible only for a visible, enabled cursor. User-input epochs invalidate running
+scroll animations immediately, including pointer-down before recomposition and subsequent
+wheel/fling/pinch updates. Idle grace and viewport visibility govern resumption after manual
+browsing; explicit resume is available. Follow tests each new playhead against its *planned*
+viewport, not an in-flight animated offset, so incoming playback ticks do not repeatedly
+cancel an animation as it brings a system into view.
 
 ## Explicit limitations / next parity work
 

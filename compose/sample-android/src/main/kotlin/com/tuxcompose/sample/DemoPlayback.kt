@@ -85,6 +85,8 @@ class DemoPlayback(context: Context, private val scope: CoroutineScope, private 
         pause(); position=0
         pendingSeek=state.song?.tracks?.firstOrNull()?.measures?.firstOrNull()?.start ?: 0
         state.cursor.seek(pendingSeek!!)
+        state.scrollTo(0f,0f)
+        state.resumeAutoScroll()
     }
     fun dispose() {
         if (disposed) return

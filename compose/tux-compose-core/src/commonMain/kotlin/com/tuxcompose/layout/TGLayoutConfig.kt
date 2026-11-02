@@ -37,6 +37,8 @@ data class TGLayoutConfig(
     val showTempo: Boolean = true,
     val typography: TGTypography = TGTypography(),
     val colors: TGColorPalette = TGColorPalette.Paper,
+    /** Page systems always fit the parent; uniformly scale an oversized bar rather than clip it. */
+    val fitPageToWidth: Boolean = true,
 ) {
     init {
         require(scale.isFinite() && scale in 0.1f..8f)

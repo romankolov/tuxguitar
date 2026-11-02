@@ -31,6 +31,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     }
 
     fun DrawScope.renderMeasure(layout: TGMeasureLayout) {
+        layout.unscaled?.let { original ->
+            withTransform({ scale(layout.contentScale,layout.contentScale,layout.bounds.topLeft) }) { renderMeasure(original) }
+            return
+        }
         val b = layout.bounds
         layout.staffTop?.let { top -> repeat(5) { i -> line(b.left, top + i * config.staffSpacing, b.right, top + i * config.staffSpacing, colors.staffLines, .6f) } }
         layout.tabTop?.let { top ->
@@ -75,17 +79,22 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     }
 
     fun DrawScope.renderCursor(layout: TGSongLayout, trackIndex: Int, tick: Long, cursor: TGCursorConfig, opacity: Float = 1f) {
-        if (!cursor.visible) return
-        val beat = layout.beatAt(trackIndex, tick) ?: return
-        val b = beat.bounds
+        renderCursor(layout.cursorAt(trackIndex,tick,cursor.smoothMovement),cursor,opacity)
+    }
+
+    fun DrawScope.renderCursor(position: TGCursorLayout?, cursor: TGCursorConfig, opacity: Float = 1f, displayX: Float? = null) {
+        if (!cursor.visible || position == null) return
+        val beat = position.beat
+        val x = displayX ?: position.x
+        val b = beat.bounds.translate(Offset(x - beat.x,0f))
         val base = cursor.color ?: colors.cursor
         val color = base.copy(alpha = base.alpha * opacity)
         when (cursor.style) {
-            CursorStyle.Line -> line(beat.x - 3, b.top + 4, beat.x - 3, b.bottom - 4, color, cursor.width)
+            CursorStyle.Line -> line(x - 3, b.top + 4, x - 3, b.bottom - 4, color, cursor.width)
             CursorStyle.Block -> drawRect(color.copy(alpha = color.alpha * cursor.blockAlpha), b.topLeft, b.size)
             CursorStyle.Glow -> {
                 listOf(5f to .06f, 3f to .1f, 1.7f to .2f, 1f to 1f).forEach { (size, alpha) ->
-                    line(beat.x - 3, b.top + 4, beat.x - 3, b.bottom - 4, color.copy(alpha = color.alpha * alpha), cursor.width * size)
+                    line(x - 3, b.top + 4, x - 3, b.bottom - 4, color.copy(alpha = color.alpha * alpha), cursor.width * size)
                 }
             }
         }

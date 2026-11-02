@@ -27,7 +27,20 @@ data class TGCursorConfig(
     val follow: Boolean = true,
     val animation: CursorAnimation = CursorAnimation.Solid,
     val animationMillis: Int = 900,
-) { init { require(width.isFinite() && width > 0 && blockAlpha in 0f..1f && animationMillis > 0) } }
+    /** Sweep through the beat using cursorTick instead of snapping to its first note. */
+    val smoothMovement: Boolean = true,
+    /** Short visual tween for coarse tick updates; 0 uses exact, continuous tick positions. */
+    val movementAnimationMillis: Int = 80,
+    val smoothScroll: Boolean = true,
+    val scrollAnimationMillis: Int = 280,
+    /** Idle grace after drag, wheel, fling or zoom; browsing away also waits for cursor visibility. */
+    val followResumeDelayMillis: Int = 1200,
+) {
+    init {
+        require(width.isFinite() && width > 0 && blockAlpha in 0f..1f && animationMillis > 0)
+        require(movementAnimationMillis >= 0 && scrollAnimationMillis >= 0 && followResumeDelayMillis >= 0)
+    }
+}
 
 /** Convenience wrapper; library has no clock, player, decoder or MIDI dependencies. */
 @Immutable
@@ -57,6 +70,19 @@ class TablatureState(initialSong: TGSong? = null, initialCursorTick: Long = 0L) 
     var maxScrollY: Float by mutableFloatStateOf(0f)
         private set
     val cursor: CursorController = CursorController(this)
+    /** Includes pointer hold, drag, fling, wheel and pinch interaction, not automatic following. */
+    var isUserScrolling: Boolean by mutableStateOf(false)
+        internal set
+    var isAutoScrollSuspended: Boolean by mutableStateOf(false)
+        internal set
+    internal var userScrollGeneration: Long by mutableLongStateOf(0)
+        private set
+    internal var followRequestGeneration: Long by mutableLongStateOf(0)
+        private set
+
+    internal fun notifyUserInteraction() { userScrollGeneration++ }
+    /** Explicitly rejoin the playhead after browsing away. Does not override follow/visible config. */
+    fun resumeAutoScroll() { followRequestGeneration++ }
 
     fun moveCursorForward(ticks: Long) {
         require(ticks >= 0)
@@ -66,6 +92,10 @@ class TablatureState(initialSong: TGSong? = null, initialCursorTick: Long = 0L) 
     fun setZoom(scale: Float) { require(scale.isFinite()); zoomScale = scale.coerceIn(.25f, 4f) }
     fun scrollTo(x: Float = scrollX, y: Float = scrollY) {
         require(x.isFinite() && y.isFinite())
+        notifyUserInteraction()
+        scrollFromFollow(x,y)
+    }
+    internal fun scrollFromFollow(x: Float, y: Float) {
         scrollX = x.coerceIn(0f, maxScrollX); scrollY = y.coerceIn(0f, maxScrollY)
     }
     fun scrollBy(x: Float = 0f, y: Float = 0f) = scrollTo(scrollX + x, scrollY + y)
@@ -74,12 +104,13 @@ class TablatureState(initialSong: TGSong? = null, initialCursorTick: Long = 0L) 
         val normalized = tick.coerceAtLeast(0)
         selectedTrackIndex = trackIndex; cursorTick = normalized; selectedString = string
         selection = if (extend && selection?.trackIndex == trackIndex) selection?.copy(focusTick = normalized) else TGSelection(trackIndex,normalized)
+        resumeAutoScroll()
     }
     fun clearSelection() { selection = null }
     internal fun updateViewport(contentWidth: Float, contentHeight: Float, viewportWidth: Float, viewportHeight: Float) {
         maxScrollX = (contentWidth - viewportWidth).coerceAtLeast(0f)
         maxScrollY = (contentHeight - viewportHeight).coerceAtLeast(0f)
-        scrollTo()
+        scrollFromFollow(scrollX,scrollY)
     }
     internal fun moveBeat(direction: Int): Boolean {
         val track = song?.tracks?.getOrNull(selectedTrackIndex) ?: return false
