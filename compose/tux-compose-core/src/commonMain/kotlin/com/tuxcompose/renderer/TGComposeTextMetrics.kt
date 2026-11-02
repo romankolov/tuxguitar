@@ -25,7 +25,7 @@ class TGComposeTextMetrics(private val measurer: TextMeasurer, private val typog
             TGTextRole.Chord -> typography.chordSize
         }
         val result = measurer.measure(text, TextStyle(fontFamily = if (note) typography.noteFamily else typography.textFamily,
-            fontWeight = if (note) typography.noteWeight else FontWeight.Normal, fontSize = (renderScale?.let { kotlin.math.floor(size*fontScale*it+.5f).coerceAtLeast(1f)/it } ?: (size*fontScale)).sp),
+            fontWeight = if (role == TGTextRole.Note || (role == TGTextRole.Grace && renderScale == null)) typography.noteWeight else FontWeight.Normal, fontSize = (renderScale?.let { kotlin.math.floor(size*fontScale*it+.5f).coerceAtLeast(1f)/it } ?: (size*fontScale)).sp),
             softWrap = false, maxLines = 1, density = Density(1f, 1f))
         cache[key] = result
         if (cache.size > 512) cache.remove(cache.keys.first())

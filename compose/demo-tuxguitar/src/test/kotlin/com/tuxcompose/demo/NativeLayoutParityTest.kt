@@ -30,7 +30,7 @@ class NativeLayoutParityTest {
             val expectedRows = (0 until nativeTrack.countMeasures()).groupBy {
                 (nativeTrack.getMeasure(it) as TGMeasureImpl).posY
             }.values.toList()
-            assertEquals(expectedRows,rows.map { row -> row.measures.map { it.measureIndex } },"${ref.config}, scale=$scale, track=$ti")
+            assertEquals(expectedRows,rows.map { row -> row.measures.map { it.measureIndex } },"${ref.config.style}/compact=${ref.config.compact}/multi=${ref.config.multiTrack}/scale=$scale/track=$ti row membership")
             rows.flatMap { it.measures }.forEach { m ->
                 val original = nativeTrack.getMeasure(m.measureIndex) as TGMeasureImpl
                 val prefix = "${ref.config.style}/compact=${ref.config.compact}/multi=${ref.config.multiTrack}/scale=$scale/track=$ti/bar=${m.measureIndex}"
@@ -94,19 +94,26 @@ class NativeLayoutParityTest {
 
     @Test fun fullNativeMatrixMatchesWidthsEveryOnsetPackingJustificationAndVerticalLanes() {
         val report = mutableListOf<String>()
+        val failures = mutableListOf<String>()
         for (style in TGLayoutStyles.entries) for (compact in listOf(false,true))
             for (chords in 0..2) for (scale in listOf(1f,1.25f,2.625f)) {
                 val config = base.copy(style=style,compact=compact,showChords=chords==1,showChordNames=chords==2)
                 // All these normalised bars fit a complete row, so default parent-width mode
                 // must agree with native; no fragment extension is involved in this matrix.
                 val ref = NativeLayoutReference(fixture(),config,1000f*scale,scale)
-                val count = compare(ref)
-                report += "{\"style\":\"$style\",\"compact\":$compact,\"chords\":$chords,\"scale\":$scale,\"rows\":${ref.actual.staves.size},\"beats\":$count}"
+                var count = 0
+                var passed = true
+                try { count = compare(ref) } catch (e: AssertionError) {
+                    passed = false
+                    failures += "$style/compact=$compact/chords=$chords/scale=$scale: ${e.message}"
+                }
+                report += "{\"passed\":$passed,\"style\":\"$style\",\"compact\":$compact,\"chords\":$chords,\"scale\":$scale,\"rows\":${ref.actual.staves.size},\"beats\":$count}"
             }
         File("build/reports/native-layout-parity.json").apply {
             parentFile.mkdirs()
             writeText("{\"reference\":\"unmodified TGLayoutVertical + TGSongViewStyles\",\"tolerancePhysicalPixels\":$tolerance,\"cases\":[${report.joinToString(",")}]}\n")
         }
+        assertTrue(failures.isEmpty(),failures.joinToString("\n"))
     }
 
     @Test fun trueMultiTrackUsesNativeHeaderMaximaAndPerTrackEffectSlack() {
@@ -168,7 +175,7 @@ class NativeLayoutParityTest {
 
     @Test fun tripletFeelChangesRetainNativeHeaderSpaceAndDecodedMetadata() {
         val input = simple(listOf(2,4,8,8),4)
-        listOf(1,1,2,0).forEachIndexed { i,feel -> input.getMeasureHeader(i).tripletFeel=feel }
+        listOf(2,2,3,1).forEachIndexed { i,feel -> input.getMeasureHeader(i).tripletFeel=feel }
         val ref = NativeLayoutReference(input,base,700f)
         compare(ref)
         assertEquals(listOf(1,1,2,0),ref.model.tracks[0].measures.map { it.header.tripletFeel })

@@ -179,7 +179,7 @@ uses Java half-up semantics, not Kotlin's ties-to-even `round`.
 Headers notify clef/key maxima from **all song tracks**, including hidden tracks in
 selected-track mode. All-track display uses shared width, quarter and effect maxima;
 those are not replaced with a per-lane collision solver. Immutable headers preserve
-`tripletFeel` (0/1/2) and optional `TGTempoMark(value,base,dotted)` metadata. Raw tempo marks
+`tripletFeel` (0/1/2, explicitly adapted from Java's 1/2/3 constants) and optional `TGTempoMark(value,base,dotted)` metadata. Raw tempo marks
 can change at the same quarter BPM and must still trigger a new native header prefix.
 
 ### Track effects and beat positioning

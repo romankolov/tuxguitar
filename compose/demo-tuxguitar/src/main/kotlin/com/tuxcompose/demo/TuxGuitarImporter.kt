@@ -18,6 +18,7 @@ import java.util.zip.ZipInputStream
 import app.tuxguitar.song.models.TGSong as NativeSong
 import app.tuxguitar.song.models.TGDuration as NativeDuration
 import app.tuxguitar.song.models.TGNote as NativeNote
+import app.tuxguitar.song.models.TGMeasureHeader as NativeHeader
 
 /** This optional DEMO module is the ONLY place where decoded native objects cross into core. */
 data class ImportedScore(val native: NativeSong, val score: TGSong, val format: String)
@@ -73,7 +74,11 @@ object TuxGuitarImporter {
                     TGMeasure(m.number, TGMeasureHeader(
                         TGTimeSignature(m.timeSignature.numerator,m.timeSignature.denominator.value), TGKeySignature(m.keySignature),
                         m.tempo.quarterValue, m.isRepeatOpen, m.repeatClose.coerceAtLeast(0), m.header.repeatAlternative,
-                        m.header.marker?.title,tripletFeel=m.header.tripletFeel,
+                        m.header.marker?.title,tripletFeel=when (m.header.tripletFeel) {
+                            NativeHeader.TRIPLET_FEEL_EIGHTH -> 1
+                            NativeHeader.TRIPLET_FEEL_SIXTEENTH -> 2
+                            else -> 0
+                        },
                         tempoMark=TGTempoMark(m.tempo.rawValue,m.tempo.base,m.tempo.isDotted)),
                         m.beats.sortedBy { it.start }.map { b ->
                             val voices = (0 until b.countVoices()).map { vi ->
