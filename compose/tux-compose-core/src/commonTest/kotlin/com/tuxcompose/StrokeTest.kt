@@ -5,6 +5,12 @@ import com.tuxcompose.layout.*
 import com.tuxcompose.model.*
 import kotlin.test.*
 
+// v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
+private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+    pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
+    typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
+
+
 class StrokeTest {
     private val tuning = listOf(64,59,55,50,45,40)
     private fun song(beats: List<TGBeat>, strings: Int = 6) = TGSong(tracks=listOf(
@@ -24,7 +30,7 @@ class StrokeTest {
         assertEquals(original.maxTicks,changed.maxTicks)
         assertSame(original.voices,changed.voices)
         assertEquals(32,changed.stroke.value)
-        val noMarks = TGLayoutCalculator().calculate(song(listOf(original)),400f).staves.single().measures.single()
+        val noMarks = TGLayoutCalculator(adaptiveConfig).calculate(song(listOf(original)),400f).staves.single().measures.single()
         assertNull(noMarks.beats.single().stroke)
         assertNull(noMarks.beats.single().pickStroke)
     }
@@ -32,7 +38,7 @@ class StrokeTest {
     @Test fun strumDirectionAndStaffExtentsFollowTheOriginalPainter() {
         for (style in TGLayoutStyles.entries) for (strings in listOf(1,2,4,6,7,25)) {
             val data = song(listOf(beat(TGStrokeDirection.Up),beat(TGStrokeDirection.Down,start=1920)),strings)
-            val config = TGLayoutConfig(style=style)
+            val config = adaptiveConfig.copy(style=style)
             val m = TGLayoutCalculator(config).calculate(data,1000f).staves.single().measures.single()
             val top: Float
             val bottom: Float
@@ -60,7 +66,7 @@ class StrokeTest {
 
     @Test fun pickingMarksUseTheirOwnLaneAndOriginalVAndHeavyCapShapes() {
         for (style in TGLayoutStyles.entries) for (spacing in listOf(0f,8f,24f)) {
-            val config = TGLayoutConfig(style=style,pickStrokeSpacing=spacing)
+            val config = adaptiveConfig.copy(style=style,pickStrokeSpacing=spacing)
             val plain = TGLayoutCalculator(config).calculate(song(listOf(beat())),500f).staves.single().measures.single()
             val data = song(listOf(beat(pick=TGStrokeDirection.Up),beat(pick=TGStrokeDirection.Down,start=1920)))
             val m = TGLayoutCalculator(config).calculate(data,500f).staves.single().measures.single()
@@ -93,7 +99,7 @@ class StrokeTest {
             stroke=TGStroke(TGStrokeDirection.Up,16),pickStroke=TGStrokeDirection.Down)
         val denseTrack = song(fast).tracks.single()
         val heldTrack = TGTrack(2,"Held",tuning,listOf(TGMeasure(1,TGMeasureHeader(),listOf(held),960)))
-        val page = TGLayoutCalculator(TGLayoutConfig(multiTrack=true)).calculate(TGSong(tracks=listOf(denseTrack,heldTrack)),400f)
+        val page = TGLayoutCalculator(adaptiveConfig.copy(multiTrack=true)).calculate(TGSong(tracks=listOf(denseTrack,heldTrack)),400f)
         val pieces = page.staves.filter { it.trackIndex == 1 }.flatMap { it.measures }
         assertTrue(pieces.size>1)
         assertEquals(1,pieces.flatMap { it.beats }.count { it.stroke != null })
@@ -110,13 +116,13 @@ class StrokeTest {
         val marked = plain.mapIndexed { i,b -> if (i == 1) b.copy(stroke=TGStroke(TGStrokeDirection.Down,16)) else b }
         val a = song(marked).tracks.single()
         val b = song(plain).tracks.single().copy(id=2)
-        val page = TGLayoutCalculator(TGLayoutConfig(multiTrack=true,orientation=TGLayoutOrientation.Horizontal))
+        val page = TGLayoutCalculator(adaptiveConfig.copy(multiTrack=true,orientation=TGLayoutOrientation.Horizontal))
             .calculate(TGSong(tracks=listOf(a,b)),1000f)
         val first = page.staves[0].measures.single().beats
         val second = page.staves[1].measures.single().beats
         assertEquals(first.map { it.x },second.map { it.x })
         assertEquals(0f,(first[2].x-first[1].x)-(first[1].x-first[0].x),.001f)
-        val legacy = TGLayoutCalculator(TGLayoutConfig(multiTrack=true,orientation=TGLayoutOrientation.Horizontal,optimizeSpacing=false))
+        val legacy = TGLayoutCalculator(adaptiveConfig.copy(multiTrack=true,orientation=TGLayoutOrientation.Horizontal,optimizeSpacing=false))
             .calculate(TGSong(tracks=listOf(a,b)),1000f).staves[0].measures.single().beats
         assertEquals(15f,(legacy[2].x-legacy[1].x)-(legacy[1].x-legacy[0].x),.001f)
         assertTrue(first[1].stroke!!.bounds.right < first[2].voices[0].notes[0].tabBounds!!.left)
@@ -125,7 +131,7 @@ class StrokeTest {
     @Test fun wideCustomFretsMoveTheArrowOutwardRatherThanShrinkEitherSymbol() {
         val fonts = TGFontMetrics { _,role -> TGTextSize(if (role == TGTextRole.Note) 80f else 18f,18f) }
         for (compact in listOf(false,true)) {
-            val config = TGLayoutConfig(compact=compact,orientation=TGLayoutOrientation.Horizontal)
+            val config = adaptiveConfig.copy(compact=compact,orientation=TGLayoutOrientation.Horizontal)
             val data = song(List(4) { i -> beat(TGStrokeDirection.Down,start=960+i*960L) })
             val m = TGLayoutCalculator(config,fonts).calculate(data,1000f).staves.single().measures.single()
             m.beats.forEach { b ->

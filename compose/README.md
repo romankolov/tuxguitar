@@ -13,7 +13,7 @@ The library has **no decoder, file access, playback clock, MIDI, synthesizer, au
 | `demo-synth` | Existing Android-compatible Gervill and Java Sound shim | Android, **demo only** |
 | `sample-android` | Compose screen, Storage Access Framework picker, transport, soundfonts and optional hardware MIDI output | Android 7.0+ |
 
-**Status:** first implementation, not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). The original duration math, spelling tables, lane permutations, beam slope rules and 32 vector models are ported, with differential tests against the Java source. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
+**Status:** first implementation, not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
 
 `TablatureView(onLayout = { ... }, drawOverlay = { layout -> ... })` exposes cached
 layout geometry and a custom Canvas overlay. Overlay coordinates are logical song units;
@@ -53,7 +53,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.4")
+    implementation("com.tuxcompose:tux-compose-core:0.1.5")
 }
 ```
 
@@ -152,8 +152,8 @@ The complete Android host with real decoding and playback is [MainActivity.kt](s
 - Tuning is **string-number order, high-to-low for a standard guitar**: `[64,59,55,50,45,40]`. This corrects the ambiguous low-to-high example in the initial blueprint. Strings are one-based, tuning indices zero-based.
 - Key signatures use **TuxGuitar's encoding**: `0` natural, `1..7` sharps, `8..14` flats, not signed fifths.
 - An empty, active voice means **rest**. `empty=true` means the voice does not participate. A fret of `-1` means a muted/dead note, **not** a rest.
-- Repeat-close values are **additional repetitions**: `1` means two passes, exactly as in TuxGuitar. Alternate-ending bits are preserved.
-- Multi-track mode aligns columns by measure index and shared maxima; tracks must have matching measure counts, start ticks and meters. Invalid alignment is rejected instead of silently desynchronizing the score.
+- Repeat-close values are **additional repetitions**: `1` means two passes, exactly as in TuxGuitar. Alternate-ending bits are preserved. `tripletFeel` retains 0/1/2 (straight/eighth/sixteenth); optional `TGTempoMark(value,base,dotted)` preserves native tempo annotations even when quarter BPM is unchanged.
+- Multi-track mode shares measure columns and header maxima; tracks must have matching counts, starts and meters. Native uses the original per-track effect-slack distribution; Adaptive additionally enforces a shared interior-onset map. Invalid measure alignment is rejected.
 - Core never mutates or normalizes the caller's song. Supply rests for gaps if you want TuxGuitar-style completed measures. The demo adapter runs the original `autoCompleteSilences` before snapshotting.
 
 ## Interaction and customization
@@ -168,31 +168,58 @@ The complete Android host with real decoding and playback is [MainActivity.kt](s
 
 Everything uses a **bounded viewport canvas**, not a giant song-sized surface. Text metrics are cached and shared with layout. Cursor/selection are independent layers; cursor updates do not rebuild notation geometry. Layout exposes bounds and hit testing directly for custom editor shells and export implementations.
 
-## Denser measures without smaller notation
+## Native spacing by default (0.1.5)
 
-Version 0.1.4 removes avoidable whole-bar inflation from isolated chord diagrams, prose/effect
-labels and strumming arrows. It keeps TuxGuitar's duration table and normal rhythmic grid,
-then adds **only local, lane-aware collision clearance**. Simultaneous onsets stay aligned
-across tracks; annotation overhang is protected when a dense measure wraps. Wide custom
-fret glyphs remain their actual size, including at hit-test edges.
+The default now uses **TuxGuitar's actual layout algorithms**, rather than the custom
+"balanced" solver introduced in 0.1.4. Both native apps default to compact spacing; the
+library previously did not. Vertical layout now reserves the stem direction actually used,
+not both possible directions, and uses native track/lane spacing.
 
 ```kotlin
 TGLayoutConfig(
-    optimizeSpacing = true, // default: balanced local clearance, no smaller glyphs
-    compact = false,        // optional native minimum-beat spacing; one displayed track only
-    justifySystems = true,  // false keeps natural widths rather than filling full rows
+    spacingMode = TGSpacingMode.TuxGuitar, // default: original measure/beat/layout equations
+    compact = true,                      // native default; ineffective for multiple tracks
+    justifySystems = true,               // equal extra width per measure on full rows
+    showChords = false,                   // Android native default; metadata is retained
+    showChordNames = false,
 )
 ```
 
-The sample's **Customize → Balanced spacing / Compact / Fill rows** controls expose these
-choices. Balanced is on by default; turning it off provides a 0.1.3-spacing comparison.
-Compact is optional because it changes proportional spacing, and is disabled for multiple
-displayed tracks. Fill rows only affects justification, not the greedy packing threshold.
+The sample's **Customize → Compact / Fill rows / Chord diagrams / Chord names** controls
+expose the corresponding display choices. Native desktop also defaults compact on but
+shows diagrams and has different page margins; match flags and viewport when comparing.
 
-For the tested six-bar fixture (eighth notes, one first-beat `Am` per bar, 700-unit viewport),
-three whole measures fit the first row instead of one. This is not a guarantee that every
-bar will get shorter: genuinely crowded effects, fonts and diagrams still reserve space.
-See [the source audit, equations and deliberate differences](docs/PORTING.md#balanced-spacing-default-since-014).
+The port includes minimum voice widths, adjacent compact chords, the noncompact global
+chord/quarter grid, actual precise endings, header/signature maxima, per-track bend slack,
+native greedy row packing, **proportional** beat justification and native vertical lanes.
+It does not measure prose/custom-font collisions to silently change ordinary native widths.
+A half + quarter + eighth + eighth spans **86** natural rhythmic units in native compact
+mode, versus **160** noncompact. This is a concrete fixture, not a universal density ratio.
+
+Actual Java layout differentials compare every onset, measure bounds, row membership,
+headers and vertical lanes at fractional scale, including real GP3/4/5 showcase imports.
+See [the source map, mathematics and precise scope](docs/PORTING.md).
+
+For large/custom fonts or accessibility where additional collision clearance is preferred
+rather than the original fixed grid, explicitly opt in:
+
+```kotlin
+TGLayoutConfig(
+    spacingMode = TGSpacingMode.Adaptive, // Compose extension, not exact native equations
+    compact = false,
+    optimizeSpacing = true,              // this switch applies ONLY to Adaptive
+    respectSystemFontScale = true,
+    showChords = true,
+)
+```
+
+**Migration:** `optimizeSpacing=false` alone no longer selects the old layout. Select
+Adaptive first if you need that comparison. New native defaults include a 5-unit left
+margin, independent 10-physical-pixel right margin, 15-unit first-track spacing, 5-unit
+track spacing, 8-unit chord font and 6-unit grace font. Native fonts ignore Android's sp
+multiplier unless explicitly enabled. For a previous-style visual setup, also set
+`pagePadding=12f`, `systemSpacing=20f`, `showChords=true` and your previous typography.
+No musical timing, note identity or playback/parser boundary is changed.
 
 ## Page fitting, cursor glide and cooperative auto-scroll
 
@@ -214,7 +241,10 @@ A shared row uses common vertical lanes, so a following chord/text/picking mark 
 repositions the preceding continuation correctly.
 Cursor, selection and hit testing use each fragment's visible tick interval.
 
-`TGLayoutConfig(fitPageToWidth = false)` keeps oversized measures intact and enables panning; continuous horizontal mode is unchanged. Blank margins may reduce at narrow widths,
+`TGLayoutConfig(fitPageToWidth = false)` keeps oversized measures intact. Native page
+justification then follows the editor's potentially crowded negative spacing. For natural-
+width panning, use Horizontal mode or disable both fitting and justification. Blank margins
+may reduce at extremely narrow widths,
 not glyph sizes. If even an indivisible glyph/effect/header cannot fit the viewport, it is
 clipped rather than silently shrunk; use a wider viewport, lower explicit zoom or overflow
 opt-out in that physically impossible case.
@@ -241,7 +271,7 @@ val strummedBeat = TGBeat(
 high strings drawn at the top, its `Up` strum arrow points down the page and `Down` points
 up; the picking marks are the original V and heavy-capped staple. Mixed mode draws the
 strum once on the tablature; score-only mode uses the score staff. `None` hides a mark.
-`pickStrokeSpacing` reserves at least the eight-unit symbol height. A synthetic sustained
+`pickStrokeSpacing` defaults to the original eight-unit symbol height. A synthetic sustained
 continuation does not reprint either attack mark. The demo's GP5 study now contains both
 directions, written/read by the actual TuxGuitar codec, with stroke speed metadata preserved.
 
@@ -280,8 +310,8 @@ view. The sample exposes Cursor glide, Smooth scroll, Show cursor and Follow con
 ## Tests, provenance and licensing
 
 - `commonTest`: duration/tuplet validation, immutable snapshots, spacing, wrapping, multi-track alignment, hit testing, culling, beaming, empty/extreme inputs and state navigation.
-- `demo-tuxguitar:test`: **differential tests** for every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; whole-measure and projected-fragment row packing against `TGLayoutVertical.getTempLines`; recorded strum/picking vectors against the actual Java painters; GP3/4/5 strum round trips (plus GP4/5 picking marks); original MIDI event generation.
-- Android instrumentation: real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
+- `demo-tuxguitar:test`: full native Java layout differentials (`NativeLayoutParityTest`) compare widths, every onset, row packing/justification, header flags and vertical lanes across styles, compact modes, fractional scale, effects, polyphony and real GP3/4/5 imports. The actual Android style class is compiled into tests, not copied. `native-layout-parity.json` is included in CI diagnostics. Also tests every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; whole-measure and projected-fragment row packing against `TGLayoutVertical.getTempLines`; recorded strum/picking vectors against the actual Java painters; GP3/4/5 strum round trips (plus GP4/5 picking marks); original MIDI event generation.
+- Android instrumentation: native-default mixed-duration reflow, actual-font zoom/pointer transforms, native/system-font-scale policy, real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
 - `python3 tools/verify.py`: reproducible glyph source hashes and a fail-closed check against platform/parser/player imports or demo dependencies in core.
 
 Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The optional Gervill demo includes GPLv2 with Classpath Exception code and existing soundfont assets; their notices remain unchanged. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.

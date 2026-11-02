@@ -8,6 +8,12 @@ import com.tuxcompose.model.*
 import kotlinx.collections.immutable.toPersistentList
 import kotlin.test.*
 
+// v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
+private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+    pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
+    typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
+
+
 class PageWrapTest {
     private val tuning = listOf(64,59,55,50,45,40)
     private fun measure(index: Int = 0, duration: TGDuration = TGDuration(64), fret: Int = 5): TGMeasure {
@@ -22,8 +28,8 @@ class PageWrapTest {
 
     @Test fun ordinaryAndDenseRowsHaveIdenticalGlyphAndStringSizes() {
         val data = song(measure(0,TGDuration(4)),measure(1),measure(2,TGDuration(4)))
-        val page = TGLayoutCalculator().calculate(data,300f)
-        val wide = TGLayoutCalculator(TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal)).calculate(data,300f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(data,300f)
+        val wide = TGLayoutCalculator(adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal)).calculate(data,300f)
         val reference = wide.measures()[0].beats[0].voices[0].notes[0]
         assertTrue(page.measures().count { it.measureIndex == 1 } > 1)
         page.measures().forEach { m ->
@@ -39,7 +45,7 @@ class PageWrapTest {
     }
     @Test fun oversizedMeasureHasNoLostOrRepeatedAttacksAndKeepsOriginalModelIdentity() {
         val original = measure()
-        val page = TGLayoutCalculator().calculate(song(original),300f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(song(original),300f)
         assertTrue(page.staves.size > 1)
         assertEquals(original.beats.size,page.attacks().size)
         page.measures().forEach { assertSame(original,it.measure); assertEquals(0,it.measureIndex) }
@@ -50,7 +56,7 @@ class PageWrapTest {
     }
     @Test fun cursorAndHitTestingResolveEveryFragmentIncludingItsFirstAndLastTick() {
         val original = measure()
-        val page = TGLayoutCalculator().calculate(song(original),300f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(song(original),300f)
         page.staves.forEach { staff -> staff.measures.forEach { m ->
             m.beats.forEach { b ->
                 val n = b.voices[0].notes[0]
@@ -68,18 +74,18 @@ class PageWrapTest {
     }
     @Test fun headersRepeatMarksAndEndingsBelongToTheCorrectFragment() {
         val m = measure().copy(header=TGMeasureHeader(repeatOpen=true,repeatClose=2,repeatAlternative=1,marker="Verse"))
-        val pieces = TGLayoutCalculator().calculate(song(m),300f).measures()
+        val pieces = TGLayoutCalculator(adaptiveConfig).calculate(song(m),300f).measures()
         assertEquals(1,pieces.count { it.isFirstFragment })
         assertEquals(1,pieces.count { it.isLastFragment })
         assertTrue(pieces.first().paintClef && pieces.first().paintTime && pieces.first().paintTempo)
         assertTrue(pieces.drop(1).all { !it.paintClef && !it.paintTime && !it.paintTempo })
-        val repeated = TGLayoutCalculator(TGLayoutConfig(repeatSystemSignatures=true)).calculate(song(m),300f).measures()
+        val repeated = TGLayoutCalculator(adaptiveConfig.copy(repeatSystemSignatures=true)).calculate(song(m),300f).measures()
         assertTrue(repeated.all { it.paintClef && it.paintTime })
         assertEquals(1,repeated.count { it.paintTempo })
         assertEquals(1,repeated.count { it.isLastFragment })
     }
     @Test fun accidentalMemoryContinuesThroughTheSameBarAndResetsForTheNext() {
-        val page = TGLayoutCalculator().calculate(song(measure(0,fret=2),measure(1,fret=2)),300f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(song(measure(0,fret=2),measure(1,fret=2)),300f)
         for (index in 0..1) {
             val notes = page.measures().filter { it.measureIndex == index }.flatMap { it.beats }.flatMap { it.voices }.flatMap { it.notes }.filter { it.note.string == 1 }
             assertEquals(TGAccidental.Sharp,notes.first().accidental)
@@ -90,7 +96,7 @@ class PageWrapTest {
         val dense = measure()
         val sustain = measure(duration=TGDuration(1))
         val data = TGSong(tracks=listOf(TGTrack(1,"Fast",tuning,listOf(dense)),TGTrack(2,"Held",tuning,listOf(sustain))))
-        val page = TGLayoutCalculator(TGLayoutConfig(multiTrack=true)).calculate(data,423f)
+        val page = TGLayoutCalculator(adaptiveConfig.copy(multiTrack=true)).calculate(data,423f)
         val fast = page.staves.filter { it.trackIndex == 0 }
         val held = page.staves.filter { it.trackIndex == 1 }
         assertTrue(fast.size > 1)
@@ -111,7 +117,7 @@ class PageWrapTest {
     @Test fun longerSecondVoiceIsNotDroppedWhenThePrimaryVoiceWraps() {
         val base = measure()
         val beats = base.beats.mapIndexed { i,b -> if (i == 0) b.copy(voices=(b.voices+TGVoice(1,listOf(TGNote(7,2)),TGDuration(1))).toPersistentList()) else b }
-        val page = TGLayoutCalculator().calculate(song(base.copy(beats=beats.toPersistentList())),423f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(song(base.copy(beats=beats.toPersistentList())),423f)
         page.measures().drop(1).forEach { m ->
             val voice = m.beats[0].voices.single { it.voice.index == 1 }
             assertTrue(voice.isContinuation)
@@ -121,7 +127,7 @@ class PageWrapTest {
     }
     @Test fun crossRowTieHammerAndSlideHaveOutgoingAndIncomingPathsAtNormalScale() {
         val base = measure()
-        val probe = TGLayoutCalculator().calculate(song(base),300f)
+        val probe = TGLayoutCalculator(adaptiveConfig).calculate(song(base),300f)
         val cut = probe.measures()[0].beats.size
         for (kind in TGConnectionKind.entries) {
             val beats = base.beats.mapIndexed { i,b ->
@@ -134,7 +140,7 @@ class PageWrapTest {
                 }
                 b.copy(voices=listOf(TGVoice(notes=listOf(changed))).toPersistentList())
             }
-            val page = TGLayoutCalculator().calculate(song(base.copy(beats=beats.toPersistentList())),300f)
+            val page = TGLayoutCalculator(adaptiveConfig).calculate(song(base.copy(beats=beats.toPersistentList())),300f)
             val paths = page.staves.flatMap { it.connections }.filter { it.kind == kind && !it.onScore }
             assertTrue(paths.any { it.continuesToNext },"Missing outgoing $kind")
             assertTrue(paths.any { it.continuesFromPrevious },"Missing incoming $kind")
@@ -151,13 +157,13 @@ class PageWrapTest {
         val b1 = TGBeat(960,voices=listOf(TGVoice(0,listOf(TGNote(5,1,effects=TGNoteEffects(hammer=true)))),TGVoice(1,listOf(TGNote(9,1)))))
         val b2 = TGBeat(1920,voices=listOf(TGVoice(1,listOf(TGNote(10,1)))))
         val b3 = TGBeat(2880,voices=listOf(TGVoice(0,listOf(TGNote(7,1)))))
-        val page = TGLayoutCalculator().calculate(song(TGMeasure(1,TGMeasureHeader(),listOf(b1,b2,b3))),400f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(song(TGMeasure(1,TGMeasureHeader(),listOf(b1,b2,b3))),400f)
         val hammer = page.staves.flatMap { it.connections }.single { it.kind == TGConnectionKind.Hammer }
         assertEquals(0,hammer.voiceIndex)
         assertEquals(2880L,hammer.targetTick)
     }
     @Test fun scoreOnlyLegatoAlsoContinuesAcrossRowsWithoutTabBounds() {
-        val config = TGLayoutConfig(style=TGLayoutStyles.Score)
+        val config = adaptiveConfig.copy(style=TGLayoutStyles.Score)
         val base = measure()
         val cut = TGLayoutCalculator(config).calculate(song(base),300f).measures()[0].beats.size
         for (kind in listOf(TGConnectionKind.Hammer,TGConnectionKind.Slide)) {
@@ -181,7 +187,7 @@ class PageWrapTest {
         }
         val data = TGSong(tracks=listOf(TGTrack(1,"A",tuning,listOf(withBend(1))),TGTrack(2,"B",tuning,listOf(withBend(4)))))
         for (orientation in TGLayoutOrientation.entries) {
-            val page = TGLayoutCalculator(TGLayoutConfig(multiTrack=true,orientation=orientation)).calculate(data,300f)
+            val page = TGLayoutCalculator(adaptiveConfig.copy(multiTrack=true,orientation=orientation)).calculate(data,300f)
             val a = page.staves.filter { it.trackIndex == 0 }.flatMap { it.measures }
             val b = page.staves.filter { it.trackIndex == 1 }.flatMap { it.measures }
             assertEquals(a.map { it.startTick to it.endTick },b.map { it.startTick to it.endTick })
@@ -195,7 +201,7 @@ class PageWrapTest {
             listOf(TGVoice(notes=listOf(TGNote(5,1,effects=if (i == 2) TGNoteEffects(bend=bend) else TGNoteEffects())))),
             text=if (i == 2) "bend here" else null,chord=if (i == 2) TGChord("Am",listOf(0,1,2,2,0,-1)) else null) }
         val data = song(TGMeasure(1,TGMeasureHeader(),beats))
-        val page = TGLayoutCalculator().calculate(data,250f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(data,250f)
         assertTrue(page.staves.size > 1)
         val moved = page.measures().flatMap { it.beats }.single { it.beat.start == beats[2].start }
         assertSame(beats[2],moved.beat)
@@ -212,7 +218,7 @@ class PageWrapTest {
         for (multi in listOf(false,true)) {
             val source = if (!multi) data else data.copy(tracks=(data.tracks+TGTrack(2,"Held",tuning,
                 listOf(measure(duration=TGDuration(1)),measure(1,TGDuration(4))))).toPersistentList())
-            val page = TGLayoutCalculator(TGLayoutConfig(multiTrack=multi,justifySystems=false)).calculate(source,400f)
+            val page = TGLayoutCalculator(adaptiveConfig.copy(multiTrack=multi,justifySystems=false)).calculate(source,400f)
             val lastSystem = page.staves.maxOf { it.systemIndex }
             page.staves.filter { it.systemIndex == lastSystem }.forEach { row ->
                 assertEquals(listOf(0,1),row.measures.map { it.measureIndex })
@@ -239,13 +245,13 @@ class PageWrapTest {
     }
     @Test fun explicitBreakAfterAContinuationStillStartsANewRow() {
         val next = measure(1,TGDuration(4)).copy(lineBreak=true)
-        val page = TGLayoutCalculator().calculate(song(measure(),next),400f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(song(measure(),next),400f)
         assertEquals(listOf(1),page.staves.last().measures.map { it.measureIndex })
         assertTrue(page.staves.dropLast(1).all { row -> row.measures.all { it.measureIndex == 0 } })
         assertTrue(page.staves[page.staves.lastIndex-1].bounds.right < 400-12)
     }
     @Test fun repeatedSignaturesBelongOnlyToTheRowStartNotTheBarFollowingATail() {
-        val config = TGLayoutConfig(repeatSystemSignatures=true,multiTrack=true)
+        val config = adaptiveConfig.copy(repeatSystemSignatures=true,multiTrack=true)
         val a = TGTrack(1,"Fast",tuning,listOf(measure(),measure(1,TGDuration(4))))
         val b = a.copy(id=2)
         // 255-unit tail + 124-unit next bar needs 379 usable units (404 minus margins).
@@ -266,7 +272,7 @@ class PageWrapTest {
             base.beats.map { it.copy(start=it.start+960) },1920)
         val a = TGTrack(1,"First",tuning,listOf(short,dense))
         val b = a.copy(id=2)
-        val page = TGLayoutCalculator(TGLayoutConfig(repeatSystemSignatures=true,multiTrack=true))
+        val page = TGLayoutCalculator(adaptiveConfig.copy(repeatSystemSignatures=true,multiTrack=true))
             .calculate(TGSong(tracks=listOf(a,b)),600f)
         page.staves.filter { it.systemIndex == 0 }.forEach { row ->
             assertEquals(listOf(0,1),row.measures.map { it.measureIndex })
@@ -295,7 +301,7 @@ class PageWrapTest {
             text="Strum",chord=TGChord("Em",listOf(0,0,0,2,2,0)),
             stroke=TGStroke(TGStrokeDirection.Down,16),pickStroke=TGStrokeDirection.Up)
         val next = TGMeasure(2,TGMeasureHeader(timeSignature=TGTimeSignature(1,4),marker="Chorus"),listOf(beat),4800)
-        val page = TGLayoutCalculator().calculate(song(marked,next),400f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(song(marked,next),400f)
         val row = page.staves.last()
         assertEquals(2,row.measures.size)
         val tail = row.measures[0]
@@ -333,7 +339,7 @@ class PageWrapTest {
     }
     @Test fun veryNarrowViewsTerminateAndNeverApplyAutomaticGlyphScaling() {
         for (width in listOf(1f,20f,100f)) {
-            val page = TGLayoutCalculator().calculate(song(measure()),width)
+            val page = TGLayoutCalculator(adaptiveConfig).calculate(song(measure()),width)
             assertEquals(width,page.width)
             assertEquals(64,page.attacks().size)
             assertTrue(page.measures().all { it.contentScale == 1f })
@@ -341,7 +347,7 @@ class PageWrapTest {
     }
     @Test fun overflowOptOutAndHorizontalModeKeepTheUnsplitMeasure() {
         val data = song(measure())
-        for (config in listOf(TGLayoutConfig(fitPageToWidth=false),TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal))) {
+        for (config in listOf(adaptiveConfig.copy(fitPageToWidth=false),adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal))) {
             val page = TGLayoutCalculator(config).calculate(data,300f)
             assertEquals(1,page.measures().size)
             assertTrue(page.width > 300)

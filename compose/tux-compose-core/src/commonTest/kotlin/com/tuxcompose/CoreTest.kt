@@ -9,6 +9,12 @@ import com.tuxcompose.model.*
 import kotlinx.collections.immutable.toPersistentList
 import kotlin.test.*
 
+// v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
+private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+    pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
+    typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
+
+
 class CoreTest {
     private fun song(measures: Int = 4, duration: TGDuration = TGDuration(8), strings: List<Int> = listOf(64,59,55,50,45,40)): TGSong {
         val data=(0 until measures).map { mi ->
@@ -50,7 +56,7 @@ class CoreTest {
     @Test fun restsAreNotMutedNotes() { assertTrue(TGVoice().notes.isEmpty()); assertEquals(-1,TGNote(-1,1).value) }
     @Test fun stringsAreHighToLow() { val t=song().tracks.first(); assertEquals(69,t.pitch(TGNote(5,1))); assertEquals(45,t.pitch(TGNote(5,6))) }
     @Test fun exactDurationTable() {
-        val c=TGLayoutCalculator()
+        val c=TGLayoutCalculator(adaptiveConfig)
         assertEquals(21f,c.durationWidth(TGDuration(4)))
         assertEquals(40f,c.spacingForQuarter(TGDuration(8)))
         assertEquals(288f,c.spacingForQuarter(TGDuration(64)))
@@ -62,7 +68,7 @@ class CoreTest {
         assertEquals(960,TGTimeSignature(6,16).divisionTicks)
     }
     @Test fun stringYAndHitTestingUseSameBounds() {
-        val config=TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal)
+        val config=adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal)
         val layout=TGLayoutCalculator(config).calculate(song(),400f)
         val m=layout.staves.first().measures.first()
         val beat=m.beats.first(); val n=beat.voices.first().notes.first()
@@ -74,26 +80,26 @@ class CoreTest {
         assertNull(layout.hitTest(Offset(m.bounds.left,m.bounds.top),config.stringSpacing))
     }
     @Test fun durationChangesSpacingNotNoteCount() {
-        val layout=TGLayoutCalculator(TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal)).calculate(song(),1000f)
+        val layout=TGLayoutCalculator(adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal)).calculate(song(),1000f)
         val beats=layout.staves.first().measures.first().beats
         assertEquals(20f,beats[1].x-beats[0].x,.01f)
         assertEquals(20f,beats[4].x-beats[3].x,.01f)
     }
     @Test fun greedyPageWrappingAndJustification() {
-        val l=TGLayoutCalculator().calculate(song(20),600f)
+        val l=TGLayoutCalculator(adaptiveConfig).calculate(song(20),600f)
         assertTrue(l.staves.size>1)
         assertTrue(l.staves.all { it.measures.isNotEmpty() })
         l.staves.dropLast(1).forEach { assertEquals(588f,it.bounds.right,.01f) }
         l.staves.zipWithNext().forEach { (a,b) -> assertTrue(a.bounds.bottom < b.bounds.top) }
     }
     @Test fun oversizedBarPanningRemainsAnExplicitOptOut() {
-        val l=TGLayoutCalculator(TGLayoutConfig(fitPageToWidth=false)).calculate(song(2,TGDuration(64)),100f)
+        val l=TGLayoutCalculator(adaptiveConfig.copy(fitPageToWidth=false)).calculate(song(2,TGDuration(64)),100f)
         assertEquals(2,l.staves.size); assertTrue(l.width>100f)
     }
     @Test fun pageWidthAlwaysMatchesParentEvenForDenseBarsAndFractionalZoomWidths() {
         val data = song(2,TGDuration(64))
         for (width in listOf(128f,180f,300f,331.42856f,400f,999.9f)) {
-            val layout = TGLayoutCalculator().calculate(data,width)
+            val layout = TGLayoutCalculator(adaptiveConfig).calculate(data,width)
             assertEquals(width,layout.width)
             assertTrue(layout.staves.size > 2)
             layout.staves.forEach { staff ->
@@ -108,21 +114,21 @@ class CoreTest {
     }
     @Test fun pageWrapPreservesSizeAndHitCoordinatesIncludingEmptyStrings() {
         val data = song(1,TGDuration(64))
-        val fitted = TGLayoutCalculator().calculate(data,300f).staves[0].measures[0]
-        val original = TGLayoutCalculator(TGLayoutConfig(fitPageToWidth=false)).calculate(data,300f).staves[0].measures[0]
+        val fitted = TGLayoutCalculator(adaptiveConfig).calculate(data,300f).staves[0].measures[0]
+        val original = TGLayoutCalculator(adaptiveConfig.copy(fitPageToWidth=false)).calculate(data,300f).staves[0].measures[0]
         val a = original.beats[0].voices[0].notes[0]
         val b = fitted.beats[0].voices[0].notes[0]
         assertEquals(a.tabBounds!!.width,b.tabBounds!!.width,.001f)
         assertEquals(a.tabBounds.height,b.tabBounds.height,.001f)
         assertEquals(a.scoreBounds!!.height,b.scoreBounds!!.height,.001f)
-        val layout = TGLayoutCalculator().calculate(data,300f)
+        val layout = TGLayoutCalculator(adaptiveConfig).calculate(data,300f)
         assertEquals(1,layout.hitTest(b.tabBounds.center,10f)!!.string)
         val stringThree = Offset(fitted.beats[0].x,fitted.tabTop!!+20f)
         assertEquals(3,layout.hitTest(stringThree,10f)!!.string)
         assertEquals(300f,layout.width)
     }
     @Test fun cursorCanSweepThroughBeatsAndTheLastBeatWithoutCrossingRows() {
-        val layout=TGLayoutCalculator().calculate(song(3),300f)
+        val layout=TGLayoutCalculator(adaptiveConfig).calculate(song(3),300f)
         val first=layout.cursorAt(0,960)!!
         val half=layout.cursorAt(0,1200)!!
         val next=layout.cursorAt(0,1440)!!
@@ -137,7 +143,7 @@ class CoreTest {
         assertEquals(wrapped.beat.x,wrapped.x)
     }
     @Test fun followUsesThePlannedViewportAndDoesNotRetargetEveryTick() {
-        val layout=TGLayoutCalculator(TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal)).calculate(song(20),300f)
+        val layout=TGLayoutCalculator(adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal)).calculate(song(20),300f)
         val cursor=layout.cursorAt(0,960+3840*4)!!
         val target=cursorFollowDestination(cursor,Offset.Zero,300f,500f,layout.width-300f,0f)
         assertTrue(target.x>0)
@@ -164,18 +170,18 @@ class CoreTest {
         assertFailsWith<IllegalArgumentException> { TGCursorConfig(followResumeDelayMillis=-1) }
     }
     @Test fun emptySongsAndMeasuresAreSafe() {
-        assertEquals(0f,TGLayoutCalculator().calculate(TGSong(),320f).height)
+        assertEquals(0f,TGLayoutCalculator(adaptiveConfig).calculate(TGSong(),320f).height)
         val s=TGSong(tracks=listOf(TGTrack(1,"G",listOf(64),listOf(TGMeasure(1,TGMeasureHeader(),emptyList(),960)))))
-        assertTrue(TGLayoutCalculator().calculate(s,320f).width.isFinite())
+        assertTrue(TGLayoutCalculator(adaptiveConfig).calculate(s,320f).width.isFinite())
     }
     @Test fun cursorLookupIsMeasureAwareAtBoundaries() {
-        val l=TGLayoutCalculator(TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal)).calculate(song(),600f)
+        val l=TGLayoutCalculator(adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal)).calculate(song(),600f)
         assertNull(l.beatAt(0,0)); assertEquals(960,l.beatAt(0,960)!!.beat.start)
         assertEquals(4800,l.beatAt(0,4800)!!.beat.start)
         assertNull(l.beatAt(0,99999)); assertNull(l.beatAt(9,960))
     }
     @Test fun viewportCullingReturnsOnlyVisibleGeometry() {
-        val l=TGLayoutCalculator(TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal)).calculate(song(1000),500f)
+        val l=TGLayoutCalculator(adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal)).calculate(song(1000),500f)
         val viewport=Rect(10000f,0f,10500f,l.height)
         val visible=l.visible(viewport).flatMap { l.visibleMeasures(it,viewport) }.toList()
         assertTrue(visible.size in 1..5)
@@ -188,7 +194,7 @@ class CoreTest {
     }
     @Test fun cullingDoesNotWalkTheOffscreenPrefix() {
         val data = song(1000)
-        val horizontal = TGLayoutCalculator(TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal)).calculate(data,500f)
+        val horizontal = TGLayoutCalculator(adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal)).calculate(data,500f)
         val measures = CountingList(horizontal.staves[0].measures)
         val staff = horizontal.staves[0].copy(measures=measures)
         val layout = TGSongLayout(horizontal.width,horizontal.height,listOf(staff))
@@ -197,7 +203,7 @@ class CoreTest {
         assertEquals(1,layout.visibleMeasures(staff,target).count())
         assertTrue(measures.reads < 25,"Measure culling read ${measures.reads} offscreen/visible entries")
 
-        val page = TGLayoutCalculator().calculate(data,300f)
+        val page = TGLayoutCalculator(adaptiveConfig).calculate(data,300f)
         val staves = CountingList(page.staves)
         val pageLayout = TGSongLayout(page.width,page.height,staves)
         val viewport = staves[950].bounds
@@ -209,7 +215,7 @@ class CoreTest {
         val s=song(4)
         val second=s.tracks.first().copy(id=2,name="Bass",measures=song(4,TGDuration(16)).tracks.first().measures)
         val both=s.copy(tracks=listOf(s.tracks.first(),second).toPersistentList())
-        val l=TGLayoutCalculator(TGLayoutConfig(multiTrack=true,orientation=TGLayoutOrientation.Horizontal)).calculate(both,600f)
+        val l=TGLayoutCalculator(adaptiveConfig.copy(multiTrack=true,orientation=TGLayoutOrientation.Horizontal)).calculate(both,600f)
         assertEquals(l.staves[0].measures.map { it.bounds.left to it.bounds.right },l.staves[1].measures.map { it.bounds.left to it.bounds.right })
         assertEquals(l.staves[0].measures[0].beats[2].x,l.staves[1].measures[0].beats[4].x,.01f)
     }
@@ -225,14 +231,14 @@ class CoreTest {
         assertEquals(0,TGNotation.noteIndex(59,13)); assertEquals(4,TGNotation.octave(59,13))
     }
     @Test fun beamingUsesMeterAndSeparatesRests() {
-        val l=TGLayoutCalculator().calculate(song(),800f)
+        val l=TGLayoutCalculator(adaptiveConfig).calculate(song(),800f)
         val b=l.staves.first().measures.first().beats
         assertEquals(b[0].voices[0].beamGroup,b[1].voices[0].beamGroup)
         assertNotEquals(b[1].voices[0].beamGroup,b[2].voices[0].beamGroup)
     }
     @Test fun scoreAndTabCanBeIndependentlyDisabled() {
         TGLayoutStyles.entries.forEach { style ->
-            val m=TGLayoutCalculator(TGLayoutConfig(style=style)).calculate(song(),600f).staves.first().measures.first()
+            val m=TGLayoutCalculator(adaptiveConfig.copy(style=style)).calculate(song(),600f).staves.first().measures.first()
             assertEquals(style!=TGLayoutStyles.Tablature,m.staffTop!=null)
             assertEquals(style!=TGLayoutStyles.Score,m.tabTop!=null)
         }
@@ -260,8 +266,8 @@ class CoreTest {
         s.clearSelection(); assertNull(s.selection)
     }
     @Test fun customNoteRadiusPreservesThePitchCenterAndStemAttachment() {
-        val normal=TGLayoutCalculator(TGLayoutConfig(noteHeadRadius=4f)).calculate(song(),600f)
-        val large=TGLayoutCalculator(TGLayoutConfig(noteHeadRadius=7f)).calculate(song(),600f)
+        val normal=TGLayoutCalculator(adaptiveConfig.copy(noteHeadRadius=4f)).calculate(song(),600f)
+        val large=TGLayoutCalculator(adaptiveConfig.copy(noteHeadRadius=7f)).calculate(song(),600f)
         val a=normal.staves[0].measures[0].beats[0].voices[0]
         val b=large.staves[0].measures[0].beats[0].voices[0]
         assertEquals(a.notes[0].scoreBounds!!.center.y,b.notes[0].scoreBounds!!.center.y,.001f)
@@ -272,13 +278,13 @@ class CoreTest {
         val beat = TGBeat(960, voices = listOf(TGVoice(notes = listOf(TGNote(38,1)))))
         val measure = TGMeasure(1, TGMeasureHeader(), listOf(beat))
         val track = TGTrack(1, "Drums", listOf(0), listOf(measure), percussion = true)
-        val m=TGLayoutCalculator().calculate(TGSong(tracks=listOf(track)),400f).staves[0].measures[0]
+        val m=TGLayoutCalculator(adaptiveConfig).calculate(TGSong(tracks=listOf(track)),400f).staves[0].measures[0]
         assertTrue(m.percussion)
         assertEquals(2,m.beats[0].voices[0].notes[0].position)
     }
     @Test fun configurationsRejectNonfiniteGeometry() {
-        assertFailsWith<IllegalArgumentException> { TGLayoutConfig(scale=Float.NaN) }
-        assertFailsWith<IllegalArgumentException> { TGLayoutConfig(stringSpacing=0f) }
-        assertFailsWith<IllegalArgumentException> { TGLayoutConfig(pagePadding=-1f) }
+        assertFailsWith<IllegalArgumentException> { adaptiveConfig.copy(scale=Float.NaN) }
+        assertFailsWith<IllegalArgumentException> { adaptiveConfig.copy(stringSpacing=0f) }
+        assertFailsWith<IllegalArgumentException> { adaptiveConfig.copy(pagePadding=-1f) }
     }
 }

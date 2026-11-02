@@ -1,6 +1,11 @@
 plugins { kotlin("jvm") }
 kotlin { jvmToolchain(17) }
 sourceSets {
+    test {
+        // Compile this actual upstream style class, not a copied table of expected constants.
+        java.srcDir("../../android/TuxGuitar-android/src")
+        java.include("app/tuxguitar/android/view/tablature/TGSongViewStyles.java")
+    }
     main {
         java.srcDirs(
             "../../common/TuxGuitar-lib/src/main/java",

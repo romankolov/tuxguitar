@@ -124,7 +124,7 @@ internal class TGMeasureFragments(private val full: TGMeasureLayout) {
                     tabBounds=note.tabBounds?.translate(Offset(dx,tabDelta)),
                     accidental=if (continued) null else note.accidental) },
                 stemX=voice.stemX+dx,stemStartY=voice.stemStartY+stemDelta,stemEndY=voice.stemEndY+stemDelta,
-                isContinuation=continued,sourceTick=source.startTick,
+                isContinuation=continued,sourceTick=source.startTick,silenceY=voice.silenceY?.plus(stemDelta),
             )
         }
         fun beatAt(source: TGBeatLayout, continued: Boolean): TGBeatLayout {
@@ -162,6 +162,7 @@ internal class TGMeasureFragments(private val full: TGMeasureLayout) {
         return full.copy(
             bounds=bounds,staffTop=score,tabTop=tab,tabBottom=full.tabBottom?.plus(tabDelta),
             paintClef=header.paintClef,paintKey=header.paintKey,paintTime=header.paintTime,paintTempo=header.paintTempo,
+            paintTripletFeel=full.paintTripletFeel && slice.startTick == full.measure.start,
             previousKey=header.previousKey,clefWidth=header.clef,keyWidth=header.key,beatAreaLeft=area,beats=beats,
             effectsTop=top(TGTrackLane.Effects),bendTop=top(TGTrackLane.Bend),textTop=top(TGTrackLane.Text),
             chordTop=top(TGTrackLane.Chord),endingTop=top(TGTrackLane.RepeatEnding),tupletTop=top(TGTrackLane.Tuplet1),

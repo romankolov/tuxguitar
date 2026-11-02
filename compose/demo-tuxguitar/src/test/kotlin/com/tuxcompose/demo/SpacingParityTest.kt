@@ -10,11 +10,17 @@ import com.tuxcompose.layout.*
 import com.tuxcompose.model.*
 import kotlin.test.*
 
-/** Exercise the actual Java calculateBeats, not a transcription of its chord-spacing formula. */
+// v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
+private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+    pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
+    typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
+
+
+/** Explicit Adaptive-mode differences. Not evidence of native-default layout parity. */
 class SpacingParityTest {
     private val factory = TGFactoryImpl()
     private val tuning = listOf(64,59,55,50,45,40)
-    private val config = TGLayoutConfig(style=TGLayoutStyles.Tablature,orientation=TGLayoutOrientation.Horizontal,showTempo=false)
+    private val config = adaptiveConfig.copy(style=TGLayoutStyles.Tablature,orientation=TGLayoutOrientation.Horizontal,showTempo=false)
     private val nativeLayout = object : TGLayout(null,TGLayout.DISPLAY_TABLATURE or TGLayout.DISPLAY_CHORD_DIAGRAM) {
         override fun getMode() = TGLayout.MODE_HORIZONTAL
         override fun getScale() = 1f

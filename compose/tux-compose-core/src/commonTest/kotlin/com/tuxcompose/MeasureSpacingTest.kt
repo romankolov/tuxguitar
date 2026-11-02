@@ -8,9 +8,15 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlin.random.Random
 import kotlin.test.*
 
+// v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
+private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+    pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
+    typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
+
+
 class MeasureSpacingTest {
     private val tuning = listOf(64,59,55,50,45,40)
-    private val horizontal = TGLayoutConfig(orientation=TGLayoutOrientation.Horizontal,showTempo=false,justifySystems=false)
+    private val horizontal = adaptiveConfig.copy(orientation=TGLayoutOrientation.Horizontal,showTempo=false,justifySystems=false)
     private val chord = TGChord("Am",listOf(0,1,2,2,0,-1))
     private fun bar(index: Int = 0, duration: TGDuration = TGDuration(8)): TGMeasure {
         val start = 960+3840L*index
@@ -166,7 +172,7 @@ class MeasureSpacingTest {
 
     @Test fun balancingFitsMoreWholeMeasuresWithoutChangingNotationOrTiming() {
         val song = data(*Array(6) { i -> bar(i).edit { bi,b -> if (bi == 0) b.copy(chord=chord) else b } })
-        val config = TGLayoutConfig(justifySystems=false)
+        val config = adaptiveConfig.copy(justifySystems=false)
         val page = TGLayoutCalculator(config).calculate(song,700f)
         val legacy = TGLayoutCalculator(config.copy(optimizeSpacing=false)).calculate(song,700f)
         assertEquals(listOf(0,1,2),page.staves[0].measures.map { it.measureIndex })
@@ -203,7 +209,7 @@ class MeasureSpacingTest {
             10,30,55 -> b.copy(text="careful annotation")
             else -> b
         } }
-        val config = TGLayoutConfig(justifySystems=false)
+        val config = adaptiveConfig.copy(justifySystems=false)
         val page = TGLayoutCalculator(config).calculate(data(m),220f)
         val pieces = page.staves.flatMap { it.measures }
         assertTrue(pieces.size>1)
@@ -223,7 +229,7 @@ class MeasureSpacingTest {
 
     @Test fun optionalBlankMarginsAreShedBeforeBreakingAnOtherwiseFittingLabel() {
         val original = bar(duration=TGDuration(1)).edit { _,b -> b.copy(text="keep this long instruction whole") }
-        val page = TGLayoutCalculator(TGLayoutConfig(showTempo=false)).calculate(data(original),300f)
+        val page = TGLayoutCalculator(adaptiveConfig.copy(showTempo=false)).calculate(data(original),300f)
         val m = page.staves.single().measures.single()
         assertTrue(m.isFirstFragment && m.isLastFragment)
         assertTrue(m.bounds.right <= 300f)
@@ -264,7 +270,7 @@ class MeasureSpacingTest {
             val beats = List(12) { i -> TGBeat(960+i*duration.ticks,duration,listOf(TGVoice(notes=listOf(TGNote(i%8,1)))) ,chord=if (i%4 == 0) chord else null) }
             val source = TGMeasure(1,header,beats,960)
             for (style in TGLayoutStyles.entries) for (compact in listOf(false,true)) {
-                val config = TGLayoutConfig(style=style,compact=compact,repeatSystemSignatures=true)
+                val config = adaptiveConfig.copy(style=style,compact=compact,repeatSystemSignatures=true)
                 val page = TGLayoutCalculator(config).calculate(data(source),280f)
                 val pieces = page.staves.flatMap { it.measures }
                 assertEquals(960,pieces.first().startTick); assertEquals(source.end,pieces.last().endTick)

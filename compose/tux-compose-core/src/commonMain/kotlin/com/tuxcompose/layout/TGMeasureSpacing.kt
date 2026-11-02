@@ -98,7 +98,16 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
         }
         if (hasScore) score += TGHorizontalInk(beat.start,scoreLeft,scoreRight)
         if (hasTab) tab += TGHorizontalInk(beat.start,tabLeft,tabRight)
-        beat.chord?.let { chord ->
+        beat.chord?.takeIf { config.chordEnabled }?.let { chord ->
+            if (config.nativeSpacing) {
+                val width = 8f+5f*(chord.frets.size+1)
+                val shift = kotlin.math.floor(4f*config.renderScale+.5f)/config.renderScale
+                val left = shift-(width-8f)/2-8f
+                val nameHalf = if (config.showChordNames) fonts.measure(chord.name,TGTextRole.Chord).width/2 else 0f
+                chords += TGHorizontalInk(beat.start,minOf(if (config.showChords) left else shift,shift-nameHalf),
+                    maxOf(if (config.showChords) left+width else shift,shift+nameHalf))
+                return@let
+            }
             var right = maxOf(5f*maxOf(track.stringTuning.size,chord.frets.size)+8f,fonts.measure(chord.name,TGTextRole.Chord).width-4)
             if (chord.firstFret > 1) right = maxOf(right,fonts.measure(chord.firstFret.toString(),TGTextRole.Grace).width-4)
             chords += TGHorizontalInk(beat.start,-4f,right)

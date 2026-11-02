@@ -16,6 +16,12 @@ import com.tuxcompose.model.*
 import java.lang.reflect.Proxy
 import kotlin.test.*
 
+// v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
+private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+    pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
+    typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
+
+
 /** Calls the original Java painters and records their actual vector commands, not a hand-written oracle. */
 class StrokeParityTest {
     private val factory = TGFactory()
@@ -24,7 +30,7 @@ class StrokeParityTest {
     @Test fun strumAndPickingVectorsMatchTheOriginalJavaPainter() {
         for (style in TGLayoutStyles.entries) for (strings in listOf(1,2,4,6,7,25))
             for (direction in TGStrokeDirection.entries) for (wide in listOf(false,true)) {
-                val config = TGLayoutConfig(style=style,stringSpacing=if (wide) 14f else 10f,
+                val config = adaptiveConfig.copy(style=style,stringSpacing=if (wide) 14f else 10f,
                     staffSpacing=if (wide) 12f else 8f)
                 val beat = TGBeat(960,voices=listOf(TGVoice(notes=listOf(TGNote(5,1)))),
                     stroke=TGStroke(direction,16),pickStroke=direction)
@@ -78,7 +84,7 @@ class StrokeParityTest {
         }
         val data = TGSong(tracks=listOf(TGTrack(1,"Guitar",tuning,measures)))
         for (repeat in listOf(false,true)) {
-            val config = TGLayoutConfig(justifySystems=false,repeatSystemSignatures=repeat)
+            val config = adaptiveConfig.copy(justifySystems=false,repeatSystemSignatures=repeat)
             val page = TGLayoutCalculator(config).calculate(data,404f)
             val flat = page.staves.flatMap { it.measures }
             assertTrue(page.staves.any { row -> row.measures.map { it.measureIndex }.containsAll(listOf(0,1)) })

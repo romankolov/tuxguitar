@@ -23,6 +23,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+// v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
+private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+    pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
+    typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
+
+
 /** Real Android text metrics, Canvas pixels and pointer transforms after denser reflow. */
 @RunWith(AndroidJUnit4::class)
 class MeasureSpacingDeviceTest {
@@ -39,7 +45,7 @@ class MeasureSpacingDeviceTest {
 
     @Test fun balancedRealFontReflowFitsAnotherWholeBarAndPreservesStrumPixelsAndTaps() {
         val state = TablatureState(song(),960)
-        val config = mutableStateOf(TGLayoutConfig(style=TGLayoutStyles.Tablature,justifySystems=false,optimizeSpacing=false,
+        val config = mutableStateOf(adaptiveConfig.copy(style=TGLayoutStyles.Tablature,justifySystems=false,optimizeSpacing=false,
             colors=TGColorPalette.Paper.copy(noteHead=Color.Magenta)))
         var layout: TGSongLayout? = null
         compose.setContent {
@@ -92,7 +98,7 @@ class MeasureSpacingDeviceTest {
     @Test fun tappingTheEdgeOfALargeFontFretDoesNotSelectItsCloserNeighbor() {
         val state = TablatureState(song(1,largeFret=true),960)
         var layout: TGSongLayout? = null
-        val config = TGLayoutConfig(style=TGLayoutStyles.Tablature,justifySystems=false,
+        val config = adaptiveConfig.copy(style=TGLayoutStyles.Tablature,justifySystems=false,
             typography=TGTypography(noteSize=28f))
         compose.setContent {
             Box(Modifier.size(320.dp,240.dp)) {

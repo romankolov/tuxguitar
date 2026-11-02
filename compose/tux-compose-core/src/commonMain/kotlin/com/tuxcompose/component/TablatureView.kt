@@ -52,18 +52,20 @@ fun TablatureView(
 ) {
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer(cacheSize = 512)
-    val fonts = remember(textMeasurer, config.typography, density.fontScale) {
-        com.tuxcompose.renderer.TGComposeTextMetrics(textMeasurer,config.typography,density.fontScale)
-    }
-    val renderer = remember(config, fonts) { com.tuxcompose.renderer.TGCanvasRenderer(config,fonts) }
-    var size by remember { mutableStateOf(IntSize.Zero) }
     val factor = density.density * state.zoomScale * config.scale
+    val fonts = remember(textMeasurer, config.typography, config.respectSystemFontScale, config.nativeSpacing, density.fontScale, factor) {
+        com.tuxcompose.renderer.TGComposeTextMetrics(textMeasurer,config.typography,
+            if (config.respectSystemFontScale) density.fontScale else 1f,
+            if (config.nativeSpacing) factor else null)
+    }
+    val renderer = remember(config, fonts) { com.tuxcompose.renderer.TGCanvasRenderer(config.copy(renderScale=factor),fonts) }
+    var size by remember { mutableStateOf(IntSize.Zero) }
     val width = (size.width / factor).coerceAtLeast(1f)
     val height = (size.height / factor).coerceAtLeast(1f)
     val song = state.song
     val selectedTrack = state.selectedTrackIndex.coerceIn(0,(song?.tracks?.lastIndex ?: 0).coerceAtLeast(0))
     SideEffect { if (state.selectedTrackIndex != selectedTrack) state.selectedTrackIndex = selectedTrack }
-    val geometryConfig = remember(config) { config.copy(colors = TGColorPalette.Paper) }
+    val geometryConfig = remember(config,factor) { config.copy(colors=TGColorPalette.Paper,renderScale=factor) }
     val layoutTrackKey = if (config.multiTrack) 0 else selectedTrack
     val layout = remember(song,geometryConfig,fonts,width,layoutTrackKey) {
         song?.let { TGLayoutCalculator(geometryConfig,fonts).calculate(it,width,layoutTrackKey) } ?: TGSongLayout(width,0f,emptyList())

@@ -23,12 +23,13 @@ data class TGLayoutConfig(
     val keySignatureSpacing: Float = 15f,
     val timeSignatureSpacing: Float = 15f,
     val staffPadding: Float = 10f,
-    val systemSpacing: Float = 20f,
+    val systemSpacing: Float = 5f,
     val scoreTabSpacing: Float = 5f,
-    val pagePadding: Float = 12f,
+    /** Left page margin (TGSongViewStyles.firstMeasureSpacing on Android). */
+    val pagePadding: Float = 5f,
     val effectSpacing: Float = 8f,
     val durationWidths: PersistentList<Float> = persistentListOf(30f, 25f, 21f, 20f, 19f, 18f),
-    val compact: Boolean = false,
+    val compact: Boolean = true,
     val multiTrack: Boolean = false,
     val justifySystems: Boolean = true,
     /** Upstream only repeats signatures when changed; opt in to repeating at EVERY system. */
@@ -41,18 +42,36 @@ data class TGLayoutConfig(
     val fitPageToWidth: Boolean = true,
     /** Reserved picking-mark lane; the fixed eight-unit symbol is never shrunk. */
     val pickStrokeSpacing: Float = 8f,
-    /** Local, lane-aware collision clearance. False retains the v0.1.3 width calculation. */
+    /** Only used by Adaptive spacing; false selects its older v0.1.3 calculation. */
     val optimizeSpacing: Boolean = true,
+    /** Actual upstream measure, beat, header and track-lane algorithms, not a collision solver. */
+    val spacingMode: TGSpacingMode = TGSpacingMode.TuxGuitar,
+    /** TGLayoutVertical's right margin, in final canvas pixels (not zoomed style units). */
+    val pageRightPadding: Float = 10f,
+    val firstTrackSpacing: Float = 15f,
+    /** Android TuxGuitar hides chord diagrams by default; the decoded chords are never removed. */
+    val showChords: Boolean = false,
+    val showChordNames: Boolean = false,
+    /** Native canvas fonts ignore Android's sp multiplier. Opt in for accessibility/custom fonts. */
+    val respectSystemFontScale: Boolean = false,
+    /** Set by TablatureView: density × zoom × scale, for upstream pixel rounding only. */
+    val renderScale: Float = 1f,
 ) {
     init {
         require(scale.isFinite() && scale in 0.1f..8f)
+        require(renderScale.isFinite() && renderScale > 0f)
         require(listOf(stringSpacing, staffSpacing, noteHeadRadius).all { it.isFinite() && it > 0 })
-        require(listOf(measurePadding, firstNoteSpacing, clefSpacing, keySignatureSpacing, timeSignatureSpacing, staffPadding, systemSpacing, scoreTabSpacing, pagePadding, effectSpacing, pickStrokeSpacing).all { it.isFinite() && it >= 0 })
+        require(listOf(measurePadding, firstNoteSpacing, clefSpacing, keySignatureSpacing, timeSignatureSpacing, staffPadding, systemSpacing, scoreTabSpacing, pagePadding, pageRightPadding, firstTrackSpacing, effectSpacing, pickStrokeSpacing).all { it.isFinite() && it >= 0 })
         require(durationWidths.isNotEmpty() && durationWidths.all { it.isFinite() && it > 0 })
     }
+    val chordEnabled: Boolean get() = showChords || showChordNames
+    val nativeSpacing: Boolean get() = spacingMode == TGSpacingMode.TuxGuitar
     val showStandardNotation: Boolean get() = style != TGLayoutStyles.Tablature
     val showTablature: Boolean get() = style != TGLayoutStyles.Score
 }
+
+/** Adaptive is the opt-in, font/ink-aware Compose extension shipped in v0.1.4. */
+enum class TGSpacingMode { TuxGuitar, Adaptive }
 
 enum class TGLayoutStyles { Score, Tablature, Mixed }
 enum class TGLayoutOrientation { Horizontal, Page }
@@ -65,9 +84,10 @@ data class TGTypography(
     val noteSize: Float = 9f,
     val textSize: Float = 8f,
     val measureSize: Float = 8f,
-    val chordSize: Float = 9f,
+    val chordSize: Float = 8f,
+    val graceSize: Float = 6f,
 ) {
-    init { require(listOf(noteSize, textSize, measureSize, chordSize).all { it.isFinite() && it > 0 }) }
+    init { require(listOf(noteSize, textSize, measureSize, chordSize, graceSize).all { it.isFinite() && it > 0 }) }
 }
 
 @Immutable
