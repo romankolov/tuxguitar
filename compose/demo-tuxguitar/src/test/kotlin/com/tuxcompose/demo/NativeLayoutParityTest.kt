@@ -182,15 +182,17 @@ class NativeLayoutParityTest {
     }
 
     @Test fun rawTempoAnnotationChangesAreNotLostWhenQuarterBpmStaysEqual() {
-        val input = simple(listOf(2,4,8,8),4)
+        val input = simple(listOf(2,4,8,8),5)
         input.getMeasureHeader(0).tempo.setValueBase(120,4,false)
         input.getMeasureHeader(1).tempo.setValueBase(60,2,false)
         input.getMeasureHeader(2).tempo.setValueBase(240,8,false)
         input.getMeasureHeader(3).tempo.setValueBase(80,4,true)
+        // Raw annotated BPM is not quarter BPM: a valid 64th-based 120-quarter mark is 1920.
+        input.getMeasureHeader(4).tempo.setValueBase(1920,64,false)
         val ref = NativeLayoutReference(input,base,700f)
         compare(ref)
-        assertEquals(listOf(120,120,120,120),ref.model.tracks[0].measures.map { it.header.tempo })
-        assertEquals(listOf(120,60,240,80),ref.model.tracks[0].measures.map { it.header.tempoMark!!.value })
+        assertEquals(listOf(120,120,120,120,120),ref.model.tracks[0].measures.map { it.header.tempo })
+        assertEquals(listOf(120,60,240,80,1920),ref.model.tracks[0].measures.map { it.header.tempoMark!!.value })
     }
 
     private fun simple(values: List<Int>, bars: Int): NativeSong {

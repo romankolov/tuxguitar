@@ -79,7 +79,7 @@ data class TGMeasureHeader(
 /** Display-only metadata, not a playback clock or scheduler. */
 @Immutable
 data class TGTempoMark(val value: Int, val base: Int = 4, val dotted: Boolean = false) {
-    init { require(value in 1..1000 && base in listOf(1,2,4,8,16,32,64)) }
+    init { require(value > 0 && base in listOf(1,2,4,8,16,32,64)) }
 }
 
 @Immutable
