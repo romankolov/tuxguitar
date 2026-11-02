@@ -322,7 +322,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         movements.forEach { movement ->
             val y0 = if (movement > 0) low else high
             val y1 = if (movement > 0) high else low
-            val width = if (config.compact) 3f else 10f
+            val width = if (m.compact) 3f else 10f
             drawPath(Path().apply { moveTo(x,y0); cubicTo(x+1,y0,x+width,y0,x+width,y1) }, colors.noteHead, style=Stroke(.8f))
             val sign = if (movement > 0) 1 else -1
             line(x+width,y1,x+width-2,y1+2*sign,colors.noteHead,.8f)

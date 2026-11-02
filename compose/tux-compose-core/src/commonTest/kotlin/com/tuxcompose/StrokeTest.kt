@@ -105,7 +105,7 @@ class StrokeTest {
         } }
     }
 
-    @Test fun strumAllowanceIsSharedAtTheSameOnsetAcrossTracks() {
+    @Test fun strumClearanceKeepsTracksAlignedWithoutDoubleReservingRhythmicSpace() {
         val plain = List(4) { i -> beat(start=960+i*960L) }
         val marked = plain.mapIndexed { i,b -> if (i == 1) b.copy(stroke=TGStroke(TGStrokeDirection.Down,16)) else b }
         val a = song(marked).tracks.single()
@@ -115,7 +115,10 @@ class StrokeTest {
         val first = page.staves[0].measures.single().beats
         val second = page.staves[1].measures.single().beats
         assertEquals(first.map { it.x },second.map { it.x })
-        assertEquals(15f,(first[2].x-first[1].x)-(first[1].x-first[0].x),.001f)
+        assertEquals(0f,(first[2].x-first[1].x)-(first[1].x-first[0].x),.001f)
+        val legacy = TGLayoutCalculator(TGLayoutConfig(multiTrack=true,orientation=TGLayoutOrientation.Horizontal,optimizeSpacing=false))
+            .calculate(TGSong(tracks=listOf(a,b)),1000f).staves[0].measures.single().beats
+        assertEquals(15f,(legacy[2].x-legacy[1].x)-(legacy[1].x-legacy[0].x),.001f)
         assertTrue(first[1].stroke!!.bounds.right < first[2].voices[0].notes[0].tabBounds!!.left)
     }
 

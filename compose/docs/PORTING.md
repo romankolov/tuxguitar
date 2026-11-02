@@ -50,35 +50,85 @@ quarterSpacing = 960 / legacyTicks × durationWidth
 
 All legacy integer operations retain the Java order. Dotted means `+base/2`; double-dotted means `+(base/4)*3`. Precise duration uses `lcm(64, all supported tuplet enters) × 4 = 11,531,520` units per whole note. Supplying `preciseStart` avoids accumulating integer-tick rounding in 7/11/13 tuplets.
 
-The shortest participating voice determines a measure's base quarter spacing. Chord diagrams and text metrics may increase collision-free spacing. Shared headers take maxima across displayed tracks.
-
-For a normal (not compact) measure:
+The shortest participating voice determines a measure's **base** quarter spacing. Shared
+headers take maxima across displayed tracks. In a normal (not compact) measure:
 
 ```
-measureWidth = maxQuarterSpacing × ceil(actualDurationInQuarters)
-             + sum(sharedEffectWidthAtEachOnset)
-             + firstNoteSpacing
-             + repeatCloseAllowance
+baseRhythmWidth = maxQuarterSpacing × ceil(max(meterQuarters, actualEndQuarters))
+                + sum(sharedBendWidthAtEachOnset)
+baseX[t] = relativeQuarters[t] × maxQuarterSpacing + precedingSharedBendWidths
+measureWidth = finalRhythmWidth + firstNotePrefix + repeatCloseAllowance
              + leftPadding + rightPadding
-
-firstNoteSpacing = round(max(
-    tempoPrefixWidth,
-    clefWidth + keyWidth + timeWidth + configuredFirstNoteSpacing
-))
+firstNotePrefix = round(max(tempoPrefixWidth,
+    clefWidth + keyWidth + timeWidth + configuredFirstNoteSpacing)) + leadingInkInset
 ```
 
-The implementation reserves at least the meter length because the immutable core does not synthesize missing rests. Overfull measures use their actual ending. This agrees with completed upstream measures, but does not pretend a missing-data measure was normalized in place.
+At least the meter length is retained because the immutable core does not synthesize
+missing rests. Overfull measures use their actual ending. This agrees with completed
+upstream measures, but does not pretend a missing-data measure was normalized in place.
+No duration, tick, note size, staff/string size or playback identity is changed by spacing.
 
-The beat's base display position is:
+### Balanced spacing (default since 0.1.4)
+
+The source audit found two avoidable reservations in the earlier Compose adaptation:
+
+- Java `TGMeasureImpl.calculateBeats` compares **successive chord onsets**. A lone chord does
+  not enlarge its quarter spacing. Compose 0.1.3 instead divided each chord's width by that
+  beat's duration, then widened **every** beat in the measure. Text and effect labels could
+  cause the same whole-bar inflation through the generic font-collision check.
+- An arrow's full width was added to a rhythmic gap that often already contained it. The
+  source painter puts a normal strum at `beatX + 12`; it does not require a blanket extra
+  fifteen units at every marked onset.
+
+`TGMeasureSpacing.kt` keeps the source duration grid and measures ink independently in the
+score, tab, chord, text, effect and picking lanes of **each track**. Only consecutive occupied
+positions in the same lane compete. For a previous envelope `[left_i,right_i]` and the next
+one `[left_j,right_j]`, relative to their onsets, require:
 
 ```
-relativeQuarters = beat.startQuarters - measure.start / 960
-beatX = left + leftPadding + firstNoteSpacing
-      + relativeQuarters × adjustedQuarterWidth
-      + precedingSharedEffectWidths
+x[j] - x[i] >= right_i - left_j + clearance
+x[t] = baseX[t] + shift[t]
+shift[j] = max(shift[j-1], 0,
+    max over edges i→j (shift[i] + requiredDistance - (baseX[j] - baseX[i])))
 ```
 
-Effect slack is shared at the same onset on every track, not spread differently across each track's meter. Compact mode instead accumulates minimum beat widths and is disabled for more than one displayed track, as upstream does. The font-driven collision check is an intentional Compose adaptation: changing a font must not cause neighboring two-digit or ghost/harmonic fret labels to overlap.
+All edges go forward. A single longest-path pass adds the **minimum nondecreasing local
+shifts** satisfying these bounds. The end of the rhythmic area is an additional boundary;
+a long final label adds only its necessary tail, not a global scale. A leading inset protects
+wide negative bearings and fragment-start grace/fret glyphs. Glyphs, measured fret cutouts,
+accidentals, ledger/dot extents, grace text, strums, picking marks and bend/tremolo-bar
+footprints are considered where visible. The existing noncompact bend movement allowance
+remains shared at its actual onset. Every displayed track receives the same solved onset
+map, including tracks that do not have that particular annotation or effect.
+
+This is a deliberate **Compose collision/packing extension**, not a claim that Java uses
+this solver. For two close chords Java may still widen the entire bar; Compose retains the
+native chord clearance only where needed. The duration table and its tick rounding remain
+unchanged. After sorting shared onsets, the solve is linear in onsets plus occupied-lane
+events, once at layout time, never during cursor frames.
+
+A deterministic regression fixture illustrates the difference: six 4/4 bars of eighth notes,
+one `Am` diagram at the first beat of each, default mixed notation, 700-unit viewport and no
+justification. The first bar's rhythmic area falls from 344 to 160 units; three whole bars
+fit the first row instead of one. This is a fixture, not a universal compression ratio or a
+hardware performance benchmark. Legitimately crowded notation can still need extra space.
+
+`TGLayoutConfig(optimizeSpacing=false)` retains the 0.1.3 width model for comparison without
+reverting fixed-size page fragmentation, strokes or navigation behavior.
+
+### Native Compact and row justification
+
+`compact=true` uses the source's sum-of-minimum-beat-widths grid instead of proportional
+quarter spacing, followed by the same visible-ink protection. It is optional and remains
+**disabled when more than one track is displayed**, exactly as upstream. For an unannotated
+half + quarter + eighth + eighth bar, its rhythmic span is 86 rather than 160 units. The
+painter uses the effective compact flag too, so multi-track bends cannot accidentally use
+compact drawing with noncompact spacing.
+
+Full rows still receive TuxGuitar-style equal-per-measure justification. It changes rhythmic
+space only, never glyphs. `justifySystems=false` keeps the natural widths and a ragged right
+edge; it does not change which measures can fit. The showcase exposes **Balanced spacing**,
+**Compact** (single displayed track), and **Fill rows** under Customize for direct comparison.
 
 ## Wrapping and track alignment
 
@@ -104,6 +154,13 @@ of a following oversized bar may also share the row if it fits, but an ordinary 
 split just to fill a previous row. Musical measures, barlines, timing and hit-test indices
 remain separate. `fitPageToWidth=false` retains the previous Compose unsplit, natural-width panning option;
 it does not reproduce the Java painter's potentially overlapping negative spacing.
+
+Sparse annotations may span several onset gaps without widening them. Fragment planning
+therefore tracks an additional ink endpoint separately from the logical time-cut endpoint.
+A chord/label travels wholly with its owning attack; the planner retreats to an earlier cut
+or reserves its overhang without stretching cursor time or copying the annotation onto the
+next row. Window maxima exclude annotations owned by previous fragments. An indivisible
+symbol/header wider than the entire usable viewport still has to be clipped, never shrunk.
 
 Each fragment references the SAME complete model measure and original measure index. Its
 `startTick/endTick` is a half-open visible interval. Shared beat/effect offsets determine a
@@ -186,8 +243,9 @@ The common layout caches each mark's line geometry and bounds; the Canvas paints
 lines without Android Views, platform glyphs or per-frame geometry construction.
 
 For wide/custom fret fonts, the Compose collision extension moves the arrow outward from
-`x+12` when necessary and reserves its footprint in shared onset slack on every track,
-including compact mode. Glyphs and arrowheads are never rescaled. This additional clearance
+`x+12` when necessary. The lane-aware solver reserves only the clearance still missing
+from the existing rhythmic gap, sharing any resulting onset shifts across tracks and
+protecting compact mode too. Glyphs and arrowheads are never rescaled. This additional clearance
 is not a claim that the original Java painter reserves exactly the same space. Both marks
 stay with their owning attack when wrapping; synthetic held-note continuations suppress
 them. Stroke speed is preserved as model metadata, with no scheduling or audio logic in
@@ -239,7 +297,9 @@ Fret numbers and prose use a bounded 512-entry text-layout cache, measured in un
 - Reusable musical paths are lazy, shared objects. Fonts are measured once per cached text/style, not per cursor frame.
 - The caller can use `TGLayoutCalculator` and `TGSongLayout` directly without the default component.
 
-This is not a hardware benchmark or a claim of constant-time initial layout: initial layout processes the score and builds sorted/indexed geometry; it is not constant-time or a per-frame operation. Hit testing uses the visible staff/measure, then the beats in that bar. Mutate Compose state only on the UI thread; decoding and the demo's MIDI preparation run off it.
+This is not a hardware benchmark or a claim of constant-time initial layout: initial layout processes the score and builds sorted/indexed geometry; it is not constant-time or a per-frame operation. Hit testing uses the visible staff/measure, then actual note rectangles before nearest-onset
+empty-space seeking. This keeps the edges of wide custom frets and the first glyph's negative
+bearing selectable instead of selecting a closer neighboring onset. Mutate Compose state only on the UI thread; decoding and the demo's MIDI preparation run off it.
 
 ## Continuous cursor and follow policy
 

@@ -30,7 +30,10 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         // At narrow widths shed optional BLANK margins before allowing an indivisible header
         // or glyph to be clipped. Never change font, note-head, staff or string dimensions.
         val minimumBeat = metrics.flatten().flatMap { it.beatWidths }.minOrNull() ?: config.durationWidths.min()
-        val minimum = metrics.flatten().maxOf { it.first }+minimumBeat
+        val indivisible = metrics.flatten().maxOf { metric ->
+            metric.ink.lanes.maxOfOrNull { lane -> lane.maxOf { it.right+it.gap } } ?: 0f
+        }
+        val minimum = metrics.flatten().maxOf { it.first }+maxOf(minimumBeat,indivisible)
         val measurePadding = if (fitPage) minOf(config.measurePadding,((viewportWidth-minimum)/2).coerceAtLeast(0f)) else config.measurePadding
         val padding = if (fitPage) minOf(config.pagePadding,((viewportWidth-minimum-2*measurePadding)/2).coerceAtLeast(0f)) else config.pagePadding
         val available = (viewportWidth-2*padding).coerceAtLeast(1f)
@@ -60,17 +63,20 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 if (compact) compactX += local[0].beatWidths[compactBeat++]
                 effect += effects[tick] ?: 0f
             }
-            val rhythm = if (compact) local[0].beatWidths.sum() else q*quarters+effect
+            val naturalRhythm = if (compact) local[0].beatWidths.sum() else q*quarters+effect
+            val spacing = if (config.optimizeSpacing) balanceMeasureSpacing(offsets,naturalRhythm,
+                measures.maxOf { it.end },local.map { it.ink }) else TGMeasureSpacing(offsets,naturalRhythm,emptyMap())
             val repeat = local.maxOf { it.repeatWidth }
-            return Column(index,rhythm+prefix+2*measurePadding+repeat,q,effect,prefix,
-                local.maxOf { it.clef },local.maxOf { it.key },local,quarters,rhythm,repeat,offsets,effects)
+            return Column(index,spacing.rhythm+prefix+2*measurePadding+repeat,q,effect,prefix,
+                local.maxOf { it.clef },local.maxOf { it.key },local,quarters,spacing.rhythm,repeat,spacing.offsets,effects,spacing.inkRights,
+                local.maxOf { it.ink.continuationRight })
         }
         fun continuation(col: Column): List<Metric> = tracks.mapIndexed { ti,t ->
             val m = t.measures[col.index]
             if (config.repeatSystemSignatures) {
                 val metric = measureMetrics(t,m,t.measures.getOrNull(col.index-1),compact,true)
-                metric.copy(paintTempo=false,first=round(metric.clef+metric.key+(if (metric.paintTime) 10f+config.timeSignatureSpacing else 0f)+config.firstNoteSpacing))
-            } else col.metrics[ti].copy(first=config.firstNoteSpacing,clef=0f,key=0f,paintClef=false,paintKey=false,paintTime=false,paintTempo=false,previousKey=0)
+                metric.copy(paintTempo=false,first=round(metric.clef+metric.key+(if (metric.paintTime) 10f+config.timeSignatureSpacing else 0f)+config.firstNoteSpacing)+metric.ink.leading)
+            } else col.metrics[ti].copy(first=config.firstNoteSpacing+col.metrics[ti].ink.leading,clef=0f,key=0f,paintClef=false,paintKey=false,paintTime=false,paintTempo=false,previousKey=0)
         }
         val systems = mutableListOf<List<Column>>()
         val filled = mutableListOf<Boolean>()
@@ -88,11 +94,12 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                     val contPrefix = cont.maxOf { it.first }
                     val start = tracks[0].measures[next].start
                     val end = tracks.maxOf { it.measures[next].end }
-                    val fragments = wrapPageMeasure(start,end,col.offsets,col.rhythm,col.effects,available,col.first,contPrefix,measurePadding,col.repeatWidth,compact,tracks[0].measures[next].header.timeSignature.divisionTicks)
+                    val fragments = wrapPageMeasure(start,end,col.offsets,col.rhythm,col.effects,available,col.first,contPrefix,measurePadding,col.repeatWidth,compact,
+                        tracks[0].measures[next].header.timeSignature.divisionTicks,col.inkRights,col.continuationRight)
                     val pieces = fragments.mapIndexed { fi,fragment ->
                         val local = if (fi == 0) col.metrics else cont
                         val prefix = if (fi == 0) col.first else contPrefix
-                        val width = 2*measurePadding+prefix+fragment.toX-fragment.fromX+(if (fi == fragments.lastIndex) col.repeatWidth else 0f)
+                        val width = 2*measurePadding+prefix+fragment.contentToX-fragment.fromX+(if (fi == fragments.lastIndex) col.repeatWidth else 0f)
                         col.copy(width=width,first=prefix,clef=local.maxOf { it.clef },key=local.maxOf { it.key },
                             metrics=local,fragment=fragment,original=col)
                     }
@@ -169,9 +176,10 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
 
     private data class Metric(val quarter: Float, val effect: Float, val first: Float, val clef: Float, val key: Float,
         val quarters: Float, val repeatWidth: Float, val beatWidths: List<Float>, val beatEffects: List<Float>,
-        val paintClef: Boolean, val paintKey: Boolean, val paintTime: Boolean, val paintTempo: Boolean, val previousKey: Int)
+        val paintClef: Boolean, val paintKey: Boolean, val paintTime: Boolean, val paintTempo: Boolean, val previousKey: Int, val ink: TGMeasureInk)
     private data class Column(val index: Int, val width: Float, val quarter: Float, val effect: Float, val first: Float, val clef: Float, val key: Float, val metrics: List<Metric>,
         val quarters: Float, val rhythm: Float, val repeatWidth: Float, val offsets: Map<Long,Float>, val effects: Map<Long,Float>,
+        val inkRights: Map<Long,Float>, val continuationRight: Float,
         val fragment: TGPageFragment? = null, val original: Column? = null)
 
     private fun measureMetrics(track: TGTrack, m: TGMeasure, prev: TGMeasure?, compact: Boolean, systemFirst: Boolean): Metric {
@@ -193,9 +201,9 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             val bend = beat.voices.flatMap { it.notes }.maxOfOrNull { note ->
                 if (compact || !config.showTablature) 0f else (note.effects.bend?.movements()?.size ?: 0) * 10f
             } ?: 0f
-            // Keep the strum beside the fret/head, with its own shared onset allowance.
-            // This also protects compact bars and custom/wide fret fonts without scaling.
-            bend + if (beat.stroke.direction != TGStrokeDirection.None) strokeOffset(beat,config,fonts)+3f else 0f
+            // Balanced spacing measures the arrow's actual envelope instead of adding its
+            // full width on top of rhythmic space that already accommodates the mark.
+            bend + if (!config.optimizeSpacing && beat.stroke.direction != TGStrokeDirection.None) strokeOffset(beat,config,fonts)+3f else 0f
         }
         val beatWidths = m.beats.mapIndexed { bi, beat ->
             val duration = beat.voices.filterNot { it.empty }.minByOrNull { (it.duration ?: beat.duration).preciseTicks }?.duration ?: beat.duration
@@ -203,21 +211,25 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             val chord = beat.chord?.let { maxOf(8f+5f*(track.stringTuning.size+1),fonts.measure(it.name,TGTextRole.Chord).width+4) } ?: 0f
             val label = maxOf(beat.text?.let { fonts.measure(it,TGTextRole.Text).width+4 } ?: 0f,
                 effectLabels(beat).maxOfOrNull { fonts.measure(it,TGTextRole.Text).width+4 } ?: 0f)
-            val width = maxOf(durationWidth(duration),textWidth,chord,label,if (config.showStandardNotation) config.noteHeadRadius*2.66f+4 else 0f)
-            if (beat.chord != null) quarter = maxOf(quarter, chord / duration.quarters.toFloat())
+            val width = if (config.optimizeSpacing) maxOf(durationWidth(duration),if (config.showTablature) textWidth else 0f,
+                if (config.showStandardNotation) config.noteHeadRadius*2.66f+4 else 0f)
+                else maxOf(durationWidth(duration),textWidth,chord,label,if (config.showStandardNotation) config.noteHeadRadius*2.66f+4 else 0f)
+            if (!config.optimizeSpacing && beat.chord != null) quarter = maxOf(quarter, chord / duration.quarters.toFloat())
             width + beatEffects[bi]
         }
         // Use actual precise ending for invalid/overfull measures; empty bars reserve their meter.
         val endQuarters = m.beats.maxOfOrNull { b -> b.startQuarters - m.start.toDouble() / 960 +
             (b.voices.filterNot { it.empty }.maxOfOrNull { (it.duration ?: b.duration).quarters } ?: b.duration.quarters) }
         val quarters = ceil(maxOf(m.header.timeSignature.ticks / 960.0, endQuarters ?: 0.0)).toFloat()
-        // Font-driven collision protection is a deliberate extension of the upstream duration table.
-        if (!compact) m.beats.forEachIndexed { i, b ->
+        // Compatibility path: v0.1.3 promoted a single local collision to a whole-bar scale.
+        // The default forward solver adds clearance only where actual visible ink needs it.
+        if (!compact && !config.optimizeSpacing) m.beats.forEachIndexed { i, b ->
             val next = m.beats.getOrNull(i + 1)
             val distance = next?.let { it.startQuarters - b.startQuarters } ?: b.duration.quarters
             if (distance > 0) quarter = maxOf(quarter, (beatWidths[i] - beatEffects[i]) / distance.toFloat())
         }
-        return Metric(quarter, beatEffects.sum(), first, clef, key, quarters, if (m.header.repeatClose > 0) 20f else 0f, beatWidths, beatEffects, paintClef, paintKey, paintTime, paintTempo, previousKey)
+        val ink = if (config.optimizeSpacing) measureInk(track,m,config,fonts,compact) else TGMeasureInk()
+        return Metric(quarter, beatEffects.sum(), first+ink.leading, clef, key, quarters, if (m.header.repeatClose > 0) 20f else 0f, beatWidths, beatEffects, paintClef, paintKey, paintTime, paintTempo, previousKey, ink)
     }
 
     private fun staffSpacing(track: TGTrack, measures: List<TGMeasure>): TGSpacing {
@@ -310,7 +322,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             metric.paintClef, metric.paintKey, metric.paintTime, metric.paintTempo, metric.previousKey,
             if (config.multiTrack) col.clef else metric.clef, if (config.multiTrack) col.key else metric.key,
             area, beats, bounds.top + lanes.position(TGTrackLane.Effects), bounds.top + lanes.position(TGTrackLane.Bend),
-            bounds.top + lanes.position(TGTrackLane.Text), bounds.top + lanes.position(TGTrackLane.Chord), bounds.top + lanes.position(TGTrackLane.RepeatEnding), bounds.top + lanes.position(TGTrackLane.Tuplet1), percussion=track.percussion,headerX=bounds.left+measurePadding,pickStrokeTop=bounds.top+lanes.position(TGTrackLane.PickStroke))
+            bounds.top + lanes.position(TGTrackLane.Text), bounds.top + lanes.position(TGTrackLane.Chord), bounds.top + lanes.position(TGTrackLane.RepeatEnding), bounds.top + lanes.position(TGTrackLane.Tuplet1), percussion=track.percussion,headerX=bounds.left+measurePadding,pickStrokeTop=bounds.top+lanes.position(TGTrackLane.PickStroke),compact=compact)
     }
 
     private data class Group(val id: Int, val beats: List<Int>, val positions: List<List<Int>>, val up: Boolean)

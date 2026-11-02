@@ -50,6 +50,8 @@ data class TGMeasureLayout(
     val endTick: Long = measure.end,
     val headerX: Float = bounds.left+15f,
     val pickStrokeTop: Float = effectsTop,
+    /** Effective native compact mode (disabled when more than one track is displayed). */
+    val compact: Boolean = false,
 ) {
     val isFirstFragment: Boolean get() = startTick == measure.start
     val isLastFragment: Boolean get() = endTick == measure.end
@@ -109,7 +111,15 @@ class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaff
         val staff = visible(Rect(point.x, point.y, point.x + .01f, point.y + .01f)).firstOrNull() ?: return null
         val i = floorIndex(staff.measures.size) { staff.measures[it].bounds.left <= point.x }
         val measure = staff.measures.getOrNull(i)?.takeIf { it.bounds.contains(point) } ?: return null
-        if (point.x < measure.beatAreaLeft || measure.beats.isEmpty()) return null
+        if (measure.beats.isEmpty()) return null
+        // A wide fret/head can extend past the nearest-onset Voronoi cell (and the first
+        // fret extends left of beatAreaLeft). Prefer actual ink hits before empty-space
+        // seeking, otherwise a valid tap on a large custom glyph selects its neighbor.
+        measure.beats.forEach { beat -> beat.voices.forEach { voice -> voice.notes.forEach { note ->
+            if (note.tabBounds?.contains(point) == true || note.scoreBounds?.contains(point) == true)
+                return TGHitResult(staff.trackIndex,measure.measureIndex,beat.startTick,note.note.string,note.voiceIndex)
+        } } }
+        if (point.x < measure.beatAreaLeft) return null
         val beat = measure.beats.minByOrNull { kotlin.math.abs(it.x - point.x) } ?: return null
         val spacing = stringSpacing
         val string = measure.tabTop?.let { top ->

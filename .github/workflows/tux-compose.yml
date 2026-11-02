@@ -1,7 +1,7 @@
 name: Tux Compose · build, test & APK
 on:
   push:
-    branches: ["master", "arena/ca823542-tuxguitar"]
+    branches: ["master", "arena/a18c09e7-tuxguitar"]
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
   pull_request:
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
@@ -91,7 +91,7 @@ jobs:
           retention-days: 14
 
   preview-apk:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/ca823542-tuxguitar')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/a18c09e7-tuxguitar')
     needs: [build, device-test]
     runs-on: ubuntu-22.04
     permissions:
