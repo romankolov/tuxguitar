@@ -53,7 +53,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.3")
+    implementation("com.tuxcompose:tux-compose-core:0.1.4")
 }
 ```
 
@@ -167,6 +167,32 @@ The complete Android host with real decoding and playback is [MainActivity.kt](s
 - Paper/dark/high-contrast palettes; custom text/note font families, weight and sizes; string/staff/note/padding/effect/system metrics.
 
 Everything uses a **bounded viewport canvas**, not a giant song-sized surface. Text metrics are cached and shared with layout. Cursor/selection are independent layers; cursor updates do not rebuild notation geometry. Layout exposes bounds and hit testing directly for custom editor shells and export implementations.
+
+## Denser measures without smaller notation
+
+Version 0.1.4 removes avoidable whole-bar inflation from isolated chord diagrams, prose/effect
+labels and strumming arrows. It keeps TuxGuitar's duration table and normal rhythmic grid,
+then adds **only local, lane-aware collision clearance**. Simultaneous onsets stay aligned
+across tracks; annotation overhang is protected when a dense measure wraps. Wide custom
+fret glyphs remain their actual size, including at hit-test edges.
+
+```kotlin
+TGLayoutConfig(
+    optimizeSpacing = true, // default: balanced local clearance, no smaller glyphs
+    compact = false,        // optional native minimum-beat spacing; one displayed track only
+    justifySystems = true,  // false keeps natural widths rather than filling full rows
+)
+```
+
+The sample's **Customize → Balanced spacing / Compact / Fill rows** controls expose these
+choices. Balanced is on by default; turning it off provides a 0.1.3-spacing comparison.
+Compact is optional because it changes proportional spacing, and is disabled for multiple
+displayed tracks. Fill rows only affects justification, not the greedy packing threshold.
+
+For the tested six-bar fixture (eighth notes, one first-beat `Am` per bar, 700-unit viewport),
+three whole measures fit the first row instead of one. This is not a guarantee that every
+bar will get shorter: genuinely crowded effects, fonts and diagrams still reserve space.
+See [the source audit, equations and deliberate differences](docs/PORTING.md#balanced-spacing-default-since-014).
 
 ## Page fitting, cursor glide and cooperative auto-scroll
 

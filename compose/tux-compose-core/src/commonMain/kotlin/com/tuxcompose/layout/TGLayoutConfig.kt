@@ -41,6 +41,8 @@ data class TGLayoutConfig(
     val fitPageToWidth: Boolean = true,
     /** Reserved picking-mark lane; the fixed eight-unit symbol is never shrunk. */
     val pickStrokeSpacing: Float = 8f,
+    /** Local, lane-aware collision clearance. False retains the v0.1.3 width calculation. */
+    val optimizeSpacing: Boolean = true,
 ) {
     init {
         require(scale.isFinite() && scale in 0.1f..8f)

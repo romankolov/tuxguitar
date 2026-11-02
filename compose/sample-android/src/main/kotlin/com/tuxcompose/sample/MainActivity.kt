@@ -59,13 +59,17 @@ fun TuxComposeDemo() {
     var cursorVisible by remember { mutableStateOf(true) }
     var followCursor by remember { mutableStateOf(true) }
     var multiTrack by remember { mutableStateOf(false) }
+    var optimizeSpacing by remember { mutableStateOf(true) }
+    var compact by remember { mutableStateOf(false) }
+    var justifyRows by remember { mutableStateOf(true) }
     var showSettings by remember { mutableStateOf(false) }
     var midiMenu by remember { mutableStateOf(false) }
     var midiStatus by remember { mutableStateOf("Internal synth") }
     var spacing by remember { mutableFloatStateOf(10f) }
     val colors = when (palette) { 1 -> TGColorPalette.Dark; 2 -> TGColorPalette.HighContrast; else -> TGColorPalette.Paper }
-    val layout = remember(mode,orientation,colors,multiTrack,spacing) {
-        TGLayoutConfig(style=mode,orientation=orientation,colors=colors,multiTrack=multiTrack,stringSpacing=spacing)
+    val layout = remember(mode,orientation,colors,multiTrack,spacing,optimizeSpacing,compact,justifyRows) {
+        TGLayoutConfig(style=mode,orientation=orientation,colors=colors,multiTrack=multiTrack,stringSpacing=spacing,
+            optimizeSpacing=optimizeSpacing,compact=compact,justifySystems=justifyRows)
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -148,6 +152,12 @@ fun TuxComposeDemo() {
                         FilterChip(selected=multiTrack,onClick={multiTrack=!multiTrack},label={Text("All tracks")})
                         TextButton(onClick={spacing=if (spacing==10f) 14f else 10f}) { Text("Strings ${spacing.toInt()}") }
                         TextButton(onClick={export.launch("greenwood-study.gp5")}) { Text("Export demo GP5") }
+                    }
+                    val compactAvailable = !multiTrack || state.song.tracks.size <= 1
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                        FilterChip(selected=optimizeSpacing,onClick={optimizeSpacing=!optimizeSpacing},label={Text("Balanced spacing")},modifier=Modifier.testTag("balanced-spacing"))
+                        FilterChip(selected=compact&&compactAvailable,onClick={compact=!compact},enabled=compactAvailable,label={Text("Compact")},modifier=Modifier.testTag("compact-spacing"))
+                        FilterChip(selected=justifyRows,onClick={justifyRows=!justifyRows},label={Text("Fill rows")},modifier=Modifier.testTag("justify-rows"))
                     }
                 }
                 HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)

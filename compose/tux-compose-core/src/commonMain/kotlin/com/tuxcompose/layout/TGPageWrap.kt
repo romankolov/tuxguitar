@@ -6,7 +6,9 @@ import androidx.compose.ui.geometry.Rect
 import com.tuxcompose.model.*
 
 /** A time slice of ONE unchanged model measure. X values are natural rhythmic-area offsets. */
-internal data class TGPageFragment(val startTick: Long, val endTick: Long, val fromX: Float, val toX: Float)
+internal data class TGPageFragment(val startTick: Long, val endTick: Long, val fromX: Float, val toX: Float,
+    /** Ink may extend beyond this time cut; reserve it without distorting cursor time. */
+    val contentToX: Float = toX)
 
 internal data class TGFragmentHeader(
     val first: Float, val clef: Float, val key: Float, val previousKey: Int,
@@ -22,6 +24,7 @@ internal fun wrapPageMeasure(
     start: Long, end: Long, offsets: Map<Long, Float>, rhythmWidth: Float,
     effects: Map<Long, Float>, available: Float, firstPrefix: Float, continuationPrefix: Float,
     padding: Float, repeatWidth: Float, compact: Boolean, divisionTicks: Long,
+    inkRights: Map<Long,Float> = emptyMap(), continuationRight: Float = 0f,
 ): List<TGPageFragment> {
     val actual = (offsets.keys + start + end).distinct().sorted()
     val cuts = mutableListOf(start to 0f)
@@ -52,8 +55,14 @@ internal fun wrapPageMeasure(
     while (from < cuts.lastIndex) {
         val prefix = if (from == 0) firstPrefix else continuationPrefix
         var until = from + 1 // Always make progress, even below an indivisible glyph/header width.
+        // A sparse chord/text can span several onsets without forcing their spacing apart.
+        // At a row break its WHOLE ink must still travel with the owning attack. Cache the
+        // window maxima while scanning, including the values needed by metrical backtracking.
+        val rights = mutableListOf(cuts[from].second+continuationRight)
+        fun contentTo(index: Int) = maxOf(cuts[index].second,rights[index-from])
         while (until < cuts.size) {
-            val width = 2 * padding + prefix + cuts[until].second - cuts[from].second +
+            rights += maxOf(rights.last(),inkRights[cuts[until-1].first] ?: cuts[from].second)
+            val width = 2 * padding + prefix + contentTo(until) - cuts[from].second +
                 if (until == cuts.lastIndex) repeatWidth else 0f
             if (width > available && until > from + 1) { until--; break }
             if (width > available || until == cuts.lastIndex) break
@@ -74,7 +83,7 @@ internal fun wrapPageMeasure(
                 step /= 2
             }
         }
-        result += TGPageFragment(cuts[from].first,cuts[until].first,cuts[from].second,cuts[until].second)
+        result += TGPageFragment(cuts[from].first,cuts[until].first,cuts[from].second,cuts[until].second,contentTo(until))
         from = until
     }
     return result
