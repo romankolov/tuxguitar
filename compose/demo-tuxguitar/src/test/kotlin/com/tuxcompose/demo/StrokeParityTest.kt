@@ -79,7 +79,7 @@ class StrokeParityTest {
         val data = TGSong(tracks=listOf(TGTrack(1,"Guitar",tuning,measures)))
         for (repeat in listOf(false,true)) {
             val config = TGLayoutConfig(justifySystems=false,repeatSystemSignatures=repeat)
-            val page = TGLayoutCalculator(config).calculate(data,400f)
+            val page = TGLayoutCalculator(config).calculate(data,404f)
             val flat = page.staves.flatMap { it.measures }
             assertTrue(page.staves.any { row -> row.measures.map { it.measureIndex }.containsAll(listOf(0,1)) })
             val track = factory.newTrack()
@@ -92,7 +92,7 @@ class StrokeParityTest {
             }) }
             val original = TGLayoutVertical(null,TGLayout.DISPLAY_SCORE or TGLayout.DISPLAY_TABLATURE)
             TGLayoutVertical::class.java.getDeclaredField("maximumWidth").apply { isAccessible=true }
-                .setFloat(original,400-2*config.pagePadding)
+                .setFloat(original,404-2*config.pagePadding)
             val method = TGLayoutVertical::class.java.methods.single { it.name == "getTempLines" }
             val expected = mutableListOf<List<Int>>()
             var from = 0

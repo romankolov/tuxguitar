@@ -183,8 +183,9 @@ Ties, hammers/pull-offs and slides have outgoing/incoming row-local segments; be
 the break and tuplet/ending brackets continue without inventing another measure/repeat.
 Bends, chords, text and other beat effects move with their owning beats, with space reserved
 for their printed size. Tracks share the same cuts; a sustained voice is displayed with tied
-continuations rather than a new model attack. The original immutable song is untouched. A shared row uses common vertical lanes,
-so a following chord/text/picking mark also repositions the preceding continuation correctly.
+continuations rather than a new model attack. The original immutable song is untouched.
+A shared row uses common vertical lanes, so a following chord/text/picking mark also
+repositions the preceding continuation correctly.
 Cursor, selection and hit testing use each fragment's visible tick interval.
 
 `TGLayoutConfig(fitPageToWidth = false)` keeps oversized measures intact and enables panning; continuous horizontal mode is unchanged. Blank margins may reduce at narrow widths,
@@ -194,7 +195,8 @@ opt-out in that physically impossible case.
 
 `onLayout` exposes `TGMeasureLayout.startTick/endTick`, `isFirstFragment/isLastFragment`,
 `TGBeatLayout.startTick/endTick`, voice `isContinuation/sourceTick`, and each staff's cached
-`connections` and each beat's cached `stroke` / `pickStroke` line geometry for custom overlays. `measure` still references the complete source model;
+`connections` and each beat's cached `stroke` / `pickStroke` line geometry for custom
+overlays. `measure` still references the complete source model;
 `measureIndex` is not renumbered. `contentScale` is retained for compatibility and is always 1.
 
 Strumming arrows and picking marks are separate, **beat-level** properties, matching

@@ -248,12 +248,41 @@ class PageWrapTest {
         val config = TGLayoutConfig(repeatSystemSignatures=true,multiTrack=true)
         val a = TGTrack(1,"Fast",tuning,listOf(measure(),measure(1,TGDuration(4))))
         val b = a.copy(id=2)
-        val page = TGLayoutCalculator(config).calculate(TGSong(tracks=listOf(a,b)),400f)
+        // 255-unit tail + 124-unit next bar needs 379 usable units (404 minus margins).
+        val page = TGLayoutCalculator(config).calculate(TGSong(tracks=listOf(a,b)),404f)
         page.staves.filter { it.systemIndex == page.staves.last().systemIndex }.forEach { row ->
             assertEquals(2,row.measures.size)
             assertTrue(row.measures[0].paintClef && row.measures[0].paintTime)
             assertFalse(row.measures[1].paintClef || row.measures[1].paintTime)
             assertEquals(46f,row.measures[0].clefWidth,.001f)
+        }
+    }
+    @Test fun oversizedNextBarCanStartMidRowAndRepeatItsOwnSignaturesOnLaterRows() {
+        val key = TGKeySignature(2)
+        val short = TGMeasure(1,TGMeasureHeader(timeSignature=TGTimeSignature(1,4),keySignature=key),
+            listOf(TGBeat(960,voices=listOf(TGVoice(notes=listOf(TGNote(5,1)))))),960)
+        val base = measure()
+        val dense = TGMeasure(2,base.header.copy(keySignature=key),
+            base.beats.map { it.copy(start=it.start+960) },1920)
+        val a = TGTrack(1,"First",tuning,listOf(short,dense))
+        val b = a.copy(id=2)
+        val page = TGLayoutCalculator(TGLayoutConfig(repeatSystemSignatures=true,multiTrack=true))
+            .calculate(TGSong(tracks=listOf(a,b)),600f)
+        page.staves.filter { it.systemIndex == 0 }.forEach { row ->
+            assertEquals(listOf(0,1),row.measures.map { it.measureIndex })
+            val firstPiece = row.measures[1]
+            assertTrue(firstPiece.isFirstFragment)
+            assertFalse(firstPiece.paintClef || firstPiece.paintKey)
+            assertTrue(firstPiece.paintTime) // A real 1/4 -> 4/4 change, not a repeated system header.
+        }
+        page.staves.filter { it.systemIndex > 0 }.forEach { row ->
+            val continuation = row.measures.single()
+            assertEquals(1,continuation.measureIndex)
+            assertFalse(continuation.isFirstFragment)
+            assertTrue(continuation.paintClef && continuation.paintKey && continuation.paintTime)
+            assertEquals(46f,continuation.clefWidth,.001f)
+            assertEquals(27f,continuation.keyWidth,.001f)
+            assertTrue(continuation.bounds.right <= 600f)
         }
     }
     @Test fun sharedRowRebasesCachedFragmentsIntoTheFollowingBarsLanes() {
@@ -280,8 +309,10 @@ class PageWrapTest {
         val b = tail.beats.last().voices.first().notes.first()
         assertEquals(a.scoreBounds!!.center.y-first.staffTop!!,b.scoreBounds!!.center.y-tail.staffTop!!,.001f)
         assertEquals(a.tabBounds!!.center.y-first.tabTop!!,b.tabBounds!!.center.y-tail.tabTop!!,.001f)
-        assertEquals(a.scoreBounds.size,b.scoreBounds.size)
-        assertEquals(a.tabBounds.size,b.tabBounds.size)
+        assertEquals(a.scoreBounds.width,b.scoreBounds.width,.001f)
+        assertEquals(a.scoreBounds.height,b.scoreBounds.height,.001f)
+        assertEquals(a.tabBounds.width,b.tabBounds.width,.001f)
+        assertEquals(a.tabBounds.height,b.tabBounds.height,.001f)
         assertTrue(tail.staffTop!!-tail.bounds.top > first.staffTop!!-first.bounds.top)
         assertEquals(tail.tabTop!!+10,tail.beats.last().stroke!!.lines[0].from.y,.001f)
         assertEquals(tail.pickStrokeTop,tail.beats.last().pickStroke!!.lines.last().from.y,.001f)
