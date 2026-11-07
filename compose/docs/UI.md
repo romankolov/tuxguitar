@@ -189,6 +189,6 @@ Toolchain: Kotlin 2.4.21, Compose Multiplatform 1.12.2 (Android Compose 1.12.1),
 Material3 1.5.0-rc01, AGP 9.2.1, Gradle 9.4.1, Java 17, compileSdk 37 / targetSdk 35 /
 minSdk 24. Core uses the supported single-variant `com.android.kotlin.multiplatform.library`
 plugin; the Android sample/synth use AGP built-in Kotlin. No legacy opt-out is needed.
-The first CI configuration exposed an incompatible legacy source-set cast; the proper
-Android-KMP migration replaces that old integration rather than suppressing the error.
+Generated demo assets and native libraries are registered through AGP's variant sources
+API rather than legacy `AndroidSourceSet` casts.
 Material remains **sample-only**. The core still needs no Material theme or playback.

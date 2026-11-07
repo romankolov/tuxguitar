@@ -54,12 +54,15 @@ fun StudioScore(state: TablatureState, preferences: StudioPreferences, layout: T
                 StudioIcon(R.drawable.ic_expand_more)
             }
             val following=preferences.follow&&!state.isAutoScrollSuspended
-            FilledTonalIconToggleButton(checked=following,onCheckedChange={
-                if (!following) { onChange(preferences.copy(follow=true)); state.resumeAutoScroll() }
+            if(state.isAutoScrollSuspended) FilledTonalButton(onClick={
+                onChange(preferences.copy(follow=true)); state.resumeAutoScroll()
+            },modifier=Modifier.heightIn(min=48.dp).testTag("follow-cursor"),contentPadding=PaddingValues(horizontal=12.dp)) {
+                Text("Resume",style=MaterialTheme.typography.labelLarge)
+            } else FilledTonalIconToggleButton(checked=following,onCheckedChange={
+                if(!following) { onChange(preferences.copy(follow=true)); state.resumeAutoScroll() }
                 else onChange(preferences.copy(follow=false))
             },modifier=Modifier.size(48.dp).testTag("follow-cursor")) {
-                StudioIcon(R.drawable.ic_center_focus_strong,
-                    if(state.isAutoScrollSuspended) "Resume follow" else if(following) "Pause following" else "Follow playhead")
+                StudioIcon(R.drawable.ic_center_focus_strong,if(following) "Pause following" else "Follow playhead")
             }
             StudioIconButton(R.drawable.ic_tune,"Customize workspace","settings",onClick=onSettings)
         }

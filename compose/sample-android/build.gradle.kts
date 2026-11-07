@@ -38,12 +38,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     packaging.resources.excludes += setOf("META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES")
-    sourceSets["main"].assets.srcDir("build/generated/demo-assets")
 }
 val demoAssets by tasks.registering(Sync::class) {
     from("../../docs/LICENSE") { into("licenses"); rename { "TuxGuitar-LGPL.txt" } }
     from("../NOTICE.md") { into("licenses"); rename { "Tux-Compose-NOTICE.md" } }
     into(layout.buildDirectory.dir("generated/demo-assets"))
+}
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addStaticSourceDirectory(layout.buildDirectory.dir("generated/demo-assets").get().asFile.absolutePath)
+    }
 }
 tasks.named("preBuild").configure { dependsOn(demoAssets) }
 dependencies {

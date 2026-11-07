@@ -73,6 +73,7 @@ class DemoDeviceTest {
         compose.onNodeWithTag("score-canvas").assertIsDisplayed()
     }
     @Test fun themeAndCursorPreferencesSurviveRecreation() {
+        compose.onNodeWithTag("next").performClick()
         compose.onNodeWithTag("settings").performClick()
         compose.onNodeWithTag("settings-Appearance").performClick()
         compose.onNodeWithTag("theme-Dark").performScrollTo().performClick()
@@ -81,6 +82,7 @@ class DemoDeviceTest {
         compose.onNodeWithTag("smooth-cursor").performScrollTo().performClick().assertIsOff()
         compose.onNodeWithTag("settings-close").performClick()
         compose.activityRule.scenario.recreate(); awaitDemo()
+        assertTick(1440)
         compose.onNodeWithTag("settings").performClick()
         compose.onNodeWithTag("settings-Appearance").performClick()
         compose.onNodeWithTag("theme-Dark").performScrollTo().assertIsOn()

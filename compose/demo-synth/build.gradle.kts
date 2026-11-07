@@ -78,15 +78,18 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
     externalNativeBuild { cmake { path=file("src/main/cpp/CMakeLists.txt"); version="3.22.1" } }
-    sourceSets["main"].apply {
-        jniLibs.srcDir(nativeRoot.map { it.dir("lib") })
-        assets.srcDir(generatedAssets)
-    }
     // CMake also reports its directly linked imported library. Both copies come from the SDK.
     packaging.jniLibs.pickFirsts += setOf("**/libfluidsynth.so","**/libc++_shared.so")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+// AGP's variant sources API avoids legacy AndroidSourceSet casts in the Kotlin DSL.
+androidComponents {
+    onVariants { variant ->
+        variant.sources.jniLibs?.addStaticSourceDirectory(nativeRoot.get().dir("lib").asFile.absolutePath)
+        variant.sources.assets?.addStaticSourceDirectory(generatedAssets.get().asFile.absolutePath)
     }
 }
 tasks.configureEach {
