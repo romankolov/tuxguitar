@@ -292,6 +292,85 @@ source is offscreen. Indexed intervals avoid scanning an offscreen prefix. Rest 
 prevent reconnection across rests. Beams and tuplet/ending brackets continue row-locally;
 no connection is drawn diagonally through another staff or row gap.
 
+### Let-ring semantics and collision-free caption bands (0.1.6)
+
+**Source audit:** `TGNoteImpl.paintEffects` draws `L.R` separately at each flagged note
+(and other offline effects in category lanes). It has no merged dashed span to port.
+`mergeLetRing=true` therefore opts the default Compose view into the explicitly requested
+annotation enhancement; setting it false retains the existing/native lane arithmetic.
+The immutable source effects remain unchanged in either mode.
+
+`TGAnnotations.kt` first walks source events, **before fragmentation**, per track/voice.
+Consecutive flagged attacks extend `[start,end)` through the last marked duration.
+An unmarked reattack/rest closes it, a time gap starts another, tied continuations extend
+it without duplicate captions, and repeat-open/close or changed alternate endings cut it.
+Unrelated voices do not terminate a held voice. Overlapping/touching runs in the same
+repeat section are unioned for display; different tracks/sections never merge. Sorted,
+disjoint run intervals provide binary-search row lookup.
+
+For a source time inside a placed beat, project with the same rhythmic interval used by
+the cursor:
+
+```
+u = clamp((tick - beat.startTick) / (beat.endTick - beat.startTick), 0, 1)
+x(tick) = beat.x + u * (beat.endX - beat.x)
+```
+
+Split the run against each system/fragment's half-open source interval. At an incoming
+edge label it `(let ring)`; at an outgoing edge omit the cap. The final endpoint is two
+logical units before the projected duration end, keeping it off the barline. Only the
+true end has a six-unit vertical cap. Dashes use a 3-on/2-off pattern, stroke 0.8.
+The caption precedes the line by 3 units. If a short final fragment cannot accommodate
+both, the line moves below the caption with a 4-unit gap; the cap is never discarded.
+
+On **rows intersecting a run**, preflight all effect captions and beat prose using the
+shared measured font metrics. Wrap prose/captions by words, with a Unicode-code-point
+fallback for very long words. Clamp their X within the row; do not truncate strings or
+shrink fonts. An impossible single glyph is clipped at the viewport boundary. For each
+of the Text/Effects bands, sort intervals by left edge and reuse the first lane with
+`previousRight + 2 <= nextLeft`; otherwise allocate a new lane. A let-ring interval
+includes its caption **and the whole dashed span**, so an interior or immediately
+following label cannot occupy the same ink space. Each lane's height is its largest
+caption/line/cap box plus clearance (and at least `effectSpacing` in Effects).
+
+Increase, never decrease, the corresponding `TGSpacing` reservations, then re-place the
+row with the same horizontal columns. Cached fragments rebase their lanes independently.
+Score-only's native lane order puts Effects before ScoreDown, so the enhancement also
+pads the caption origin past downward score ink. No native natural width, greedy row
+threshold, justification equation, note/font size, source identity or hit-test tick is
+changed. Adaptive does not reserve a fresh horizontal `let ring` word on every attack;
+its other optional ink constraints remain independent.
+
+`TGStaffLayout.annotations` caches the resulting immutable geometry; a balanced interval
+index finds visible ink even with an offscreen label. Renderer dash work is limited to
+the visible interval, preserving its original phase. Captions are line-culled vertically.
+The normal `render` pass handles these overlays after notation/connections. Standalone
+`renderMeasure` callers must draw cached row `renderAnnotation` overlays, just as with
+`renderConnection`; `plannedAnnotations` suppresses legacy duplicate beat captions.
+Rows without let-ring keep their previous/native layout.
+
+### Hollow capsule cursor geometry (0.1.6)
+
+`CursorStyle.Capsule` uses `Stroke`, never Fill. For row height `h > 0`, configured outer
+width `W`, inset `I`, stroke request `S`, and interpolated, unsnapped logical playhead `x`:
+
+```
+w = min(W, h)
+i = min(I, (h-w)/2)
+H = h-2*i
+s = min(S, w/3, H/3)
+path = Rect(x-w/2+s/2, top+i+s/2, x+w/2-s/2, bottom-i-s/2)
+radius = (min(w,H)-s)/2
+```
+
+This is the **stroke centreline** rectangle. Its actual outside edge is inset by `i`;
+its interior width is `w-2s >= w/3 > 0`, even with a very large stroke request. Zero or
+nonfinite row geometry is skipped. Defaults: `capsuleWidth=6`, `capsuleInset=6`,
+`width=1.5`; parameters are finite and validated. Canvas applies density × zoom × scale
+once afterwards. The style uses the existing tweened displayX, color/opacity/animation
+and cooperative follow logic. Core's default remains Line; the showcase starts Capsule
+and cycles using the enum's actual size rather than a hardcoded three styles.
+
 ### Adaptive/custom-font safety (opt-in)
 
 `spacingMode=TGSpacingMode.Adaptive` retains 0.1.4's font/ink-aware forward solver.
@@ -332,7 +411,8 @@ The actual Java sources used by the oracle are **test/demo dependencies only**.
   frames do not recompute layout. Palette-only changes reuse geometry.
 - Three viewport-sized layers render notation, selection and cursor; no song-sized bitmap.
 - Binary searches/indexed iteration cull systems/measures; connections have balanced
-  interval indices. Initial layout is not claimed constant-time or hardware-benchmarked.
+  interval indices; row annotations use the same offscreen-source-safe indexing.
+  Initial layout is not claimed constant-time or hardware-benchmarked.
 - All 32 paths are generated losslessly from original `TGPaintModel` commands. Source
   hashes and regeneration are checked by `tools/verify.py`.
 - A bounded 512-entry text cache drives both rendered cutouts and pointer rectangles.
@@ -359,7 +439,9 @@ Android `TGSongViewStyles.java`, rather than a copied expected-width table.
 row membership, header flags/maxima, stem direction, hidden/displaced rests and vertical
 lanes. Its matrix includes score/tab/mixed, compact/noncompact, chord display modes,
 fractional scale, polyphony, multi/selected tracks, signatures, effects and real GP3/4/5
-showcase imports. `native-layout-parity.json` in CI diagnostics records matrix cases;
+showcase imports. The showcase now includes a real let-ring phrase; its native-only
+comparisons set `mergeLetRing=false`, because merged annotations intentionally differ.
+`native-layout-parity.json` in CI diagnostics records matrix cases;
 the differential tolerance is 0.025 **physical pixels**, not a bitmap-similarity claim.
 Common and Android tests separately exercise Native's default reflow, wrapping extension,
 fixed-size glyphs, actual fonts, transformed pointer hits and system-font-scale policy.
@@ -374,8 +456,9 @@ Remaining limits are explicit:
 - Core supports up to four voice slots as an extension; this Java reference has two.
 - Complex notehead/accidental displacement, arbitrary slurs and every historical
   bend/conflict/effect subvariant are not exhaustively pixel-verified. Some effects still
-  share a generic label/path. Native intentionally inherits its fixed-grid font/label
-  crowding; choose Adaptive when collision safety is preferred to those exact equations.
+  share a generic label/path. Outside the enhanced let-ring rows, Native intentionally
+  inherits its fixed-grid font/label crowding; choose Adaptive for additional ink-aware
+  horizontal clearance rather than those exact equations.
 - Platform font shaping and antialiasing differ. Geometry differentials are not a full
   native-versus-Compose screenshot comparison or a claim of identical desktop buffers.
 - Android/JVM are CI targets. Optional iOS targets have no runtime validation here.

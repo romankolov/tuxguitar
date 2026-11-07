@@ -13,7 +13,7 @@ The library has **no decoder, file access, playback clock, MIDI, synthesizer, au
 | `demo-synth` | Existing Android-compatible Gervill and Java Sound shim | Android, **demo only** |
 | `sample-android` | Compose screen, Storage Access Framework picker, transport, soundfonts and optional hardware MIDI output | Android 7.0+ |
 
-**Status:** first implementation, not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
+**Status:** first implementation, not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping, merged let-ring spans and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
 
 `TablatureView(onLayout = { ... }, drawOverlay = { layout -> ... })` exposes cached
 layout geometry and a custom Canvas overlay. Overlay coordinates are logical song units;
@@ -53,7 +53,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.5")
+    implementation("com.tuxcompose:tux-compose-core:0.1.6")
 }
 ```
 
@@ -131,8 +131,10 @@ fun ScoreScreen() {
             modifier = Modifier.weight(1f).fillMaxWidth(),
             config = config,
             cursorConfig = TGCursorConfig(
-                style = CursorStyle.Glow,
-                width = 2f,
+                style = CursorStyle.Capsule, // hollow, not a filled pill
+                width = 1.5f,               // stroke width
+                capsuleWidth = 6f,          // outer width in logical notation units
+                capsuleInset = 6f,          // top/bottom margin inside the row
                 highlightNotes = true,
                 animation = CursorAnimation.Pulse,
             ),
@@ -162,7 +164,7 @@ The complete Android host with real decoding and playback is [MainActivity.kt](s
 - Pinch zoom; double-tap zoom; programmatic `setZoom`, `scrollTo`, `scrollBy`.
 - Tap selects a beat/string, moves the cursor, and reports `TGHitResult`; long-press extends a range on the same track. `selection`, `selectedString`, and cursor are controlled state.
 - Arrow keys navigate beats/measures; Escape clears selection. Accessibility exposes track/tick state and next/previous/zoom actions without thousands of invisible per-note composables.
-- Cursor line/block/glow, optional blink/pulse, independent color, width, opacity, note highlighting and automatic follow.
+- Cursor line/block/glow/hollow capsule, optional blink/pulse, independent color, width, opacity, note highlighting and automatic follow.
 - Score/tab/mixed; wrapped systems or continuous horizontal flow; optional multi-track alignment, justification, repeated system signatures, compact spacing, tempo and measure numbers.
 - Paper/dark/high-contrast palettes; custom text/note font families, weight and sizes; string/staff/note/padding/effect/system metrics.
 
@@ -221,6 +223,45 @@ multiplier unless explicitly enabled. For a previous-style visual setup, also se
 `pagePadding=12f`, `systemSpacing=20f`, `showChords=true` and your previous typography.
 No musical timing, note identity or playback/parser boundary is changed.
 
+## Hollow capsule and let-ring spans (0.1.6)
+
+The sample starts with **Capsule**, and its Cursor picker cycles through all four styles.
+The library keeps Line as its compatibility default. Select `CursorStyle.Capsule` in
+`TGCursorConfig`: `width` is its stroke (default 1.5), `capsuleWidth` its outer width (6),
+and `capsuleInset` its top/bottom margin (6). These are **logical notation units**, not
+already density-scaled pixels. The stroke centreline is inset by half its thickness so
+all of the stroke remains inside its bounds. Tiny rows clamp the dimensions/stroke while
+retaining a transparent interior. Smooth movement, opacity/blink/pulse and follow settings
+work unchanged; fractional playhead positions are not snapped to pixels.
+
+`TGLayoutConfig(mergeLetRing = true)` is enabled by default. Consecutive marked attacks
+in a voice now display **`let ring - - - - |`**, covering the last marked duration, not a
+label at every note. Reattacks without the flag, rests, time gaps and repeat/ending
+boundaries stop a run. Tied continuations sustain it without another onset label.
+Overlapping voice runs share a display span, but tracks remain independent. A row break
+or oversized-bar fragment shows `(let ring)` with continuation dashes; only the actual
+end receives a cap. A very short segment puts its line below its caption instead of
+losing the cap or drawing through the words.
+
+Effects in the span's middle or after it are measured and packed into separate vertical
+lanes; beat prose has its own measured, word-wrapped lanes. Whole captions are retained,
+not ellipsized or shrunk. The layout grows those rows vertically, **never widens native
+rhythmic spacing or changes source ticks, notes or bar identities**. Rows without a
+let-ring run retain their existing annotation layout. An indivisible custom-font glyph
+wider than the entire viewport is clipped, as with the other fixed-size notation.
+
+This is a deliberate Compose enhancement: upstream `TGNoteImpl` prints separate `L.R`
+labels and does not implement this merged span. `mergeLetRing=false` restores per-beat
+captions and the existing lane reservations. Native Java differential fixtures containing
+let-ring explicitly disable the enhancement when comparing native geometry.
+
+`TGStaffLayout.annotations` stores row-local caption/line/cap geometry;
+`layout.visibleAnnotations(staff, viewport)` uses a cached interval index, including
+continuations whose label is offscreen. The normal `TGCanvasRenderer.render` includes
+this pass. Custom fragment renderers using `renderMeasure` must additionally render the
+staff's cached `renderAnnotation` and `renderConnection` overlays; a measure with
+`plannedAnnotations=true` deliberately omits its old repeated beat captions.
+
 ## Page fitting, cursor glide and cooperative auto-scroll
 
 Page/vertical mode now keeps **exactly the parent width**, including fractional density and
@@ -251,7 +292,7 @@ opt-out in that physically impossible case.
 
 `onLayout` exposes `TGMeasureLayout.startTick/endTick`, `isFirstFragment/isLastFragment`,
 `TGBeatLayout.startTick/endTick`, voice `isContinuation/sourceTick`, and each staff's cached
-`connections` and each beat's cached `stroke` / `pickStroke` line geometry for custom
+`connections` / `annotations` and each beat's cached `stroke` / `pickStroke` line geometry for custom
 overlays. `measure` still references the complete source model;
 `measureIndex` is not renumbered. `contentScale` is retained for compatibility and is always 1.
 
@@ -311,7 +352,7 @@ view. The sample exposes Cursor glide, Smooth scroll, Show cursor and Follow con
 
 - `commonTest`: duration/tuplet validation, immutable snapshots, spacing, wrapping, multi-track alignment, hit testing, culling, beaming, empty/extreme inputs and state navigation.
 - `demo-tuxguitar:test`: full native Java layout differentials (`NativeLayoutParityTest`) compare widths, every onset, row packing/justification, header flags and vertical lanes across styles, compact modes, fractional scale, effects, polyphony and real GP3/4/5 imports. The actual Android style class is compiled into tests, not copied. `native-layout-parity.json` is included in CI diagnostics. Also tests every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; whole-measure and projected-fragment row packing against `TGLayoutVertical.getTempLines`; recorded strum/picking vectors against the actual Java painters; GP3/4/5 strum round trips (plus GP4/5 picking marks); original MIDI event generation.
-- Android instrumentation: native-default mixed-duration reflow, actual-font zoom/pointer transforms, native/system-font-scale policy, real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
+- Android instrumentation: native-default mixed-duration reflow, actual-font zoom/pointer transforms, native/system-font-scale policy, real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Actual-font annotation tests also cover caption clearances, terminal-cap pixels, all three notation styles, font scale/reflow/zoom and hollow capsule pixels. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
 - `python3 tools/verify.py`: reproducible glyph source hashes and a fail-closed check against platform/parser/player imports or demo dependencies in core.
 
 Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The optional Gervill demo includes GPLv2 with Classpath Exception code and existing soundfont assets; their notices remain unchanged. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.

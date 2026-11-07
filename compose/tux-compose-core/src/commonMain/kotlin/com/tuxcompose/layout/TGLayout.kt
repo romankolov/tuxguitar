@@ -56,6 +56,8 @@ data class TGMeasureLayout(
     val compact: Boolean = false,
     val paintTripletFeel: Boolean = false,
     val previousTripletFeel: Int = 0,
+    /** Effects/text are drawn through the cached row annotation pass, not once per beat. */
+    val plannedAnnotations: Boolean = false,
 ) {
     val isFirstFragment: Boolean get() = startTick == measure.start
     val isLastFragment: Boolean get() = endTick == measure.end
@@ -63,7 +65,8 @@ data class TGMeasureLayout(
 @Immutable
 data class TGStaffLayout(val systemIndex: Int, val trackIndex: Int, val bounds: Rect, val measures: List<TGMeasureLayout>,
     /** Cached, row-local effect paths; no path crosses the whitespace between systems. */
-    val connections: List<TGConnectionLayout> = emptyList())
+    val connections: List<TGConnectionLayout> = emptyList(),
+    val annotations: List<TGAnnotationLayout> = emptyList())
 @Immutable
 data class TGHitResult(val trackIndex: Int, val measureIndex: Int, val beatTick: Long, val string: Int?, val voiceIndex: Int? = null)
 
@@ -82,6 +85,11 @@ class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaff
     }
     fun visibleConnections(staff: TGStaffLayout, viewport: Rect): Sequence<TGConnectionLayout> =
         connectionIndices[staff.systemIndex to staff.trackIndex]?.visible(viewport) ?: emptySequence()
+    private val annotationIndices = staves.filter { it.annotations.isNotEmpty() }.associate {
+        (it.systemIndex to it.trackIndex) to TGAnnotationIndex(it.annotations)
+    }
+    fun visibleAnnotations(staff: TGStaffLayout, viewport: Rect): Sequence<TGAnnotationLayout> =
+        annotationIndices[staff.systemIndex to staff.trackIndex]?.visible(viewport) ?: emptySequence()
     private fun measureAt(trackIndex: Int, tick: Long): LocatedMeasure? {
         val measures = byTrack[trackIndex] ?: return null
         val i = floorIndex(measures.size) { measures[it].layout.startTick <= tick }

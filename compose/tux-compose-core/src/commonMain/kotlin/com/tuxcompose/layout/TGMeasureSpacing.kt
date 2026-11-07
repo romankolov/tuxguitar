@@ -113,7 +113,7 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
             chords += TGHorizontalInk(beat.start,-4f,right)
         }
         beat.text?.let { text += TGHorizontalInk(beat.start,0f,fonts.measure(it,TGTextRole.Text).width,4f) }
-        effectLabels(beat).takeIf { it.isNotEmpty() }?.let { labels ->
+        effectLabels(beat).filterNot { config.mergeLetRing && it == "let ring" }.takeIf { it.isNotEmpty() }?.let { labels ->
             val right = labels.maxOf {
                 when (it) {
                     ">" -> 6.5f

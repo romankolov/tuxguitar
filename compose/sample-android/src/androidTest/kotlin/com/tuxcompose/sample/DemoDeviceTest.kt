@@ -35,7 +35,10 @@ class DemoDeviceTest {
         compose.onNodeWithTag("mode-Tablature").performClick()
         compose.onNodeWithTag("zoom-in").performClick()
         compose.onNodeWithTag("settings").performScrollTo().performClick()
-        compose.onNodeWithTag("palette").performClick()
+        compose.onNodeWithTag("cursor-style").performScrollTo().assertTextContains("Capsule",substring=true)
+        repeat(4) { compose.onNodeWithTag("cursor-style").performScrollTo().performClick() }
+        compose.onNodeWithTag("cursor-style").assertTextContains("Capsule",substring=true)
+        compose.onNodeWithTag("palette").performScrollTo().performClick()
         screenshot("dark-tablature")
         compose.onNodeWithTag("score-canvas").assertIsDisplayed()
         compose.onNodeWithTag("orientation").performScrollTo().performClick()

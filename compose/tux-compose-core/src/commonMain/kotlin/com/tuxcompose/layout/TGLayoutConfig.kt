@@ -56,6 +56,8 @@ data class TGLayoutConfig(
     val respectSystemFontScale: Boolean = false,
     /** Set by TablatureView: density × zoom × scale, for upstream pixel rounding only. */
     val renderScale: Float = 1f,
+    /** Merge let-ring runs and collision-pack captions on their rows without widening rhythm. */
+    val mergeLetRing: Boolean = true,
 ) {
     init {
         require(scale.isFinite() && scale in 0.1f..8f)

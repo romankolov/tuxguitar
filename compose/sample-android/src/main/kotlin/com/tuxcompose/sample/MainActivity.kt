@@ -53,7 +53,7 @@ fun TuxComposeDemo() {
     var mode by remember { mutableStateOf(TGLayoutStyles.Mixed) }
     var orientation by remember { mutableStateOf(TGLayoutOrientation.Page) }
     var palette by remember { mutableIntStateOf(0) }
-    var cursorStyle by remember { mutableStateOf(CursorStyle.Line) }
+    var cursorStyle by remember { mutableStateOf(CursorStyle.Capsule) }
     var smoothCursor by remember { mutableStateOf(true) }
     var smoothFollow by remember { mutableStateOf(true) }
     var cursorVisible by remember { mutableStateOf(true) }
@@ -146,7 +146,7 @@ fun TuxComposeDemo() {
                 if (showSettings) {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
                         TextButton(onClick={palette=(palette+1)%3},modifier=Modifier.testTag("palette")) { Text(listOf("Paper","Dark","Contrast")[palette]) }
-                        TextButton(onClick={cursorStyle=CursorStyle.entries[(cursorStyle.ordinal+1)%3]}) { Text("Cursor: ${cursorStyle.name}") }
+                        TextButton(onClick={cursorStyle=CursorStyle.entries[(cursorStyle.ordinal+1)%CursorStyle.entries.size]},modifier=Modifier.testTag("cursor-style")) { Text("Cursor: ${cursorStyle.name}") }
                         FilterChip(selected=smoothCursor,onClick={smoothCursor=!smoothCursor},label={Text("Cursor glide")},modifier=Modifier.testTag("smooth-cursor"))
                         FilterChip(selected=smoothFollow,onClick={smoothFollow=!smoothFollow},label={Text("Smooth scroll")},modifier=Modifier.testTag("smooth-follow"))
                         FilterChip(selected=cursorVisible,onClick={cursorVisible=!cursorVisible},label={Text("Show cursor")},modifier=Modifier.testTag("show-cursor"))

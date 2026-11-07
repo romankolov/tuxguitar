@@ -184,6 +184,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             }
             if (row.isNotEmpty()) { systems += row; filled += full }
         }
+        val ringIndices = tracks.map { TGLetRingIndex(if (config.mergeLetRing) letRingRuns(it) else emptyList()) }
         val staves = mutableListOf<TGStaffLayout>()
         val fragments = mutableMapOf<Pair<Int,Int>,TGMeasureFragments>()
         var top = if (config.nativeSpacing) nativeRound(config.firstTrackSpacing) else padding
@@ -194,29 +195,47 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 if (config.nativeSpacing) difference else difference.coerceAtLeast(0f) else 0f
             tracks.forEachIndexed { ti,track ->
                 val lanes = staffSpacing(track,columns.map { track.measures[it.index] })
-                var left = padding
-                val measures = columns.map { col ->
-                    val m = track.measures[col.index]
-                    val metric = col.metrics[ti]
-                    val bounds = Rect(left,top,left+col.width+extra,top+lanes.height)
-                    val placed = if (col.fragment == null) placeMeasure(track,indices[ti],col.index,m,col,metric,bounds,lanes,compact,extra,measurePadding,ti)
-                    else {
-                        val original = col.original!!
-                        val cached = fragments.getOrPut(indices[ti] to col.index) {
-                            TGMeasureFragments(placeMeasure(track,indices[ti],col.index,m,original,original.metrics[ti],
-                                Rect(0f,0f,original.width,lanes.height),lanes,compact,0f,measurePadding,ti))
+                fun place(): List<TGMeasureLayout> {
+                    var left = padding
+                    return columns.map { col ->
+                        val m = track.measures[col.index]
+                        val metric = col.metrics[ti]
+                        val bounds = Rect(left,top,left+col.width+extra,top+lanes.height)
+                        val placed = if (col.fragment == null) placeMeasure(track,indices[ti],col.index,m,col,metric,bounds,lanes,compact,extra,measurePadding,ti)
+                        else {
+                            val original = col.original!!
+                            val cached = fragments.getOrPut(indices[ti] to col.index) {
+                                TGMeasureFragments(placeMeasure(track,indices[ti],col.index,m,original,original.metrics[ti],
+                                    Rect(0f,0f,original.width,lanes.height),lanes,compact,0f,measurePadding,ti))
+                            }
+                            val slice = if (config.nativeSpacing && original.nativeOffsets.size > 1)
+                                trackFragment(col.fragment,original,ti,m) else col.fragment
+                            cached.part(slice,bounds,TGFragmentHeader(col.first,if (config.multiTrack && metric.paintClef) col.clef else metric.clef,
+                                if (config.multiTrack && metric.paintKey) col.key else metric.key,metric.previousKey,
+                                metric.paintClef,metric.paintKey,metric.paintTime,metric.paintTempo),measurePadding,extra,lanes)
                         }
-                        val slice = if (config.nativeSpacing && original.nativeOffsets.size > 1)
-                            trackFragment(col.fragment,original,ti,m) else col.fragment
-                        cached.part(slice,bounds,TGFragmentHeader(col.first,if (config.multiTrack && metric.paintClef) col.clef else metric.clef,
-                            if (config.multiTrack && metric.paintKey) col.key else metric.key,metric.previousKey,
-                            metric.paintClef,metric.paintKey,metric.paintTime,metric.paintTempo),measurePadding,extra,lanes)
+                        left += col.width+extra
+                        placed
                     }
-                    left += col.width+extra
-                    placed
                 }
-                val right = if (fitPage && !config.nativeSpacing) minOf(left,viewportWidth-padding) else left
-                staves += TGStaffLayout(si,indices[ti],Rect(padding,top,right,top+lanes.height),measures)
+                var measures = place()
+                val naturalRight = measures.last().bounds.right
+                val annotationRight = if (fitPage) viewportWidth-rightMargin else maxOf(naturalRight,viewportWidth-rightMargin)
+                val runs = ringIndices[ti].intersecting(measures.first().startTick,measures.last().endTick)
+                val annotations = planAnnotations(measures,runs,padding,annotationRight,config,fonts)
+                // Native score-only order puts Effects before ScoreDown. Keep new
+                // captions below downward note/stem ink, without altering native X math.
+                val annotationEffectPadding = if (config.style == TGLayoutStyles.Score) lanes.size(TGTrackLane.ScoreDown) else 0f
+                if (annotations != null) {
+                    lanes.register(TGTrackLane.Text,annotations.textHeight)
+                    lanes.register(TGTrackLane.Effects,annotations.effectHeight+annotationEffectPadding)
+                    measures = place().map { it.copy(plannedAnnotations=true) }
+                }
+                val placedAnnotations = annotations?.placed(measures.first().textTop,measures.first().effectsTop+annotationEffectPadding).orEmpty()
+                val inkRight = placedAnnotations.maxOfOrNull { it.bounds.right } ?: naturalRight
+                val left = maxOf(naturalRight,inkRight)
+                val right = if (fitPage) minOf(left,viewportWidth) else left
+                staves += TGStaffLayout(si,indices[ti],Rect(padding,top,right,top+lanes.height),measures,annotations=placedAnnotations)
                 if (!fitPage) maxRight = maxOf(maxRight,if (config.nativeSpacing && config.orientation == TGLayoutOrientation.Horizontal)
                     if (left-padding+leftMargin > viewportWidth) left-padding+leftMargin+config.pagePadding else viewportWidth else left+rightMargin)
                 top += if (config.nativeSpacing) kotlin.math.floor(lanes.physicalHeight+config.systemSpacing*config.renderScale+.5f+.5f)/config.renderScale else lanes.height+config.systemSpacing
@@ -450,7 +469,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             val textWidth = beat.voices.flatMap { it.notes }.maxOfOrNull { fonts.measure(tabText(it), TGTextRole.Note).width + 4f } ?: 0f
             val chord = beat.chord?.takeIf { config.chordEnabled }?.let { maxOf(8f+5f*(track.stringTuning.size+1),fonts.measure(it.name,TGTextRole.Chord).width+4) } ?: 0f
             val label = maxOf(beat.text?.let { fonts.measure(it,TGTextRole.Text).width+4 } ?: 0f,
-                effectLabels(beat).maxOfOrNull { fonts.measure(it,TGTextRole.Text).width+4 } ?: 0f)
+                effectLabels(beat).filterNot { config.mergeLetRing && it == "let ring" }.maxOfOrNull { fonts.measure(it,TGTextRole.Text).width+4 } ?: 0f)
             val width = if (config.optimizeSpacing) maxOf(durationWidth(duration),if (config.showTablature) textWidth else 0f,
                 if (config.showStandardNotation) config.noteHeadRadius*2.66f+4 else 0f)
                 else maxOf(durationWidth(duration),textWidth,chord,label,if (config.showStandardNotation) config.noteHeadRadius*2.66f+4 else 0f)

@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 package com.tuxcompose.renderer
 
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.drawText
 import com.tuxcompose.component.CursorStyle
 import com.tuxcompose.component.TGCursorConfig
 import com.tuxcompose.component.TGSelection
+import com.tuxcompose.component.capsuleCursorGeometry
 import com.tuxcompose.layout.*
 import com.tuxcompose.model.*
 import com.tuxcompose.renderer.glyphs.*
@@ -28,10 +32,11 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         layout.visible(viewport).forEach { staff ->
             layout.visibleMeasures(staff, viewport).forEach { measure -> renderMeasure(measure) }
             layout.visibleConnections(staff,viewport).forEach { renderConnection(it) }
+            layout.visibleAnnotations(staff,viewport).forEach { renderAnnotation(it,viewport) }
         }
     }
 
-    /** One fragment's notation; render() additionally draws each staff's cached connections. */
+    /** One fragment's notation; render() additionally draws cached row connections/annotations. */
     fun DrawScope.renderMeasure(layout: TGMeasureLayout) {
         val b = layout.bounds
         layout.staffTop?.let { top -> repeat(5) { i -> line(b.left, top + i * config.staffSpacing, b.right, top + i * config.staffSpacing, colors.staffLines, .6f) } }
@@ -42,9 +47,9 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         barlines(layout)
         header(layout)
         layout.beats.forEach { beat ->
-            if (!beat.isContinuation) beat.beat.text?.let { label(it, beat.x, layout.textTop, TGTextRole.Text, colors.beatText) }
+            if (!layout.plannedAnnotations && !beat.isContinuation) beat.beat.text?.let { label(it, beat.x, layout.textTop, TGTextRole.Text, colors.beatText) }
             if (!beat.isContinuation) beat.beat.chord?.let { chord(layout, beat, it) }
-            (if (beat.isContinuation) emptyList() else effectLabels(beat.beat)).forEachIndexed { i, effect ->
+            (if (layout.plannedAnnotations || beat.isContinuation) emptyList() else effectLabels(beat.beat)).forEachIndexed { i, effect ->
                 val y = layout.effectsTop + i * config.effectSpacing
                 when (effect) {
                     ">" -> { line(beat.x, y + 1, beat.x + 6, y + 3, colors.noteHead); line(beat.x + 6, y + 3, beat.x, y + 5, colors.noteHead) }
@@ -92,6 +97,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         val base = cursor.color ?: colors.cursor
         val color = base.copy(alpha = base.alpha * opacity)
         when (cursor.style) {
+            CursorStyle.Capsule -> capsuleCursorGeometry(x,b,cursor)?.let { g ->
+                drawRoundRect(color,g.pathBounds.topLeft,g.pathBounds.size,
+                    CornerRadius(g.radius,g.radius),style=Stroke(g.strokeWidth))
+            }
             CursorStyle.Line -> line(x - 3, b.top + 4, x - 3, b.bottom - 4, color, cursor.width)
             CursorStyle.Block -> drawRect(color.copy(alpha = color.alpha * cursor.blockAlpha), b.topLeft, b.size)
             CursorStyle.Glow -> {
@@ -441,6 +450,38 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         }
         connection.label?.let { label(it,(from.x+to.x)/2,minOf(from.y,to.y)-9,TGTextRole.Grace,colors.beatText,centered=true) }
     }
+    /** Caption and continuation ink share the same measured, collision-free cached geometry. */
+    fun DrawScope.renderAnnotation(a: TGAnnotationLayout, viewport: Rect = a.clipBounds) {
+        clipRect(a.clipBounds.left,a.clipBounds.top,a.clipBounds.right,a.clipBounds.bottom) {
+            when (a.kind) {
+                TGAnnotationKind.Accent -> {
+                    val x=a.labelBounds.left; val y=a.labelBounds.top
+                    line(x,y+1,x+6,y+3,colors.noteHead); line(x+6,y+3,x,y+5,colors.noteHead)
+                }
+                TGAnnotationKind.FadeIn -> {
+                    val x=a.labelBounds.left; val y=a.labelBounds.top
+                    line(x+7,y+1,x,y+3,colors.noteHead); line(x,y+3,x+7,y+5,colors.noteHead)
+                }
+                TGAnnotationKind.Vibrato -> vibrato(a.labelBounds.left,a.labelBounds.top+4,18f)
+                else -> a.lines.forEachIndexed { i,value ->
+                    val y = a.labelBounds.top+i*a.lineHeight
+                    if (Rect(a.labelBounds.left,y,a.labelBounds.right,y+a.lineHeight).overlaps(viewport))
+                        label(value,a.labelBounds.left,y,TGTextRole.Text,colors.beatText)
+                }
+            }
+            val from = a.lineFrom; val to = a.lineTo
+            if (from != null && to != null) {
+                // Limit dash work to the visible interval, retaining the original dash phase.
+                val start = maxOf(from.x,viewport.left-1)
+                val end = minOf(to.x,viewport.right+1)
+                if (end > start) drawLine(colors.beatText,Offset(start,from.y),Offset(end,to.y),.8f,
+                    pathEffect=PathEffect.dashPathEffect(floatArrayOf(3f,2f),(start-from.x)%5f))
+                if (a.endCap && to.x >= viewport.left-1 && to.x <= viewport.right+1)
+                    line(to.x,to.y-3,to.x,to.y+3,colors.beatText,.8f)
+            }
+        }
+    }
+
     private fun DrawScope.glyph(g: TGVectorGlyph, x: Float, y: Float, size: Float, filled: Boolean = true) {
         withTransform({ translate(x,y); scale(size,size,Offset.Zero) }) {
             drawPath(g.path,colors.noteHead,style=if (filled) Fill else Stroke(.8f / size))

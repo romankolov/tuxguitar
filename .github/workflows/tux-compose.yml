@@ -1,7 +1,7 @@
 name: Tux Compose · build, test & APK
 on:
   push:
-    branches: ["master", "arena/632dd39b-tuxguitar"]
+    branches: ["master", "arena/285632fe-tuxguitar"]
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
   pull_request:
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
@@ -91,13 +91,13 @@ jobs:
           retention-days: 14
 
   preview-apk:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/632dd39b-tuxguitar')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/285632fe-tuxguitar')
     needs: [build, device-test]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: tux-compose-apk-${{ github.run_number }}
           path: verified-artifacts
