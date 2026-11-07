@@ -39,7 +39,7 @@ data class TGCursorConfig(
     val capsuleWidth: Float = 6f,
     /** Vertical padding inside the row; the complete stroke stays inside this inset. */
     val capsuleInset: Float = 6f,
-    /** Clear space between the note's ink and the inner stroke edge, in logical units. */
+    /** Horizontal clear space between note ink and the inner stroke edge, in logical units. */
     val capsuleInnerPadding: Float = 3f,
 ) {
     init {

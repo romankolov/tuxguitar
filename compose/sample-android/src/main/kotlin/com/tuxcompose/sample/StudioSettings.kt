@@ -4,10 +4,11 @@ package com.tuxcompose.sample
 
 import android.os.Build
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -25,6 +26,7 @@ fun StudioSettings(preferences: StudioPreferences, page: SettingsPage, onPage: (
     speed: Int, onSpeed: (Int) -> Unit, trackCount: Int, soundFont: String, midiStatus: String,
     busy: Boolean, onSoundFont: () -> Unit, onResetBank: () -> Unit, onMidi: () -> Unit,
     onDismiss: () -> Unit) {
+    val scroll=remember(page) { ScrollState(0) }
     ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
         containerColor=MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.9f).semantics { testTagsAsResourceId=true }.testTag("settings-sheet")) {
@@ -40,7 +42,7 @@ fun StudioSettings(preferences: StudioPreferences, page: SettingsPage, onPage: (
                 SettingsPage.entries.forEach { tab -> Tab(selected=tab==page,onClick={onPage(tab)},
                     modifier=Modifier.testTag("settings-${tab.name}"),text={Text(tab.label)}) }
             }
-            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=24.dp).padding(bottom=32.dp)) {
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll).padding(horizontal=24.dp).padding(bottom=32.dp)) {
                 when (page) {
                     SettingsPage.Display -> {
                         SettingsHeading("Reading layout","Notation keeps its size. Page mode wraps to the available width.")
@@ -67,7 +69,7 @@ fun StudioSettings(preferences: StudioPreferences, page: SettingsPage, onPage: (
                     SettingsPage.Cursor -> {
                         SettingsHeading("Playhead style","Capsule is a hollow outline with breathing room around the notes.")
                         StudioChoices(CursorStyle.entries.toList(),preferences.cursorStyle,{it.name},{"cursor-${it.name}"}) { onChange(preferences.copy(cursorStyle=it)) }
-                        SettingsHeading("Inner margin · ${preferences.cursorPadding.roundToInt()} units","Clear space between the note and the inside edge of the capsule stroke.")
+                        SettingsHeading("Inner margin · ${preferences.cursorPadding.roundToInt()} units","Clear space on either side between note ink and the inside edge of the stroke.")
                         Slider(preferences.cursorPadding,{onChange(preferences.copy(cursorPadding=it))},
                             valueRange=0f..8f,steps=7,modifier=Modifier.testTag("capsule-padding"))
                         SettingsSwitch("Show playhead","Keep your position visible while practising.",preferences.cursorVisible,"show-cursor") { onChange(preferences.copy(cursorVisible=it)) }

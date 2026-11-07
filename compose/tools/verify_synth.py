@@ -63,7 +63,8 @@ summary = {'apk_sha256': hashlib.sha256(apk.read_bytes()).hexdigest(), 'abis': {
 with ZipFile(apk) as package, apk.open('rb') as raw:
     assert hashlib.sha256(package.read('assets/soundbank/GeneralUser-GS.sf2')).hexdigest() == expected_bank
     for name in ('GeneralUser-GS.txt', 'FluidSynth-LGPL.txt', 'libsndfile-LGPL.txt',
-                 'Oboe-Apache.txt', 'FLAC.txt', 'Ogg.txt', 'Vorbis.txt', 'Opus.txt', 'LLVM-runtime.txt'):
+                 'Oboe-Apache.txt', 'FLAC.txt', 'Ogg.txt', 'Vorbis.txt', 'Opus.txt', 'LLVM-runtime.txt',
+                 'Material-Symbols-Apache.txt', 'TuxGuitar-LGPL.txt', 'Tux-Compose-NOTICE.md'):
         assert len(package.read(f'assets/licenses/{name}')) > 100, f'Missing license: {name}'
     assert not any(b'Lmedia/sound/SoftSynthesizer;' in package.read(n) for n in package.namelist() if n.endswith('.dex')), 'Legacy Gervill still packaged'
     for abi, machine in abis.items():

@@ -29,7 +29,7 @@ class StudioAccessibilityDeviceTest {
         }
         compose.waitUntil(60_000) { compose.onAllNodesWithTag("next").fetchSemanticsNodes().any { !it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) } }
         listOf("open-file","settings","play","previous","next","follow-cursor").forEach { tag ->
-            compose.onNodeWithTag(tag).assertIsDisplayed().assertTouchWidthIsAtLeast(48.dp).assertTouchHeightIsAtLeast(48.dp)
+            compose.onNodeWithTag(tag).assertIsDisplayed().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         }
         compose.onNodeWithTag("score-canvas").assertHeightIsAtLeast(140.dp).assertWidthIsAtLeast(250.dp)
         val folder=File(context.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
