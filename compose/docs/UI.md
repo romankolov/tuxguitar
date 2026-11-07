@@ -93,6 +93,11 @@ ellipsize visually while retaining their full accessible text and details action
 Labels may wrap; typography is not reduced to make a row fit. System 200% text is an
 explicit device test. The core's native notation-font policy is unchanged.
 
+An Android ViewModel owns the decoded source, native player/bank and notation state,
+so window resize/rotation does not silently return to the demo or lose the playhead.
+Persistable document access and small saved-state values allow re-import after process
+death; sound banks themselves remain process-local. Playback pauses on lifecycle stop.
+
 Preferences are saved locally (theme, display, cursor, effects); invalid old enum values
 or invalid padding fall back safely. Selected custom banks are session-local, as is
 playback; we do not display a remembered bank name without having loaded that bank.
@@ -182,6 +187,8 @@ The CI policy verifier expects the evaluation certificate subject configured in
 
 Toolchain: Kotlin 2.4.21, Compose Multiplatform 1.12.2 (Android Compose 1.12.1),
 Material3 1.5.0-rc01, AGP 9.2.1, Gradle 9.4.1, Java 17, compileSdk 37 / targetSdk 35 /
-minSdk 24. The legacy KMP Android target opts out of AGP's new DSL/built-in Kotlin;
-a core Android-target API migration is deliberately separate from this UI work.
+minSdk 24. Core uses the supported single-variant `com.android.kotlin.multiplatform.library`
+plugin; the Android sample/synth use AGP built-in Kotlin. No legacy opt-out is needed.
+The first CI configuration exposed an incompatible legacy source-set cast; the proper
+Android-KMP migration replaces that old integration rather than suppressing the error.
 Material remains **sample-only**. The core still needs no Material theme or playback.

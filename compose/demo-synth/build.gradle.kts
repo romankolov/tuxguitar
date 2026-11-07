@@ -2,8 +2,7 @@ import java.net.URI
 import java.security.MessageDigest
 import java.util.zip.ZipFile
 
-plugins { id("com.android.library"); kotlin("android") }
-kotlin { jvmToolchain(17) }
+plugins { id("com.android.library") }
 
 val nativeRoot = layout.buildDirectory.dir("generated/fluidsynth")
 val generatedAssets = layout.buildDirectory.dir("generated/synth-assets")

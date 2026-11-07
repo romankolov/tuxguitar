@@ -1,10 +1,8 @@
 plugins {
     id("com.android.application")
-    kotlin("android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose")
 }
-kotlin { jvmToolchain(17) }
 android {
     namespace = "com.tuxcompose.sample"
     compileSdk = 37
@@ -57,6 +55,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.12.1")
     androidTestImplementation("androidx.test:runner:1.6.2")

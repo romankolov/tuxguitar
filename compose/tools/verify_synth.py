@@ -20,7 +20,9 @@ sys.excepthook = report_error
 
 root = Path(__file__).resolve().parents[1]
 apk = root / 'sample-android/build/outputs/apk/release/sample-android-release.apk'
-aar = root / 'tux-compose-core/build/outputs/aar/tux-compose-core-release.aar'
+aars = list((root / 'tux-compose-core/build/outputs/aar').glob('*.aar'))
+assert len(aars) == 1, f'Expected the single-variant Android KMP AAR: {aars}'
+aar = aars[0]
 expected_bank = '9575028c7a1f589f5770fccc8cff2734566af40cd26ed836944e9a5152688cfe'
 abis = {'arm64-v8a': 183, 'armeabi-v7a': 40, 'x86_64': 62, 'x86': 3}
 platform = {'libc.so', 'libm.so', 'libdl.so', 'liblog.so', 'libandroid.so',

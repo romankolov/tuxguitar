@@ -2,11 +2,16 @@ plugins {
     kotlin("multiplatform")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose")
-    id("com.android.library")
+    id("com.android.kotlin.multiplatform.library")
     `maven-publish`
 }
 kotlin {
-    androidTarget { publishLibraryVariants("release") }
+    android {
+        namespace = "com.tuxcompose.core"
+        compileSdk = 37
+        minSdk = 24
+        compilerOptions.configure { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
+    }
     jvm("desktop")
     if (providers.gradleProperty("enableIos").orNull == "true") {
         iosArm64()
@@ -23,15 +28,6 @@ kotlin {
             api("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.8")
         }
         commonTest.dependencies { implementation(kotlin("test")) }
-    }
-}
-android {
-    namespace = "com.tuxcompose.core"
-    compileSdk = 37
-    defaultConfig { minSdk = 24 }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 publishing {

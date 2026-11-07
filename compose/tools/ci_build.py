@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from xml.etree import ElementTree
 
-command = sys.argv[1:] or ['./gradlew', ':tux-compose-core:desktopTest', ':tux-compose-core:assembleRelease', ':demo-tuxguitar:test', ':sample-android:lintDebug', ':sample-android:lintRelease', ':sample-android:assembleRelease', ':sample-android:assembleDebug', ':sample-android:assembleDebugAndroidTest', '--stacktrace', '--console=plain', '--continue']
+command = sys.argv[1:] or ['./gradlew', ':tux-compose-core:desktopTest', ':tux-compose-core:assemble', ':demo-tuxguitar:test', ':sample-android:lintDebug', ':sample-android:lintRelease', ':sample-android:assembleRelease', ':sample-android:assembleDebug', ':sample-android:assembleDebugAndroidTest', '--stacktrace', '--console=plain', '--continue']
 result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 text = result.stdout
 # AGP emits its own workflow annotations. Suppress their execution while replaying the
@@ -47,7 +47,7 @@ if result.returncode:
     lines = text.splitlines()
     selected = set()
     for index, line in enumerate(lines):
-        if line.startswith(('e:', 'error:', 'FAILURE:', '* What went wrong:', 'Execution failed', 'Could not', 'Caused by:')) or ' FAILED' in line or ': error:' in line or '::error' in line:
+        if line.startswith(('e:', 'error:', 'FAILURE:', '* Where:', '* What went wrong:', 'Execution failed', 'Could not', 'Caused by:')) or ' FAILED' in line or ': error:' in line or '::error' in line:
             selected.update(range(index, min(index + 3, len(lines))))
     filtered = '\n'.join(failures) + '\n' + '\n'.join(lines[index] for index in sorted(selected))
     details = [('Compiler and task errors', filtered[:17500]), ('Gradle log tail', text[-7000:])]

@@ -49,7 +49,7 @@ jobs:
             compose/sample-android/build/outputs/apk/release/sample-android-release.apk
             compose/build/release-verification.json
             compose/build/synth-verification.json
-            compose/tux-compose-core/build/outputs/aar/*release.aar
+            compose/tux-compose-core/build/outputs/aar/*.aar
           if-no-files-found: error
           retention-days: 30
       - name: Upload diagnostics
@@ -129,7 +129,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           apk=$(find verified-artifacts -name 'sample-android-release.apk' -print -quit)
-          aar=$(find verified-artifacts -name '*release.aar' -print -quit)
+          aar=$(find verified-artifacts -name '*.aar' -print -quit)
           test -n "$apk" && test -n "$aar"
           mkdir release
           cp "$apk" release/sample-android-release.apk

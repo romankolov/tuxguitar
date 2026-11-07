@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tuxcompose.component.*
 import com.tuxcompose.demo.*
 import com.tuxcompose.layout.*
@@ -53,11 +54,12 @@ fun TuxComposeDemo() {
     val store=remember { context.getSharedPreferences("studio-settings",android.content.Context.MODE_PRIVATE) }
     var preferences by remember { mutableStateOf(StudioPreferences.load(store)) }
     LaunchedEffect(preferences) { preferences.save(store) }
-    val state=rememberTablatureState(initialCursorTick=960)
-    val player=remember { DemoPlayback(context,scope,state) }
-    val midi=remember { ExternalMidi(context,player.audio) }
-    var imported by remember { mutableStateOf<ImportedScore?>(null) }
-    var status by remember { mutableStateOf("Preparing Guitar Pro demo…") }
+    val session: StudioSession=viewModel()
+    val state=session.state
+    val player=session.player
+    val midi=session.midi
+    var imported by session::imported
+    var status by session::status
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(true) }
     var settings by remember { mutableStateOf<SettingsPage?>(null) }
@@ -66,8 +68,8 @@ fun TuxComposeDemo() {
     var details by remember { mutableStateOf(false) }
     var about by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
-    var midiStatus by remember { mutableStateOf("Built-in FluidSynth") }
-    var soundFont by remember { mutableStateOf("GeneralUser GS 2.0.3") }
+    var midiStatus by session::midiStatus
+    var soundFont by session::soundFont
     val snackbar=remember { SnackbarHostState() }
     LaunchedEffect(preferences.reverb,preferences.chorus) {
         withContext(Dispatchers.IO) { player.audio.setEffects(preferences.reverb,preferences.chorus) }
@@ -76,17 +78,26 @@ fun TuxComposeDemo() {
     DisposableEffect(lifecycle) {
         val observer=LifecycleEventObserver { _,event -> if(event==Lifecycle.Event.ON_STOP) player.pause() }
         lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer); midi.close(); player.dispose() }
+        onDispose { lifecycle.removeObserver(observer) }
     }
-    fun install(score: ImportedScore) {
-        player.load(score); imported=score; state.song=score.score; state.selectedTrackIndex=0
-        state.clearSelection(); state.cursor.seek(score.score.tracks.first().measures.first().start); state.scrollTo(0f,0f)
+    fun install(score: ImportedScore, resetPosition: Boolean = true) {
+        player.load(score); imported=score; state.song=score.score
+        state.selectedTrackIndex=if(resetPosition) 0 else state.selectedTrackIndex.coerceIn(0,score.score.tracks.lastIndex)
+        val measures=score.score.tracks[state.selectedTrackIndex].measures
+        val tick=if(resetPosition) measures.first().start else state.cursorTick.coerceIn(measures.first().start,measures.last().end-1)
+        state.clearSelection(); state.cursor.seek(tick); player.seek(tick)
+        if(resetPosition) state.scrollTo(0f,0f)
         status="${score.format} · ${score.score.tracks.first().measures.size} measures"; error=null
     }
     LaunchedEffect(Unit) {
+        if(imported!=null) { busy=false; return@LaunchedEffect }
         try {
-            // The showcase still imports the real bundled GP5, not a second mock model path.
-            install(withContext(Dispatchers.IO) { TuxGuitarImporter.read(ByteArrayInputStream(DemoSongFactory.guitarPro()),"greenwood.gp5") })
+            // Retain decoded data/bank across resize; re-decode the saved URI after process death.
+            install(withContext(Dispatchers.IO) {
+                session.sourceUri?.let { value ->
+                    requireNotNull(context.contentResolver.openInputStream(android.net.Uri.parse(value))).use { TuxGuitarImporter.read(it,session.sourceName) }
+                } ?: TuxGuitarImporter.read(ByteArrayInputStream(DemoSongFactory.guitarPro()),"greenwood.gp5")
+            },resetPosition=false)
         } catch(e: CancellationException) { throw e }
         catch(e: Exception) { error=e.message ?: "The demo could not be opened"; status="Unable to load score" }
         finally { busy=false }
@@ -97,11 +108,17 @@ fun TuxComposeDemo() {
         } ?: fallback
     val open=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri!=null) scope.launch {
-            busy=true; player.pause()
+            busy=true; error=null; player.pause()
             try {
+                val name=withContext(Dispatchers.IO) { fileName(uri,"score.gp5") }
                 install(withContext(Dispatchers.IO) {
-                    requireNotNull(context.contentResolver.openInputStream(uri)).use { TuxGuitarImporter.read(it,fileName(uri,"score.gp5")) }
+                    requireNotNull(context.contentResolver.openInputStream(uri)).use { TuxGuitarImporter.read(it,name) }
                 })
+                session.sourceName=name
+                session.sourceUri=try {
+                    context.contentResolver.takePersistableUriPermission(uri,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    uri.toString()
+                } catch(_: SecurityException) { null }
             } catch(e: CancellationException) { throw e }
             catch(e: Exception) { error=e.message ?: "Unable to decode this file" }
             finally { busy=false }
@@ -109,7 +126,7 @@ fun TuxComposeDemo() {
     }
     val openSoundFont=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if(uri!=null) scope.launch {
-            busy=true; player.pause()
+            busy=true; error=null; player.pause()
             try {
                 soundFont=withContext(Dispatchers.IO) {
                     requireNotNull(context.contentResolver.openInputStream(uri)).use(player.audio::loadSoundFont)
@@ -121,7 +138,7 @@ fun TuxComposeDemo() {
         }
     }
     fun resetBank() { scope.launch {
-        busy=true; player.pause()
+        busy=true; error=null; player.pause()
         try { withContext(Dispatchers.IO) { player.audio.resetSoundFont() }; soundFont="GeneralUser GS 2.0.3" }
         catch(e: CancellationException) { throw e }
         catch(e: Exception) { error=e.message ?: "Unable to restore the bank" }
