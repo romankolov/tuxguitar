@@ -83,10 +83,13 @@ especially `.azure/azure-pipelines-android.yml` and `doc/android/README.md`. The
 recipe pins Oboe 1.10.0, libsndfile 1.2.2, libogg 1.3.6, libvorbis 1.3.7, Opus 1.5.2
 and FLAC 1.4.3. These upstream source tags, the recipe and the NDK version identify the
 corresponding source used by that SDK. Rebuild it with upstream's instructions to modify
-the engine, replace the dynamic libraries in `demo-synth/build/generated/fluidsynth/lib/`,
-and rebuild/re-sign the application. The JNI CMake target links dynamically; it does not
-embed a hidden static copy. To distribute a changed SDK reproducibly, update the pinned
-artifact URL/hash and notices in `demo-synth/build.gradle.kts` as well.
+the engine. For a local relink, run `:demo-synth:prepareSynth` once, replace the dynamic
+libraries in `demo-synth/build/generated/fluidsynth/lib/`, then run
+`./gradlew :sample-android:assembleDebug -x :demo-synth:prepareSynth` and re-sign/install.
+Skipping preparation in that deliberately modified build prevents it restoring the pinned
+SDK over your replacement. The JNI CMake target links dynamically; it does not embed a
+hidden static copy. To distribute a changed SDK reproducibly, update the pinned artifact
+URL/hash and notices in `demo-synth/build.gradle.kts` instead.
 
 FluidSynth / libsndfile are **LGPL-2.1-or-later**. Oboe is Apache-2.0, the Xiph libraries
 have BSD-style terms, and the NDK C++ runtime has Apache-2.0 with LLVM exceptions and

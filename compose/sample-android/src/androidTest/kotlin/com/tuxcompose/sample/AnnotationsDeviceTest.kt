@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -110,7 +111,16 @@ class AnnotationsDeviceTest {
             assertTrue(rings.size>1)
             assertEquals(1,rings.count { !it.continuesFromPrevious })
             assertEquals(1,rings.count { it.endCap })
-            assertTrue(layout.staves.flatMap { it.annotations }.flatMap { it.lines }.any { it.contains("after") })
+            // Greedy packing can put the following ordinary bar on a separate, unplanned
+            // row. In that case its text must still render through the legacy measure pass.
+            val afterRow=layout.staves.single { row -> row.measures.any { m -> m.beats.any { it.beat.text=="after ringing" } } }
+            val afterMeasure=afterRow.measures.single { m -> m.beats.any { it.beat.text=="after ringing" } }
+            val afterBeat=afterMeasure.beats.single { it.beat.text=="after ringing" }
+            val afterCaption=afterRow.annotations.firstOrNull { it.band==TGAnnotationBand.Text && it.sourceTick==afterBeat.startTick }
+            if (afterMeasure.plannedAnnotations) {
+                assertNotNull("$mode zoom=$zoom: planned following text was lost",afterCaption)
+                assertTrue(afterCaption!!.lines.joinToString(" ").contains("after ringing"))
+            } else assertNull("Unrelated rows must retain their existing measure-text pass",afterCaption)
             val last=rings.last { it.lineFrom!=null && it.lineTo!=null && it.endCap }
             compose.runOnIdle { state.scrollTo(y=(last.bounds.top-8f).coerceAtLeast(0f)) }
             compose.waitForIdle()
@@ -122,7 +132,7 @@ class AnnotationsDeviceTest {
             } }
             for (dy in listOf(-2f,2f)) {
                 val py=((end.y+dy-state.scrollY)*factor).toInt()
-                assertTrue("The terminal cap must extend vertically beyond the dash",painted(px,py))
+                assertTrue("$mode zoom=$zoom: terminal cap must extend vertically beyond the dash at $end, scroll=${state.scrollY}",painted(px,py))
             }
             val from=last.lineFrom!!
             if (end.x-from.x>10f) {
@@ -132,6 +142,16 @@ class AnnotationsDeviceTest {
                 assertTrue("Dashes must paint some ink",ink.any { it })
                 assertTrue("Dashes must retain clear gaps, not a solid line",ink.any { !it })
             }
+            val textBounds=afterCaption?.labelBounds ?: Rect(afterBeat.x,afterMeasure.textTop,afterBeat.x+100f,afterMeasure.textTop+20f)
+            compose.runOnIdle { state.scrollTo(y=(textBounds.top-8f).coerceAtLeast(0f)) }
+            compose.waitForIdle()
+            val afterPixels=compose.onNodeWithTag("annotations").captureToImage().also { save(it,"after-$mode-$zoom") }.toPixelMap()
+            val lx=((textBounds.left-state.scrollX)*factor).toInt().coerceIn(0,afterPixels.width-1)
+            val rx=((textBounds.right-state.scrollX)*factor).toInt().coerceIn(lx,afterPixels.width-1)
+            val ty=((textBounds.top-state.scrollY)*factor).toInt().coerceIn(0,afterPixels.height-1)
+            val by=((textBounds.bottom-state.scrollY)*factor).toInt().coerceIn(ty,afterPixels.height-1)
+            assertTrue("$mode zoom=$zoom: following text must paint in both planned and untouched rows",
+                (lx..rx).any { x -> (ty..by).any { y -> magenta(afterPixels[x,y]) } })
         }
     }
 }
