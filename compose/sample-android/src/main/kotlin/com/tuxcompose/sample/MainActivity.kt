@@ -91,11 +91,13 @@ fun TuxComposeDemo() {
     }
     LaunchedEffect(Unit) {
         if(imported!=null) { busy=false; return@LaunchedEffect }
+        val restoredUri=session.sourceUri
+        val restoredName=session.sourceName
         try {
             // Retain decoded data/bank across resize; re-decode the saved URI after process death.
             install(withContext(Dispatchers.IO) {
-                session.sourceUri?.let { value ->
-                    requireNotNull(context.contentResolver.openInputStream(android.net.Uri.parse(value))).use { TuxGuitarImporter.read(it,session.sourceName) }
+                restoredUri?.let { value ->
+                    requireNotNull(context.contentResolver.openInputStream(android.net.Uri.parse(value))).use { TuxGuitarImporter.read(it,restoredName) }
                 } ?: TuxGuitarImporter.read(ByteArrayInputStream(DemoSongFactory.guitarPro()),"greenwood.gp5")
             },resetPosition=false)
         } catch(e: CancellationException) { throw e }

@@ -10,7 +10,6 @@ kotlin {
         namespace = "com.tuxcompose.core"
         compileSdk = 37
         minSdk = 24
-        compilerOptions.configure { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
     }
     jvm("desktop")
     if (providers.gradleProperty("enableIos").orNull == "true") {
