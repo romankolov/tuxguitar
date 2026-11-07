@@ -35,14 +35,17 @@ data class TGCursorConfig(
     val scrollAnimationMillis: Int = 280,
     /** Idle grace after drag, wheel, fling or zoom; browsing away also waits for cursor visibility. */
     val followResumeDelayMillis: Int = 1200,
-    /** Hollow capsule outer width, in logical notation units; width controls its stroke. */
+    /** Minimum capsule outer width; the note ink plus inner padding can make it wider. */
     val capsuleWidth: Float = 6f,
     /** Vertical padding inside the row; the complete stroke stays inside this inset. */
     val capsuleInset: Float = 6f,
+    /** Clear space between the note's ink and the inner stroke edge, in logical units. */
+    val capsuleInnerPadding: Float = 3f,
 ) {
     init {
         require(width.isFinite() && width > 0 && blockAlpha in 0f..1f && animationMillis > 0)
         require(capsuleWidth.isFinite() && capsuleWidth > 0 && capsuleInset.isFinite() && capsuleInset >= 0)
+        require(capsuleInnerPadding.isFinite() && capsuleInnerPadding >= 0f)
         require(movementAnimationMillis >= 0 && scrollAnimationMillis >= 0 && followResumeDelayMillis >= 0)
     }
 }

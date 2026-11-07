@@ -39,7 +39,7 @@ adb install -r sample-android/build/outputs/apk/debug/sample-android-debug.apk
 
 The separate build does not change the original Maven/Android application build. There are no dynamic dependency versions. A Gradle wrapper is included.
 
-GitHub Actions: [Tux Compose · build, test & APK](https://github.com/romankolov/tuxguitar/actions/workflows/tux-compose.yml). Successful builds upload the **debug-signed installable APK**, release AAR, unit-test/lint diagnostics and emulator reports. Download the newest successful run's `tux-compose-apk-N` artifact. A debug APK is for evaluation, not a production-signed Play Store release. After both JVM/build and device-test jobs pass, the workflow also publishes the [latest verified APK and AAR](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-preview) with SHA-256 checksums.
+GitHub Actions: [Tux Compose · build, test & APK](https://github.com/romankolov/tuxguitar/actions/workflows/tux-compose.yml). Successful builds upload the **signed, non-debuggable release APK**, release AAR, R8/variant-lint diagnostics and emulator reports. The user chose an ephemeral **evaluation release** key, separate from Android's debug key. Uninstall previous differently signed builds before installing; this is not a persistent production/Play Store signing identity. Download the newest successful run's `tux-compose-apk-N` artifact. After both JVM/build and device-test jobs pass (including black-box checks on the exact release APK), the workflow publishes the [latest verified APK and AAR](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-preview) with SHA-256 checksums.
 
 ## Consume the library
 
@@ -53,11 +53,11 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.6")
+    implementation("com.tuxcompose:tux-compose-core:0.1.7")
 }
 ```
 
-Use Kotlin 2.1.21 and Compose Multiplatform 1.8.2 (or compatible newer versions). Android minimum SDK is 24. No material theme is required by core; Material3 is used only by the sample.
+Use Kotlin 2.4.21 and Compose Multiplatform 1.12.2 (or compatible newer versions). Android minimum SDK is 24. No material theme is required by core; Material3 is used only by the sample.
 
 ## Complete model-only screen
 
@@ -133,8 +133,9 @@ fun ScoreScreen() {
             cursorConfig = TGCursorConfig(
                 style = CursorStyle.Capsule, // hollow, not a filled pill
                 width = 1.5f,               // stroke width
-                capsuleWidth = 6f,          // outer width in logical notation units
+                capsuleWidth = 6f,          // minimum outer width, expanded to clear note ink
                 capsuleInset = 6f,          // top/bottom margin inside the row
+                capsuleInnerPadding = 3f,   // clear space inside the outline around each note
                 highlightNotes = true,
                 animation = CursorAnimation.Pulse,
             ),
@@ -225,10 +226,13 @@ No musical timing, note identity or playback/parser boundary is changed.
 
 ## Hollow capsule and let-ring spans (0.1.6)
 
-The sample starts with **Capsule**, and its Cursor picker cycles through all four styles.
+The sample starts with **Capsule**; the Cursor settings offer all four styles.
 The library keeps Line as its compatibility default. Select `CursorStyle.Capsule` in
-`TGCursorConfig`: `width` is its stroke (default 1.5), `capsuleWidth` its outer width (6),
-and `capsuleInset` its top/bottom margin (6). These are **logical notation units**, not
+`TGCursorConfig`: `width` is its stroke (default 1.5), `capsuleWidth` its minimum outer
+width (6), `capsuleInset` its top/bottom row margin (6), and `capsuleInnerPadding` the
+clear space between the note ink and inner stroke edge (3). In 0.1.7 the outline
+expands around actual visible fret/head bounds: ordinary eight-unit ink gets a
+17-unit outer / 14-unit inner width, leaving three units clear on either side. These are **logical notation units**, not
 already density-scaled pixels. The stroke centreline is inset by half its thickness so
 all of the stroke remains inside its bounds. Tiny rows clamp the dimensions/stroke while
 retaining a transparent interior. Smooth movement, opacity/blink/pulse and follow settings
@@ -372,3 +376,18 @@ custom-bank behavior, footprint and test/hardware limitations.
 - `python3 tools/verify.py`: reproducible glyph source hashes and a fail-closed check against platform/parser/player imports or demo dependencies in core.
 
 Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The showcase now dynamically links LGPL FluidSynth and packages GeneralUser GS under its own license; full dependency notices are in `demo-synth/src/main/assets/licenses/` and the APK. See [synth provenance and relinking](docs/SYNTH.md). Original Gervill files remain untouched in the repository but are no longer compiled into this sample. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.
+
+## Focused Material 3 Expressive workspace (0.1.7)
+
+The sample now uses the real Material3 1.5.0-rc01 Expressive theme, connected/morphing
+toggle buttons, tonal controls, emphasized typography, loading shapes and semantic
+light/dark/dynamic color roles. The score owns the primary surface; Display, Cursor,
+Sound and Theme settings live in a tabbed sheet. Landscape/expanded windows move
+playback into a side pane. Preferences survive recreation, and 200% UI text retains
+48dp primary targets without shrinking notation.
+
+See **[UI.md](docs/UI.md)** for the official guidance links, component/interaction map,
+adaptive behavior, capsule padding math, toolchain and release signing/verification
+policy. The rolling download is now
+**[sample-android-release.apk](https://github.com/romankolov/tuxguitar/releases/download/tux-compose-preview/sample-android-release.apk)**,
+not a renamed debug build.

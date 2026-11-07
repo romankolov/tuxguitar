@@ -350,13 +350,15 @@ The normal `render` pass handles these overlays after notation/connections. Stan
 `renderConnection`; `plannedAnnotations` suppresses legacy duplicate beat captions.
 Rows without let-ring keep their previous/native layout.
 
-### Hollow capsule cursor geometry (0.1.6)
+### Hollow capsule cursor geometry (0.1.6, inner padding refined in 0.1.7)
 
 `CursorStyle.Capsule` uses `Stroke`, never Fill. For row height `h > 0`, configured outer
-width `W`, inset `I`, stroke request `S`, and interpolated, unsnapped logical playhead `x`:
+minimum width `W`, inset `I`, stroke request `S`, note-ink half-width `a` (at least 4),
+inner padding `p`, and interpolated, unsnapped logical playhead `x`:
 
 ```
-w = min(W, h)
+requested = max(W, 2*(a+p+S))
+w = min(requested, h)
 i = min(I, (h-w)/2)
 H = h-2*i
 s = min(S, w/3, H/3)
@@ -367,10 +369,15 @@ radius = (min(w,H)-s)/2
 This is the **stroke centreline** rectangle. Its actual outside edge is inset by `i`;
 its interior width is `w-2s >= w/3 > 0`, even with a very large stroke request. Zero or
 nonfinite row geometry is skipped. Defaults: `capsuleWidth=6`, `capsuleInset=6`,
-`width=1.5`; parameters are finite and validated. Canvas applies density × zoom × scale
+`width=1.5`, `capsuleInnerPadding=3`; parameters are finite and validated. Visible
+fret/head bounds (including displaced voices/multi-digit frets) determine `a`. For
+ordinary eight-unit ink, defaults give outer width 17 and inner width 14: three clear
+units between ink and the inner stroke edge. Tiny rows may reduce that padding to
+retain a valid bounded outline. Canvas applies density × zoom × scale
 once afterwards. The style uses the existing tweened displayX, color/opacity/animation
 and cooperative follow logic. Core's default remains Line; the showcase starts Capsule
-and cycles using the enum's actual size rather than a hardcoded three styles.
+with a direct four-style picker and independent inner-margin slider in its Cursor
+settings. This is visual-only geometry; native horizontal spacing is unchanged.
 
 ### Adaptive/custom-font safety (opt-in)
 

@@ -72,8 +72,17 @@ class AnnotationsDeviceTest {
             fun at(x: Float,y: Float)=pixels[(x*factor).toInt().coerceIn(0,pixels.width-1),(y*factor).toInt().coerceIn(0,pixels.height-1)]
             val cy=b.center.y
             assertFalse("Capsule centre must stay transparent",magenta(at(anchor.x,cy)))
-            val edge=anchor.x-cursor.capsuleWidth/2f+cursor.width/2f
+            val noteBounds=anchor.beat.voices.flatMap { it.notes }.flatMap { listOfNotNull(it.tabBounds,it.scoreBounds) }
+            val inkHalf=noteBounds.fold(4f) { half,rect -> maxOf(half,kotlin.math.abs(rect.left-anchor.beat.x),kotlin.math.abs(rect.right-anchor.beat.x)) }
+            val outerWidth=maxOf(cursor.capsuleWidth,2f*(inkHalf+cursor.capsuleInnerPadding+cursor.width)).coerceAtMost(b.height)
+            val edge=anchor.x-outerWidth/2f+cursor.width/2f
             assertTrue("The capsule's outlined side must be visible",(-1..1).any { dx -> magenta(at(edge+dx/factor,cy)) })
+            noteBounds.forEach { note ->
+                for (direction in listOf(-1f,1f)) {
+                    val gap=anchor.x+direction*(inkHalf+cursor.capsuleInnerPadding/2f)
+                    assertFalse("Inner margin around real note ink must stay clear",magenta(at(gap,note.center.y)))
+                }
+            }
             assertFalse("Top margin must stay clear",magenta(at(anchor.x,b.top+2f)))
             assertFalse("Bottom margin must stay clear",magenta(at(anchor.x,b.bottom-2f)))
             assertEquals(0f,state.maxScrollX,.01f)

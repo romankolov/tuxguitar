@@ -12,6 +12,7 @@ import com.tuxcompose.demo.*
 import com.tuxcompose.component.TablatureState
 import kotlinx.coroutines.*
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,32 +22,77 @@ import java.io.ByteArrayInputStream
 class DemoDeviceTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
     private fun awaitDemo() { compose.waitUntil(60_000) { compose.onAllNodesWithTag("next").fetchSemanticsNodes().any { it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled).not() } } }
-    @Test fun opensRealGuitarProAndNavigatesAndCustomizes() {
+    @Before fun resetWorkspace() {
+        InstrumentationRegistry.getInstrumentation().targetContext
+            .getSharedPreferences("studio-settings",android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        compose.activityRule.scenario.recreate()
         awaitDemo()
+    }
+    private fun assertTick(tick: Long) {
+        compose.onNodeWithTag("more").performClick()
+        compose.onNodeWithTag("score-details").performClick()
+        compose.onNodeWithTag("cursor-tick").assertTextEquals("Tick $tick")
+        compose.onNodeWithText("Done").performClick()
+    }
+    @Test fun opensRealGuitarProAndNavigatesAndCustomizes() {
         compose.onNodeWithTag("import-status").assertTextContains("Guitar Pro",substring=true)
-        screenshot("paper-score")
-        compose.onNodeWithTag("next").performClick()
-        compose.onNodeWithTag("cursor-tick").assertTextEquals("Tick 1440")
-        compose.onNodeWithTag("previous").performClick()
-        compose.onNodeWithTag("cursor-tick").assertTextEquals("Tick 960")
+        screenshot("studio-home")
+        compose.onNodeWithTag("next").performClick(); assertTick(1440)
+        compose.onNodeWithTag("previous").performClick(); assertTick(960)
         compose.onNodeWithTag("mode-Tablature").performClick()
-        compose.onNodeWithTag("zoom-in").performClick()
-        compose.onNodeWithTag("settings").performScrollTo().performClick()
-        compose.onNodeWithTag("cursor-style").performScrollTo().assertTextContains("Capsule",substring=true)
-        repeat(4) { compose.onNodeWithTag("cursor-style").performScrollTo().performClick() }
-        compose.onNodeWithTag("cursor-style").assertTextContains("Capsule",substring=true)
-        compose.onNodeWithTag("palette").performScrollTo().performClick()
-        screenshot("dark-tablature")
+        compose.onNodeWithTag("settings").performClick()
+        compose.onNodeWithTag("zoom-in").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-Cursor").performClick()
+        compose.onNodeWithTag("cursor-Capsule").assertIsOn()
+        for (style in com.tuxcompose.component.CursorStyle.entries) {
+            compose.onNodeWithTag("cursor-${style.name}").performScrollTo().performClick().assertIsOn()
+        }
+        compose.onNodeWithTag("settings-Appearance").performClick()
+        compose.onNodeWithTag("theme-Dark").performScrollTo().performClick().assertIsOn()
+        screenshot("studio-settings-dark")
+        compose.onNodeWithTag("settings-close").performClick()
+        screenshot("studio-dark")
         compose.onNodeWithTag("score-canvas").assertIsDisplayed()
-        compose.onNodeWithTag("orientation").performScrollTo().performClick()
+        compose.onNodeWithTag("settings").performClick()
+        compose.onNodeWithTag("orientation-Horizontal").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-close").performClick()
         compose.onNodeWithTag("score-canvas").performTouchInput { swipeLeft() }
-        compose.onNodeWithTag("stop").performClick()
-        compose.onNodeWithTag("cursor-tick").assertTextEquals("Tick 960")
+        compose.onNodeWithTag("stop").performClick(); assertTick(960)
+    }
+    @Test fun trackSelectionAndGroupedSoundSettingsRemainReachable() {
+        compose.onNodeWithTag("track-picker").performClick()
+        compose.onNodeWithTag("track-1").performClick()
+        compose.onNodeWithTag("track-picker").assertTextContains("Fingered bass",substring=true)
+        compose.onNodeWithTag("sound-settings").performClick()
+        compose.onNodeWithTag("reverb").performScrollTo().performClick().assertIsOff()
+        compose.onNodeWithTag("chorus").performScrollTo().performClick().assertIsOff()
+        compose.onNodeWithTag("settings-Display").performClick()
+        compose.onNodeWithTag("all-tracks").performScrollTo().performClick().assertIsOn()
+        compose.onNodeWithTag("compact-spacing").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithTag("settings-close").performClick()
+        compose.onNodeWithTag("score-canvas").assertIsDisplayed()
+    }
+    @Test fun themeAndCursorPreferencesSurviveRecreation() {
+        compose.onNodeWithTag("settings").performClick()
+        compose.onNodeWithTag("settings-Appearance").performClick()
+        compose.onNodeWithTag("theme-Dark").performScrollTo().performClick()
+        compose.onNodeWithTag("high-contrast").performScrollTo().performClick()
+        compose.onNodeWithTag("settings-Cursor").performClick()
+        compose.onNodeWithTag("smooth-cursor").performScrollTo().performClick().assertIsOff()
+        compose.onNodeWithTag("settings-close").performClick()
+        compose.activityRule.scenario.recreate(); awaitDemo()
+        compose.onNodeWithTag("settings").performClick()
+        compose.onNodeWithTag("settings-Appearance").performClick()
+        compose.onNodeWithTag("theme-Dark").performScrollTo().assertIsOn()
+        compose.onNodeWithTag("high-contrast").performScrollTo().assertIsOn()
+        compose.onNodeWithTag("settings-Cursor").performClick()
+        compose.onNodeWithTag("smooth-cursor").performScrollTo().assertIsOff()
     }
     private fun screenshot(name: String) {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val folder=File(context.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
-        compose.onNodeWithTag("score-canvas").captureToImage().asAndroidBitmap().let { bitmap ->
+        compose.waitForIdle()
+        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap ->
             File(folder,"$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
         }
     }

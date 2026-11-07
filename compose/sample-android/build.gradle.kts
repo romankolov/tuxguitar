@@ -7,14 +7,32 @@ plugins {
 kotlin { jvmToolchain(17) }
 android {
     namespace = "com.tuxcompose.sample"
-    compileSdk = 35
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.tuxcompose.sample"
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.1.6"
+        versionCode = 8
+        versionName = "0.1.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    signingConfigs {
+        create("evaluationRelease") {
+            // CI injects an ephemeral key. No private signing material enters Git/artifacts.
+            storeFile = providers.environmentVariable("TUX_RELEASE_STORE_FILE").orNull?.let(::file)
+            storePassword = providers.environmentVariable("TUX_RELEASE_STORE_PASSWORD").orNull
+            keyAlias = "tux-compose-evaluation"
+            keyPassword = providers.environmentVariable("TUX_RELEASE_STORE_PASSWORD").orNull
+        }
+    }
+    buildTypes {
+        release {
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("evaluationRelease")
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -34,14 +52,15 @@ dependencies {
     implementation(project(":tux-compose-core"))
     implementation(project(":demo-tuxguitar"))
     implementation(project(":demo-synth"))
-    implementation(compose.material3)
+    // Expressive is not in stable Material3 1.4.0. Pin the current RC explicitly.
+    implementation("androidx.compose.material3:material3:1.5.0-rc01")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.8.2")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.12.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    debugImplementation("androidx.compose.ui:ui-test-manifest:1.8.2")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.12.1")
 }

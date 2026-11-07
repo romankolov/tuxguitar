@@ -97,9 +97,16 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         val base = cursor.color ?: colors.cursor
         val color = base.copy(alpha = base.alpha * opacity)
         when (cursor.style) {
-            CursorStyle.Capsule -> capsuleCursorGeometry(x,b,cursor)?.let { g ->
-                drawRoundRect(color,g.pathBounds.topLeft,g.pathBounds.size,
-                    CornerRadius(g.radius,g.radius),style=Stroke(g.strokeWidth))
+            CursorStyle.Capsule -> {
+                var inkHalf = 4f // standard head/rest; include multi-digit frets and displaced voices
+                beat.voices.forEach { voice -> voice.notes.forEach { note ->
+                    note.tabBounds?.let { inkHalf=maxOf(inkHalf,abs(it.left-beat.x),abs(it.right-beat.x)) }
+                    note.scoreBounds?.let { inkHalf=maxOf(inkHalf,abs(it.left-beat.x),abs(it.right-beat.x)) }
+                } }
+                capsuleCursorGeometry(x,b,cursor,inkHalf)?.let { g ->
+                    drawRoundRect(color,g.pathBounds.topLeft,g.pathBounds.size,
+                        CornerRadius(g.radius,g.radius),style=Stroke(g.strokeWidth))
+                }
             }
             CursorStyle.Line -> line(x - 3, b.top + 4, x - 3, b.bottom - 4, color, cursor.width)
             CursorStyle.Block -> drawRect(color.copy(alpha = color.alpha * cursor.blockAlpha), b.topLeft, b.size)

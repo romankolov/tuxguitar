@@ -70,7 +70,7 @@ val prepareSynth by tasks.registering {
 
 android {
     namespace = "com.tuxcompose.demo.synth"
-    compileSdk = 35
+    compileSdk = 37
     ndkVersion = "27.3.13750724" // Same NDK as the pinned official Android SDK binaries.
     defaultConfig {
         minSdk = 24

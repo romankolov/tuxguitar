@@ -11,3 +11,8 @@ The unmodified **GeneralUser GS 2.0.3** bank is by **S. Christian Collins**, dis
 The study titled *Greenwood Study* is an original generated demonstration, not a third-party tablature transcription. The sample also packages the original TuxGuitar LGPL text and this notice. There is no runtime bank download.
 
 This notice is not a substitute for the applicable license terms. Distributors of derived binaries must preserve notices and satisfy source/relinking obligations as applicable.
+
+The Android Studio workspace uses Material Symbols Rounded vector assets from
+google/material-design-icons, commit 10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7,
+under Apache-2.0. The license is packaged in assets/licenses/Material-Symbols-Apache.txt.
+Material3 1.5.0-rc01 is used only by the Android sample; it is not a core dependency.

@@ -27,7 +27,7 @@ kotlin {
 }
 android {
     namespace = "com.tuxcompose.core"
-    compileSdk = 35
+    compileSdk = 37
     defaultConfig { minSdk = 24 }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

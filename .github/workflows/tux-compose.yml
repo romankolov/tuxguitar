@@ -29,16 +29,26 @@ jobs:
           cache-read-only: false
       - name: Verify generated upstream glyphs and dependency boundary
         run: python3 tools/verify.py
+      - name: Prepare temporary evaluation release signing
+        run: bash tools/prepare_release_signing.sh
       - name: Build library, run tests, lint demo, assemble APKs
         run: python3 tools/ci_build.py
+      - name: Discard temporary signing key
+        if: always()
+        run: |
+          if [ -n "${TUX_RELEASE_STORE_FILE:-}" ]; then rm -f "$TUX_RELEASE_STORE_FILE"; fi
       - name: Verify shipped synth, bank, ABI dependencies and core isolation
         run: python3 tools/verify_synth.py
+      - name: Verify non-debuggable optimized release and signing certificate
+        run: python3 tools/verify_release.py
       - name: Upload latest installable demo and library
         uses: actions/upload-artifact@v7
         with:
           name: tux-compose-apk-${{ github.run_number }}
           path: |
-            compose/sample-android/build/outputs/apk/debug/*.apk
+            compose/sample-android/build/outputs/apk/release/sample-android-release.apk
+            compose/build/release-verification.json
+            compose/build/synth-verification.json
             compose/tux-compose-core/build/outputs/aar/*release.aar
           if-no-files-found: error
           retention-days: 30
@@ -51,6 +61,8 @@ jobs:
             compose/build/ci.log
             compose/build/ci-summary.json
             compose/build/synth-verification.json
+            compose/build/release-verification.json
+            compose/sample-android/build/outputs/mapping/release/**
             compose/**/build/reports/**
             compose/**/build/test-results/**
           retention-days: 14
@@ -67,6 +79,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: tux-compose-apk-${{ github.run_number }}
+          path: compose/verified-artifacts
+      - name: Install screenshot encoder
+        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -87,6 +105,7 @@ jobs:
           name: tux-compose-device-${{ github.run_number }}
           path: |
             compose/sample-android/build/device-*
+            compose/sample-android/build/release-smoke/**
             compose/build/ci.log
             compose/build/ci-summary.json
             compose/sample-android/build/reports/androidTests/**
@@ -109,14 +128,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          apk=$(find verified-artifacts -name '*debug.apk' -print -quit)
+          apk=$(find verified-artifacts -name 'sample-android-release.apk' -print -quit)
           aar=$(find verified-artifacts -name '*release.aar' -print -quit)
           test -n "$apk" && test -n "$aar"
           mkdir release
-          cp "$apk" release/sample-android-debug.apk
+          cp "$apk" release/sample-android-release.apk
+          cp "$(find verified-artifacts -name 'release-verification.json' -print -quit)" release/BUILD-VERIFICATION.json
           cp "$aar" release/tux-compose-core-release.aar
           (cd release && sha256sum *.apk *.aar > SHA256SUMS.txt)
-          notes="Debug-signed sample APK and release library AAR. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build and emulator interaction/PCM tests passed. Evaluation build, not a Play Store release. See compose/README.md and compose/docs/PORTING.md for scope and parity limits."
+          notes="Optimized, R8-shrunk, non-debuggable release APK and core AAR. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Evaluation build, not a Play Store release. See compose/README.md and compose/docs/PORTING.md for scope and parity limits."
           if gh release view tux-compose-preview >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GH_REPO/git/refs/tags/tux-compose-preview" -f sha="$GITHUB_SHA" -F force=true
             gh release edit tux-compose-preview --notes "$notes"
@@ -124,3 +144,6 @@ jobs:
             gh release create tux-compose-preview --target "$GITHUB_SHA" --prerelease --title "Tux Compose · latest verified Android demo" --notes "$notes"
           fi
           gh release upload tux-compose-preview release/* --clobber
+          if gh release view tux-compose-preview --json assets --jq '.assets[].name' | grep -qx sample-android-debug.apk; then
+            gh release delete-asset tux-compose-preview sample-android-debug.apk --yes
+          fi

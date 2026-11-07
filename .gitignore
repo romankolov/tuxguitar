@@ -20,3 +20,9 @@ compose/.idea/
 compose/artifacts/
 __pycache__/
 *.pyc
+
+# Private Android signing material (CI uses RUNNER_TEMP).
+*.keystore
+*.jks
+*.p12
+compose/signing.properties

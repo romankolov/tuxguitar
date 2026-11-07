@@ -7,10 +7,14 @@ import androidx.compose.ui.geometry.Rect
 internal data class TGCapsuleCursorGeometry(val pathBounds: Rect, val radius: Float, val strokeWidth: Float)
 
 /** Keep the complete stroke inset, and retain a transparent interior even on very short rows. */
-internal fun capsuleCursorGeometry(x: Float, bounds: Rect, config: TGCursorConfig): TGCapsuleCursorGeometry? {
+internal fun capsuleCursorGeometry(x: Float, bounds: Rect, config: TGCursorConfig, inkHalfWidth: Float = 4f): TGCapsuleCursorGeometry? {
     val height = bounds.height
     if (!x.isFinite() || !bounds.top.isFinite() || !height.isFinite() || height <= 0f) return null
-    val width = minOf(config.capsuleWidth,height)
+    if (!inkHalfWidth.isFinite() || inkHalfWidth < 0f) return null
+    // width is a minimum, not a tight six-unit outline through an eight-unit note.
+    // Inner half-width = outer half-width - the complete stroke, hence +width here.
+    val requested = maxOf(config.capsuleWidth,2f*(inkHalfWidth+config.capsuleInnerPadding+config.width))
+    val width = minOf(requested,height)
     val inset = config.capsuleInset.coerceAtMost((height-width)/2f)
     val outerHeight = height-2f*inset
     val stroke = minOf(config.width,width/3f,outerHeight/3f)
