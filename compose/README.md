@@ -22,7 +22,9 @@ do not rebuild geometry. Overlays should draw only the visible region for large 
 
 ## Build and install
 
-Requirements: JDK 17, Android SDK 35, Python 3 for the verification tools, and build-time network access to Gradle/Google/Maven/GitHub. The showcase installs NDK 27.3.13750724 / CMake 3.22.1 as needed and downloads checksum-pinned synth/bank inputs; the core-only AAR needs neither.
+Requirements: JDK 17, Android SDK 37 (compile), AGP 9.2.1 / Gradle 9.4.1 (wrapper), Python 3 for the verification tools, and build-time network access to Gradle/Google/Maven/GitHub. CI device tests use an API 35 emulator; the app targets 35 and supports API 24+. The showcase installs NDK 27.3.13750724 / CMake 3.22.1 as needed and downloads checksum-pinned synth/bank inputs; the core-only AAR needs neither.
+
+For **local development/debug instrumentation** (these are not the published APK):
 
 ```sh
 cd compose
@@ -36,6 +38,8 @@ adb install -r sample-android/build/outputs/apk/debug/sample-android-debug.apk
 # On macOS, opt in to native compilation:
 ./gradlew -PenableIos=true :tux-compose-core:compileKotlinIosSimulatorArm64
 ```
+
+For a signed **release** build, configure your private signing environment as described in [UI.md](docs/UI.md#release-build-and-signing-policy), then run `./gradlew :sample-android:lintRelease :sample-android:assembleRelease`. The output is `sample-android/build/outputs/apk/release/sample-android-release.apk`; it is R8/resource-shrunk and non-debuggable. Do not reuse the Android debug key or commit a keystore/password.
 
 The separate build does not change the original Maven/Android application build. There are no dynamic dependency versions. A Gradle wrapper is included.
 
@@ -57,7 +61,7 @@ commonMain.dependencies {
 }
 ```
 
-Use Kotlin 2.4.21 and Compose Multiplatform 1.12.2 (or compatible newer versions). Android minimum SDK is 24. No material theme is required by core; Material3 is used only by the sample.
+Use Kotlin 2.4.21 and Compose Multiplatform 1.12.2 (or compatible newer versions). Android consumers need compileSdk 37 / AGP 9.2+; minimum SDK is 24. No material theme is required by core; Material3 is used only by the sample.
 
 ## Complete model-only screen
 

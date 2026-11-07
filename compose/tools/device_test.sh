@@ -12,5 +12,4 @@ if [[ "$result" -eq 0 ]]; then
   result=$?
 fi
 adb logcat -d > sample-android/build/device-logcat.txt || true
-python3 tools/report_screenshots.py || true
 exit "$result"

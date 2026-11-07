@@ -184,6 +184,8 @@ The CI policy verifier expects the evaluation certificate subject configured in
 6. Only after both build/device jobs succeed, publish `sample-android-release.apk`,
    core AAR, SHA-256 sums and release verification metadata. Old rolling debug asset
    is removed. Full screenshots/reports and R8 mapping stay in Actions diagnostics.
+   Checks previews use numbered, hash-verified JSON/WebP chunks (one scene per step),
+   rather than losing the image to the 4096-character annotation limit.
 
 Toolchain: Kotlin 2.4.21, Compose Multiplatform 1.12.2 (Android Compose 1.12.1),
 Material3 1.5.0-rc01, AGP 9.2.1, Gradle 9.4.1, Java 17, compileSdk 37 / targetSdk 35 /

@@ -98,6 +98,23 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: bash compose/tools/device_test.sh
+      # Each scene has its own step: bounded JSON chunks stay under Checks' per-step
+      # annotation count and 4096-character message limits, unlike one huge base64 line.
+      - name: Preview main workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release studio-home
+      - name: Preview dark workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-dark studio-dark
+      - name: Preview large-text workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-large-text studio-large-text
+      - name: Preview expanded workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-wide
+      - name: Preview grouped settings
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-settings studio-settings-dark
       - name: Upload device reports and screenshots
         if: always()
         uses: actions/upload-artifact@v7

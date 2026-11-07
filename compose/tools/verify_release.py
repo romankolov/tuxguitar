@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -25,7 +26,9 @@ try:
     # DEX names must actually be rewritten, rather than merely producing a keep-all mapping.
     assert any(' -> ' in line and not line.startswith((' ', '#')) and line.split(' -> ')[0] != line.split(' -> ')[1].rstrip(':')
                for line in mapping.read_text().splitlines()), 'No optimized/obfuscated release classes'
-    fingerprint = next(line.split(':', 1)[1].strip() for line in cert.splitlines() if 'certificate SHA-256 digest:' in line)
+    fingerprints = re.findall(r'certificate SHA-256 digest:\s*([0-9a-fA-F]{64})', cert)
+    assert len(fingerprints) == 1, 'Expected one release signing certificate SHA-256'
+    fingerprint = fingerprints[0].lower()
     summary = dict(apk_sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), version='0.1.7', version_code=8,
                    source_sha=os.environ.get('GITHUB_SHA'), debuggable=False, r8=True, signer_sha256=fingerprint, signing='ephemeral evaluation release')
     (root / 'build').mkdir(exist_ok=True)
