@@ -146,6 +146,16 @@ class AnnotationTest {
         assertTrue(page.staves.flatMap { it.annotations }.any { it.lines.size>1 })
         assertClear(page)
     }
+    @Test fun scoreOnlyCaptionsUseTheOriginalEffectsBandAboveScoreInk() {
+        val page=layout(song(bar(other=true)),800f,base.copy(style=TGLayoutStyles.Score))
+        page.staves.forEach { row ->
+            val first=row.measures.first()
+            row.annotations.filter { it.band==TGAnnotationBand.Effects }.forEach { a ->
+                assertTrue(a.bounds.bottom<=first.staffTop!!+.001f)
+            }
+        }
+        assertClear(page)
+    }
     @Test fun unicodeEmergencyWrappingPreservesCodePointsAndExplicitNewlines() {
         val original="𝄞𝄞𝄞𝄞"
         val lines=wrapAnnotationText(original,22f,TGFontMetrics.Approximate)

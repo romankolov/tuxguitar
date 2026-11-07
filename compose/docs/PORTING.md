@@ -335,8 +335,9 @@ caption/line/cap box plus clearance (and at least `effectSpacing` in Effects).
 
 Increase, never decrease, the corresponding `TGSpacing` reservations, then re-place the
 row with the same horizontal columns. Cached fragments rebase their lanes independently.
-Score-only's native lane order puts Effects before ScoreDown, so the enhancement also
-pads the caption origin past downward score ink. No native natural width, greedy row
+The original style-specific lane permutations keep Effects above ScoreUp in score-only
+mode and in their native position for mixed/tab rows; no extra unrelated score padding is
+introduced. No native natural width, greedy row
 threshold, justification equation, note/font size, source identity or hit-test tick is
 changed. Adaptive does not reserve a fresh horizontal `let ring` word on every attack;
 its other optional ink constraints remain independent.

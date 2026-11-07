@@ -6,6 +6,17 @@ from io import BytesIO
 import hashlib
 import json
 import struct
+import sys
+import traceback
+
+
+def report_error(kind, error, stack):
+    message = f'{kind.__name__}: {error}'.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    print(f'::error title=Synth payload verification::{message}', flush=True)
+    traceback.print_exception(kind, error, stack)
+
+
+sys.excepthook = report_error
 
 root = Path(__file__).resolve().parents[1]
 apk = root / 'sample-android/build/outputs/apk/debug/sample-android-debug.apk'
@@ -59,7 +70,10 @@ with ZipFile(apk) as package, apk.open('rb') as raw:
         for name, path in libs.items():
             if name.startswith('libandroidx'):
                 continue
-            dependencies = elf(package.read(path), machine)
+            try:
+                dependencies = elf(package.read(path), machine)
+            except (AssertionError, StopIteration, struct.error) as error:
+                raise AssertionError(f'{abi}/{name}: {error}') from error
             assert set(dependencies) <= libs.keys() | platform, f'{abi}/{name}: missing DT_NEEDED {set(dependencies)-libs.keys()-platform}'
             entry = package.getinfo(path)
             if entry.compress_type == ZIP_STORED:
@@ -76,4 +90,5 @@ summary['soundfont_sha256'] = expected_bank
 summary['core_has_audio_payload'] = False
 (root / 'build').mkdir(exist_ok=True)
 (root / 'build/synth-verification.json').write_text(json.dumps(summary, indent=2)+'\n')
+print('::notice title=Synth payload verified::' + json.dumps({key: summary[key] for key in ('apk_sha256', 'soundfont_sha256', 'core_has_audio_payload')} | {'abis': list(summary['abis'])}))
 print('Verified full-bank checksum, four synth ABIs, native dependencies/16-KiB alignment, licenses and audio-free core AAR.')

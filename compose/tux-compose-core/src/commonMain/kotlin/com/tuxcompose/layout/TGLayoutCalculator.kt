@@ -223,15 +223,12 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 val annotationRight = if (fitPage) viewportWidth-rightMargin else maxOf(naturalRight,viewportWidth-rightMargin)
                 val runs = ringIndices[ti].intersecting(measures.first().startTick,measures.last().endTick)
                 val annotations = planAnnotations(measures,runs,padding,annotationRight,config,fonts)
-                // Native score-only order puts Effects before ScoreDown. Keep new
-                // captions below downward note/stem ink, without altering native X math.
-                val annotationEffectPadding = if (config.style == TGLayoutStyles.Score) lanes.size(TGTrackLane.ScoreDown) else 0f
                 if (annotations != null) {
                     lanes.register(TGTrackLane.Text,annotations.textHeight)
-                    lanes.register(TGTrackLane.Effects,annotations.effectHeight+annotationEffectPadding)
+                    lanes.register(TGTrackLane.Effects,annotations.effectHeight)
                     measures = place().map { it.copy(plannedAnnotations=true) }
                 }
-                val placedAnnotations = annotations?.placed(measures.first().textTop,measures.first().effectsTop+annotationEffectPadding).orEmpty()
+                val placedAnnotations = annotations?.placed(measures.first().textTop,measures.first().effectsTop).orEmpty()
                 val inkRight = placedAnnotations.maxOfOrNull { it.bounds.right } ?: naturalRight
                 val left = maxOf(naturalRight,inkRight)
                 val right = if (fitPage) minOf(left,viewportWidth) else left
