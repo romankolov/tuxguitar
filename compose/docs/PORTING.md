@@ -294,7 +294,7 @@ no connection is drawn diagonally through another staff or row gap.
 
 ### Let-ring semantics and collision-free caption bands (0.1.6)
 
-**Source audit:** `TGNoteImpl.paintEffects` draws `L.R` separately at each flagged note
+**Source audit:** `TGNoteImpl.paintOfflineEffects` draws `L.R` separately at each flagged note
 (and other offline effects in category lanes). It has no merged dashed span to port.
 `mergeLetRing=true` therefore opts the default Compose view into the explicitly requested
 annotation enhancement; setting it false retains the existing/native lane arithmetic.

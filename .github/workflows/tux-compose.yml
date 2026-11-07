@@ -91,7 +91,7 @@ jobs:
           retention-days: 14
 
   preview-apk:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/285632fe-tuxguitar')
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/285632fe-tuxguitar')
     needs: [build, device-test]
     runs-on: ubuntu-22.04
     permissions:
