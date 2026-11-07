@@ -108,7 +108,8 @@ lint, and tests the sample on an API-35 x86_64 emulator. Instrumentation checks 
 version, non-silent piano/guitar/bass/flute/drum PCM, reverb tails, chorus changes, RPN bend
 pitch response, invalid-bank recovery, double-close safety and native-MIDI → AudioTrack
 transport/cursor progression. `tools/verify_synth.py` independently checks the actual APK
-bank checksum, ABI payload/dependencies/alignment/notices, absence of the old Gervill
+bank checksum, ABI payload/dependencies/notices, 16-KiB ELF/ZIP alignment for 64-bit
+ABIs (4-KiB for the NDK's 32-bit ABI runtimes), absence of the old Gervill
 backend and absence of synth/native payload in the core AAR. These checks do not claim
 human audition, exhaustively verified synthesis effects, ARM hardware performance,
 API-24 device testing or speaker/USB-MIDI hardware validation.

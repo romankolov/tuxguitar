@@ -32,6 +32,8 @@ def elf(data, machine):
     assert data[:4] == b'\x7fELF' and data[5] == 1, 'Expected little-endian Android ELF'
     assert struct.unpack_from('<H', data, 18)[0] == machine, 'ELF architecture disagrees with ABI'
     wide = data[4] == 2
+    # Android's 16-KiB runtime applies to 64-bit ABIs. NDK 32-bit runtimes use 4 KiB.
+    page = 16384 if wide else 4096
     offset = struct.unpack_from('<Q' if wide else '<I', data, 32 if wide else 28)[0]
     size, count = struct.unpack_from('<HH', data, 54 if wide else 42)
     segments = []
@@ -39,7 +41,7 @@ def elf(data, machine):
         ph = struct.unpack_from('<IIQQQQQQ' if wide else '<IIIIIIII', data, offset+i*size)
         kind, start, address, length, alignment = (ph[0], ph[2], ph[3], ph[5], ph[7]) if wide else (ph[0], ph[1], ph[2], ph[4], ph[7])
         if kind == 1:
-            assert alignment >= 16384 and (start-address) % 16384 == 0, 'Library lacks 16-KiB LOAD alignment'
+            assert alignment >= page and (start-address) % page == 0, f'Library lacks {page}-byte LOAD alignment'
         segments.append((kind, start, address, length))
     dynamic = next(s for s in segments if s[0] == 2)
     pair, step = ('<qQ', 16) if wide else ('<iI', 8)
@@ -79,7 +81,7 @@ with ZipFile(apk) as package, apk.open('rb') as raw:
             if entry.compress_type == ZIP_STORED:
                 raw.seek(entry.header_offset+26)
                 filename, extra = struct.unpack('<HH', raw.read(4))
-                assert (entry.header_offset+30+filename+extra) % 16384 == 0, f'APK ZIP alignment: {path}'
+                assert (entry.header_offset+30+filename+extra) % (16384 if machine in (183,62) else 4096) == 0, f'APK ZIP alignment: {path}'
             checked[name] = dependencies
         summary['abis'][abi] = checked
 with ZipFile(aar) as core:
@@ -91,4 +93,4 @@ summary['core_has_audio_payload'] = False
 (root / 'build').mkdir(exist_ok=True)
 (root / 'build/synth-verification.json').write_text(json.dumps(summary, indent=2)+'\n')
 print('::notice title=Synth payload verified::' + json.dumps({key: summary[key] for key in ('apk_sha256', 'soundfont_sha256', 'core_has_audio_payload')} | {'abis': list(summary['abis'])}))
-print('Verified full-bank checksum, four synth ABIs, native dependencies/16-KiB alignment, licenses and audio-free core AAR.')
+print('Verified full-bank checksum, four synth ABIs, native dependencies/64-bit 16-KiB + 32-bit 4-KiB alignment, licenses and audio-free core AAR.')
