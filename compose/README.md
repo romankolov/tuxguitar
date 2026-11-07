@@ -10,7 +10,7 @@ The library has **no decoder, file access, playback clock, MIDI, synthesizer, au
 |---|---|---|
 | `tux-compose-core` | `com.tuxcompose.model`, `.layout`, `.renderer`, `.component` | Android + JVM; optional iOS targets; all implementation in `commonMain` |
 | `demo-tuxguitar` | Existing Java GP3/4/5, GPX, GP7/GP, TG and MIDI readers, immutable-model adapter, original MIDI event/repeat engine | JVM/Android, **demo only** |
-| `demo-synth` | Existing Android-compatible Gervill and Java Sound shim | Android, **demo only** |
+| `demo-synth` | FluidSynth 2.6.2 JNI + pinned GeneralUser GS 2.0.3 bank | Android, **demo only** |
 | `sample-android` | Compose screen, Storage Access Framework picker, transport, soundfonts and optional hardware MIDI output | Android 7.0+ |
 
 **Status:** first implementation, not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping, merged let-ring spans and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
@@ -22,7 +22,7 @@ do not rebuild geometry. Overlays should draw only the visible region for large 
 
 ## Build and install
 
-Requirements: JDK 17, Android SDK 35, and network access to Gradle/Google/Maven repositories.
+Requirements: JDK 17, Android SDK 35, Python 3 for the verification tools, and build-time network access to Gradle/Google/Maven/GitHub. The showcase installs NDK 27.3.13750724 / CMake 3.22.1 as needed and downloads checksum-pinned synth/bank inputs; the core-only AAR needs neither.
 
 ```sh
 cd compose
@@ -348,11 +348,27 @@ still/again in the visible viewport: browsing to other bars does not snap you ba
 already active it continues smoothly across systems, including bringing the next row into
 view. The sample exposes Cursor glide, Smooth scroll, Show cursor and Follow controls.
 
+## Showcase synthesizer and sound (0.1.6)
+
+The Android sample uses **FluidSynth 2.6.2 + GeneralUser GS 2.0.3**, replacing its old
+Gervill/lightweight-bank backend. TuxGuitar still generates the actual notes, repeats,
+controllers and bend events; its GM router preserves percussion and independent bend
+channels. FluidSynth renders stereo PCM, SoundFont envelopes/filters/modulators, sustain,
+reverb and chorus. Customize has **Reverb**, **Chorus**, **SoundFont** and **Reset bank**
+controls; SF2/SF3 loading uses the document picker, not a network service. Pause/background
+stops the audio device/thread. Hardware MIDI output remains available.
+
+This does **not** add playback, parsers, JNI or a SoundFont to the rendering library AAR.
+All SDK/bank downloads are build-only, version/SHA-256 pinned, under ignored generated
+folders. The installed app remains offline. See [SYNTH.md](docs/SYNTH.md) for full source
+provenance, native build versions, mathematical MIDI/PCM conventions, licensing/relinking,
+custom-bank behavior, footprint and test/hardware limitations.
+
 ## Tests, provenance and licensing
 
 - `commonTest`: duration/tuplet validation, immutable snapshots, spacing, wrapping, multi-track alignment, hit testing, culling, beaming, empty/extreme inputs and state navigation.
 - `demo-tuxguitar:test`: full native Java layout differentials (`NativeLayoutParityTest`) compare widths, every onset, row packing/justification, header flags and vertical lanes across styles, compact modes, fractional scale, effects, polyphony and real GP3/4/5 imports. The actual Android style class is compiled into tests, not copied. `native-layout-parity.json` is included in CI diagnostics. Also tests every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; whole-measure and projected-fragment row packing against `TGLayoutVertical.getTempLines`; recorded strum/picking vectors against the actual Java painters; GP3/4/5 strum round trips (plus GP4/5 picking marks); original MIDI event generation.
-- Android instrumentation: native-default mixed-duration reflow, actual-font zoom/pointer transforms, native/system-font-scale policy, real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Actual-font annotation tests also cover caption clearances, terminal-cap pixels, all three notation styles, font scale/reflow/zoom and hollow capsule pixels. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
+- Android instrumentation: native-default mixed-duration reflow, actual-font zoom/pointer transforms, native/system-font-scale policy, real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the full GeneralUser GS bank**. FluidSynth instrumentation covers version, melodic/drum presets, reverb tails, chorus changes, RPN pitch bends and invalid-bank/close safety. Actual-font annotation tests also cover caption clearances, terminal-cap pixels, all three notation styles, font scale/reflow/zoom and hollow capsule pixels. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
 - `python3 tools/verify.py`: reproducible glyph source hashes and a fail-closed check against platform/parser/player imports or demo dependencies in core.
 
-Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The optional Gervill demo includes GPLv2 with Classpath Exception code and existing soundfont assets; their notices remain unchanged. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.
+Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The showcase now dynamically links LGPL FluidSynth and packages GeneralUser GS under its own license; full dependency notices are in `demo-synth/src/main/assets/licenses/` and the APK. See [synth provenance and relinking](docs/SYNTH.md). Original Gervill files remain untouched in the repository but are no longer compiled into this sample. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.

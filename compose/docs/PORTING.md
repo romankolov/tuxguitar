@@ -466,5 +466,7 @@ Remaining limits are explicit:
   archive limits reduce risk; use trusted evaluation files. Hardware MIDI requires a
   device; CI verifies original MIDI events and software PCM, not human-auditioned hardware.
 
-Derived code/glyphs remain LGPL-2.1-or-later with existing notices. The demo's Gervill and
-soundfont licensing is unchanged. Keeping the decoder/player outside core is intentional.
+Derived code/glyphs remain LGPL-2.1-or-later with existing notices. The demo now uses dynamically linked FluidSynth and GeneralUser GS under their respective
+licenses; [SYNTH.md](SYNTH.md) documents versions, source, math and relinking. Original
+Gervill files remain unchanged but are not compiled into the Compose sample. Keeping the
+decoder/player outside core is intentional.

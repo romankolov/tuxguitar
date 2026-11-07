@@ -117,11 +117,21 @@ class AnnotationsDeviceTest {
             val pixels=compose.onNodeWithTag("annotations").captureToImage().also { save(it,"annotations-$mode-$zoom") }.toPixelMap()
             val end=last.lineTo!!
             val px=((end.x-state.scrollX)*factor).toInt()
-            val py=((end.y-state.scrollY)*factor).toInt()
-            assertTrue("The true end must paint its terminal cap",(-2..2).any { dx -> (-2..2).any { dy ->
-                val x=(px+dx).coerceIn(0,pixels.width-1); val y=(py+dy).coerceIn(0,pixels.height-1)
-                magenta(pixels[x,y])
-            } })
+            fun painted(x: Int,y: Int)=(-1..1).any { dx -> (-1..1).any { dy ->
+                magenta(pixels[(x+dx).coerceIn(0,pixels.width-1),(y+dy).coerceIn(0,pixels.height-1)])
+            } }
+            for (dy in listOf(-2f,2f)) {
+                val py=((end.y+dy-state.scrollY)*factor).toInt()
+                assertTrue("The terminal cap must extend vertically beyond the dash",painted(px,py))
+            }
+            val from=last.lineFrom!!
+            if (end.x-from.x>10f) {
+                val py=((end.y-state.scrollY)*factor).toInt().coerceIn(0,pixels.height-1)
+                val xs=((from.x+1f-state.scrollX)*factor).toInt()..((end.x-2f-state.scrollX)*factor).toInt()
+                val ink=xs.filter { it in 0 until pixels.width }.map { magenta(pixels[it,py]) }
+                assertTrue("Dashes must paint some ink",ink.any { it })
+                assertTrue("Dashes must retain clear gaps, not a solid line",ink.any { !it })
+            }
         }
     }
 }

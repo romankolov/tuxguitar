@@ -31,6 +31,8 @@ jobs:
         run: python3 tools/verify.py
       - name: Build library, run tests, lint demo, assemble APKs
         run: python3 tools/ci_build.py
+      - name: Verify shipped synth, bank, ABI dependencies and core isolation
+        run: python3 tools/verify_synth.py
       - name: Upload latest installable demo and library
         uses: actions/upload-artifact@v7
         with:
@@ -48,6 +50,7 @@ jobs:
           path: |
             compose/build/ci.log
             compose/build/ci-summary.json
+            compose/build/synth-verification.json
             compose/**/build/reports/**
             compose/**/build/test-results/**
           retention-days: 14

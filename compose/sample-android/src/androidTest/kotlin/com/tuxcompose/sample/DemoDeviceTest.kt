@@ -11,14 +11,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.tuxcompose.demo.*
 import com.tuxcompose.component.TablatureState
 import kotlinx.coroutines.*
-import media.sound.SF2Soundbank
-import media.sound.SoftSynthesizer
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayInputStream
-import javax.sound.sampled.AudioFormat
 
 @RunWith(AndroidJUnit4::class)
 class DemoDeviceTest {
@@ -77,21 +74,5 @@ class DemoDeviceTest {
             compose.runOnIdle { player.dispose() }
             runtimeScope.cancel()
         }
-    }
-    @Test fun gervillRendersNonSilentPcmFromBundledSoundfont() {
-        val context=InstrumentationRegistry.getInstrumentation().targetContext
-        val synth=SoftSynthesizer()
-        try {
-            val stream=synth.openStream(AudioFormat(44100f,16,2,true,false),mapOf<String,Any>("load default soundbank" to false))
-            context.assets.open("soundbank/instrument-0-25.sf2").use { assertTrue(synth.loadAllInstruments(SF2Soundbank(it))) }
-            synth.channels[0].programChange(25)
-            synth.channels[0].noteOn(64,110)
-            val bytes=ByteArray(44100)
-            var offset=0
-            while (offset<bytes.size) { val n=stream.read(bytes,offset,bytes.size-offset); if (n<0) break; offset+=n }
-            assertTrue("Synthesized PCM must not be silent",bytes.any { it.toInt()!=0 })
-            synth.channels[0].allSoundOff()
-            stream.close()
-        } finally { synth.close() }
     }
 }

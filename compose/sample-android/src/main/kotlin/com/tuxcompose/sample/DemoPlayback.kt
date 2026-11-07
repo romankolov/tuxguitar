@@ -65,6 +65,7 @@ class DemoPlayback(context: Context, private val scope: CoroutineScope, private 
                 loading=false; playing=true
                 val start=System.nanoTime()-position*1000
                 while (isActive && position<prepared.endMicros) {
+                    audio.failure?.let { throw IllegalStateException(it) }
                     position=(System.nanoTime()-start)/1000
                     withContext(Dispatchers.IO) {
                         while (index<prepared.events.size && prepared.events[index].micros<=position) audio.dispatch(prepared.events[index++])
@@ -76,7 +77,7 @@ class DemoPlayback(context: Context, private val scope: CoroutineScope, private 
             catch (e: Exception) { error=e.message ?: "Unable to initialize audio" }
             finally {
                 if (request == generation) { playing=false; loading=false }
-                withContext(NonCancellable+Dispatchers.IO) { audio.sendAllNotesOff() }
+                withContext(NonCancellable+Dispatchers.IO) { audio.sendAllNotesOff(); audio.pauseOutput() }
             }
         }
     }

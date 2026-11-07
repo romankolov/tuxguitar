@@ -92,10 +92,32 @@ class AnnotationTest {
     @Test fun sustainedVoiceSurvivesOtherVoiceReattacksAndTiedContinuations() {
         val source=bar(flags=emptySet())
         val beats=source.beats.mapIndexed { i,b -> b.copy(voices=(listOf(TGVoice(1,listOf(TGNote(7,2))))+
-            if (i==0) listOf(TGVoice(0,listOf(TGNote(5,1,effects=TGNoteEffects(letRing=true))),TGDuration(2)))
-            else if (i==4) listOf(TGVoice(0,listOf(TGNote(5,1,tied=true)),TGDuration(2))) else emptyList()).toPersistentList()) }
+            if (i==0) listOf(TGVoice(0,listOf(TGNote(5,1,effects=TGNoteEffects(letRing=true))),duration=TGDuration(2)))
+            else if (i==4) listOf(TGVoice(0,listOf(TGNote(5,1,tied=true)),duration=TGDuration(2))) else emptyList()).toPersistentList()) }
         val runs=letRingRuns(TGTrack(1,"Voices",tuning,listOf(source.copy(beats=beats.toPersistentList()))))
         assertEquals(listOf(960L to 4800L),runs.map { it.start to it.end })
+    }
+    @Test fun overlappingMarkedVoicesShareOneDisplaySpan() {
+        val source=bar(flags=emptySet())
+        val beats=source.beats.mapIndexed { i,b -> b.copy(voices=listOf(when (i) {
+            0 -> TGVoice(0,listOf(TGNote(5,1,effects=TGNoteEffects(letRing=true))),duration=TGDuration(2))
+            2 -> TGVoice(1,listOf(TGNote(7,2,effects=TGNoteEffects(letRing=true))),duration=TGDuration(2))
+            else -> TGVoice(2,listOf(TGNote(9,3)))
+        }).toPersistentList()) }
+        val page=layout(song(source.copy(beats=beats.toPersistentList())))
+        assertEquals(1,page.rings().size)
+        assertEquals(3840L,page.rings().single().endTick)
+        assertClear(page)
+    }
+    @Test fun gapsSplitRunsAndInactiveVoicePlaceholdersDoNotCancelAHeldNote() {
+        val marked=TGNote(5,1,effects=TGNoteEffects(letRing=true))
+        val held=TGMeasure(1,TGMeasureHeader(),listOf(
+            TGBeat(960,TGDuration(2),listOf(TGVoice(notes=listOf(marked)))),
+            TGBeat(1440,TGDuration(8),listOf(TGVoice(empty=true)))
+        ),960)
+        assertEquals(listOf(960L to 2880L),letRingRuns(TGTrack(1,"Held",tuning,listOf(held))).map { it.start to it.end })
+        val gap=held.copy(beats=listOf(960L,1920L).map { TGBeat(it,TGDuration(8),listOf(TGVoice(notes=listOf(marked)))) }.toPersistentList())
+        assertEquals(2,letRingRuns(TGTrack(1,"Gap",tuning,listOf(gap))).size)
     }
     @Test fun separateTracksNeverAcquireEachOthersLetRingSpans() {
         val data=TGSong(tracks=listOf(TGTrack(1,"Ring",tuning,listOf(bar())),TGTrack(2,"Dry",tuning,listOf(bar(flags=emptySet())))))
@@ -112,7 +134,9 @@ class AnnotationTest {
         val after=planned.staves.flatMap { it.measures }.flatMap { it.beats }
         assertEquals(before.map { it.x },after.map { it.x })
         before.zip(after).forEach { (a,b) ->
-            assertEquals(a.voices[0].notes[0].tabBounds!!.size,b.voices[0].notes[0].tabBounds!!.size)
+            val beforeBounds=a.voices[0].notes[0].tabBounds!!; val afterBounds=b.voices[0].notes[0].tabBounds!!
+            assertEquals(beforeBounds.width,afterBounds.width,.001f)
+            assertEquals(beforeBounds.height,afterBounds.height,.001f)
         }
         assertClear(planned)
     }

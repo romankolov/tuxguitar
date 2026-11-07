@@ -25,12 +25,8 @@ android {
     sourceSets["main"].assets.srcDir("build/generated/demo-assets")
 }
 val demoAssets by tasks.registering(Sync::class) {
-    from("../../android/TuxGuitar-android-gervill-soundbank/share/soundbank-lightweight") {
-        include("*.sf2")
-        into("soundbank")
-    }
     from("../../docs/LICENSE") { into("licenses"); rename { "TuxGuitar-LGPL.txt" } }
-    from("../../desktop/gervill/LICENSE") { into("licenses"); rename { "Gervill.txt" } }
+    from("../NOTICE.md") { into("licenses"); rename { "Tux-Compose-NOTICE.md" } }
     into(layout.buildDirectory.dir("generated/demo-assets"))
 }
 tasks.named("preBuild").configure { dependsOn(demoAssets) }

@@ -65,7 +65,11 @@ fun TuxComposeDemo() {
     var justifyRows by remember { mutableStateOf(true) }
     var showSettings by remember { mutableStateOf(false) }
     var midiMenu by remember { mutableStateOf(false) }
-    var midiStatus by remember { mutableStateOf("Internal synth") }
+    var midiStatus by remember { mutableStateOf("FluidSynth 2.6.2") }
+    var reverb by remember { mutableStateOf(true) }
+    var chorus by remember { mutableStateOf(true) }
+    var soundFont by remember { mutableStateOf("GeneralUser GS 2.0.3") }
+    LaunchedEffect(reverb,chorus) { withContext(Dispatchers.IO) { player.audio.setEffects(reverb,chorus) } }
     var spacing by remember { mutableFloatStateOf(10f) }
     val colors = when (palette) { 1 -> TGColorPalette.Dark; 2 -> TGColorPalette.HighContrast; else -> TGColorPalette.Paper }
     val layout = remember(mode,orientation,colors,multiTrack,spacing,showChords,showChordNames,compact,justifyRows) {
@@ -105,6 +109,16 @@ fun TuxComposeDemo() {
                 }
                 install(score)
             } catch (e: Exception) { error=e.message ?: "Unable to decode the selected file" }
+            finally { busy=false }
+        }
+    }
+    val openSoundFont = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri!=null) scope.launch {
+            busy=true; player.pause()
+            try {
+                withContext(Dispatchers.IO) { requireNotNull(context.contentResolver.openInputStream(uri)).use(player.audio::loadSoundFont) }
+                soundFont="Custom SoundFont"; error=null
+            } catch (e: Exception) { error=e.message ?: "Unable to load SoundFont" }
             finally { busy=false }
         }
     }
@@ -156,6 +170,17 @@ fun TuxComposeDemo() {
                     }
                     val compactAvailable = !multiTrack || (state.song?.tracks?.size ?: 0) <= 1
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                        FilterChip(selected=reverb,onClick={reverb=!reverb},label={Text("Reverb")},modifier=Modifier.testTag("reverb"))
+                        FilterChip(selected=chorus,onClick={chorus=!chorus},label={Text("Chorus")},modifier=Modifier.testTag("chorus"))
+                        TextButton(onClick={openSoundFont.launch(arrayOf("*/*"))},enabled=!busy,modifier=Modifier.testTag("soundfont")) { Text("SoundFont: $soundFont") }
+                        if (soundFont!="GeneralUser GS 2.0.3") TextButton(onClick={
+                            scope.launch {
+                                busy=true; player.pause()
+                                try { withContext(Dispatchers.IO) { player.audio.resetSoundFont() }; soundFont="GeneralUser GS 2.0.3"; error=null }
+                                catch (e: Exception) { error=e.message }
+                                finally { busy=false }
+                            }
+                        },enabled=!busy) { Text("Reset bank") }
                         FilterChip(selected=compact&&compactAvailable,onClick={compact=!compact},enabled=compactAvailable,label={Text("Compact")},modifier=Modifier.testTag("compact-spacing"))
                         FilterChip(selected=justifyRows,onClick={justifyRows=!justifyRows},label={Text("Fill rows")},modifier=Modifier.testTag("justify-rows"))
                         FilterChip(selected=showChords,onClick={showChords=!showChords},label={Text("Chord diagrams")},modifier=Modifier.testTag("show-chords"))
@@ -184,7 +209,7 @@ fun TuxComposeDemo() {
                 Box {
                     TextButton(onClick={midiMenu=true},modifier=Modifier.padding(horizontal=12.dp)) { Text("MIDI · $midiStatus",fontSize=10.sp) }
                     DropdownMenu(expanded=midiMenu,onDismissRequest={midiMenu=false}) {
-                        DropdownMenuItem(text={Text("Internal Gervill synthesizer")},onClick={midi.close();midiStatus="Internal synth";midiMenu=false})
+                        DropdownMenuItem(text={Text("FluidSynth 2.6.2 · $soundFont")},onClick={midi.close();midiStatus="FluidSynth 2.6.2";midiMenu=false})
                         val devices=midi.devices()
                         if (devices.isEmpty()) DropdownMenuItem(text={Text("No MIDI devices connected")},onClick={},enabled=false)
                         devices.forEach { device ->
