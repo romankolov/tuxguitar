@@ -10,7 +10,7 @@ import kotlin.test.*
 class AnnotationTest {
     private val tuning=listOf(64,59,55,50,45,40)
     private val base=TGLayoutConfig(justifySystems=false)
-    private fun bar(index: Int=0, count: Int=8, flags: Set<Int>=(0 until count).toSet(), other: Boolean=false): TGMeasure {
+    private fun bar(index: Int=0, count: Int=8, flags: Set<Int> =(0 until count).toSet(), other: Boolean=false): TGMeasure {
         val d=TGDuration(if (count==64) 64 else 8)
         val start=960+index*3840L
         return TGMeasure(index+1,TGMeasureHeader(),List(count) { i ->

@@ -54,9 +54,11 @@ object DemoSongFactory {
                             // A real GP let-ring phrase, including intervening effects.
                             if (ti == 0 && mi == 2) {
                                 effect.isLetRing = true
-                                effect.isPalmMute = bi == 3
                                 effect.isTapping = bi == 5
                             }
+                            // Palm mute and let ring are mutually exclusive upstream; show
+                            // palm mute AFTER the phrase, not by clearing an interior flag.
+                            if (ti == 0 && mi == 3 && bi == 0) effect.isPalmMute = true
                             if (ti == 0 && mi in 4..7) {
                                 effect.isHammer = bi == 0
                                 effect.isSlide = bi == 4
