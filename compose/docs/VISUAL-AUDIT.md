@@ -34,6 +34,36 @@ Manual-follow resumption tests the capsule body rather than mistaking visible me
 for a visible capsule. The stroke is hollow; no fill is introduced. Fret ornaments and score heads do not
 make it pulse wider. Density/zoom is applied once by the existing Canvas transform.
 
+## Vector raster-cache safety and committed-frame evidence
+
+The API-24 screenshot review exposed soft noteheads/clefs that layout bounds alone
+could not detect. Glyph paths are still the 32 unchanged upstream vector models;
+the renderer now caches **scaled vector geometry**, not a small bitmap. For normalized
+point `p`, glyph size `s`, physical render factor `f` and existing parent transform `M`:
+
+```
+old: M * Translate(x,y) * Scale(s) * p
+new: M * Translate(x,y) * Scale(1/f) * (Scale(s*f) * p)
+```
+
+The positions are identical. The outline stroke is correspondingly `.8*f` before the
+compensating scale, preserving its old `.8` logical width. Baking vertices at the
+physical glyph size avoids upscaling tiny cached path masks on older HWUI; each
+renderer/font/zoom profile owns its glyph/size cache. Normalized source paths are
+never mutated. A hardware-display pixel regression checks an opaque 3x3 notehead
+core at both 100% and 175% zoom, with staff lines transparent so they cannot fake
+coverage. The same test runs on both API 24 and 35.
+
+Release captures now wait for the requested checked state and modal dismissal, then
+require two identical actual display PNGs within a bounded deadline. This prevents
+an old Tab frame, still-visible score-details dialog or moving fling from being
+mislabelled as a Mixed/section screenshot. An unstable frame **fails** its smoke case;
+it is not retried as a test or accepted as visual approval. `scene-captures.json`
+records original PNG hashes and capture counts. The final failure-evidence frame is
+explicitly labelled unsettled and excluded from the ten settled scenes. Seven
+host-side harness regressions cover state predicates, overlay dismissal, transient
+XML, frame identity, invalid/unstable captures and failure-evidence labelling.
+
 ## Measured caption bands, even without let-ring
 
 `avoidAnnotationCollisions=true` is the default. Markers, prose, effect captions and

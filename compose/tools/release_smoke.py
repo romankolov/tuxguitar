@@ -20,6 +20,7 @@ out.mkdir(parents=True, exist_ok=True)
 report = root / 'sample-android/build/release-smoke'
 report.mkdir(parents=True, exist_ok=True)
 suite = ET.Element('testsuite', name='ReleaseApkSmoke')
+captures = {}
 
 
 def adb(*args, check=True):
@@ -47,13 +48,13 @@ def find(doc, tag=None, text=None, description=None):
     return None
 
 
-def wait_node(**kwargs):
+def wait_node(predicate=None, **kwargs):
     deadline = time.monotonic()+65
     last = None
     while time.monotonic() < deadline:
         try:
             node = find(tree(), **kwargs)
-            if node is not None:
+            if node is not None and (predicate is None or predicate(node)):
                 return node
         except (ET.ParseError, subprocess.CalledProcessError) as error:
             last = error
@@ -75,8 +76,55 @@ def click(**kwargs):
     tap(node)
 
 
-def screenshot(name):
-    (out / (name+'.png')).write_bytes(adb('exec-out', 'screencap', '-p'))
+def wait_gone(**kwargs):
+    deadline = time.monotonic()+65
+    while time.monotonic() < deadline:
+        try:
+            if find(tree(), **kwargs) is None:
+                return
+        except (ET.ParseError, subprocess.CalledProcessError):
+            pass
+        time.sleep(.15)
+    raise AssertionError(f'Release overlay did not close: {kwargs}')
+
+
+def wait_workspace():
+    deadline = time.monotonic()+65
+    while time.monotonic() < deadline:
+        try:
+            doc = tree()
+            if find(doc, tag='score-canvas') is not None and all(find(doc, tag=tag) is None
+                    for tag in ('cursor-tick', 'settings-close', 'sections-close')):
+                return
+        except (ET.ParseError, subprocess.CalledProcessError):
+            pass
+        time.sleep(.15)
+    raise AssertionError('Workspace is still covered by an overlay')
+
+
+def screenshot(name, settled=True):
+    if settled and name != 'studio-release-settings':
+        wait_workspace()
+    # A successful adb tap is not proof that Compose has committed the new frame.
+    # Require two identical ACTUAL display PNGs, also waiting out scroll flings and
+    # shape/theme transitions. There is no synthetic redraw or skipped visual case.
+    deadline = time.monotonic()+20
+    previous = None
+    attempts = 0
+    while True:
+        data = adb('exec-out', 'screencap', '-p')
+        assert data.startswith(b'\x89PNG\r\n\x1a\n'), 'Invalid display screenshot'
+        digest = hashlib.sha256(data).hexdigest()
+        attempts += 1
+        if not settled or digest == previous:
+            (out / (name+'.png')).write_bytes(data)
+            captures[name] = dict(sha256=digest, captures=attempts, settled=settled)
+            return
+        if time.monotonic() >= deadline:
+            (out / (name+'-unstable.png')).write_bytes(data)
+            raise AssertionError('Display did not settle for screenshot: '+name)
+        previous = digest
+        time.sleep(.15)
 
 
 def tick():
@@ -85,6 +133,7 @@ def tick():
     values = [int(n.get('text', '')[5:]) for n in doc.iter('node') if re.fullmatch(r'Tick \d+', n.get('text', ''))]
     assert len(values) == 1, ET.tostring(doc).decode()[:500]
     click(text='Done')
+    wait_gone(tag='cursor-tick')
     return values[0]
 
 
@@ -103,6 +152,7 @@ def launch_and_controls():
     click(tag='mode-Tablature')
     assert wait_node(tag='mode-Tablature').get('checked') == 'true'
     click(tag='mode-Mixed')
+    wait_node(tag='mode-Mixed', predicate=lambda node: node.get('checked') == 'true')
     screenshot('studio-release')
 
 
@@ -125,6 +175,7 @@ def section(tag):
         node=find(doc,tag=tag)
         if node is not None:
             tap(node)
+            wait_gone(tag='sections-close')
             return
         listing=find(doc,tag='sections-list')
         assert listing is not None, 'Missing section list'
@@ -155,6 +206,7 @@ def theme_and_cursor():
     assert wait_node(tag='cursor-Capsule').get('checked') == 'true'
     assert any('Inner margin' in n.get('text', '') for n in tree().iter('node'))
     click(tag='settings-Appearance'); click(tag='theme-Dark')
+    wait_node(tag='theme-Dark', predicate=lambda node: node.get('checked') == 'true')
     screenshot('studio-release-settings')
     click(tag='settings-close')
     screenshot('studio-release-dark')
@@ -167,6 +219,7 @@ def adaptive_windows():
     click(tag='settings'); wait_node(tag='settings-close'); click(tag='settings-close')
     adb('shell','wm','size','960x1920')
     adb('shell','wm','density','480')  # genuine 320dp-wide / 200% text window
+    wait_node(tag='studio-root', predicate=lambda node: list(map(int,re.findall(r'\d+',node.get('bounds',''))))[2] == 960)
     canvas=wait_node(tag='score-canvas')
     x1,y1,x2,y2=map(int,re.findall(r'\d+',canvas.get('bounds','')))
     assert x2-x1>=250*3 and y2-y1>=96*3, 'Narrow large-text controls crowded out the music'
@@ -183,49 +236,56 @@ def adaptive_windows():
     screenshot('studio-release-wide')
 
 
-failed = False
-try:
-    apks = list((root / 'verified-artifacts').rglob('sample-android-release.apk'))
-    assert len(apks) == 1, f'Expected the one build-job release artifact, found {apks}'
-    proofs=list((root / 'verified-artifacts').rglob('release-verification.json'))
-    assert len(proofs)==1, 'Missing build-job release verification'
-    proof=json.loads(proofs[0].read_text())
-    assert hashlib.sha256(apks[0].read_bytes()).hexdigest()==proof['apk_sha256'], 'Release artifact changed after verification'
-    print('::notice title=Exact release APK installed::'+proof['apk_sha256'])
-    adb('uninstall', 'com.tuxcompose.sample.test', check=False)
-    adb('uninstall', 'com.tuxcompose.sample', check=False)
-    adb('install', str(apks[0]))
-    for name, action in [('release_launch_import_navigation', launch_and_controls),
-                         ('release_fluidsynth_playback', playback),
-                         ('release_lossless_showcase_and_sections', showcase_sections),
-                         ('release_expressive_theme_and_padded_capsule', theme_and_cursor),
-                         ('release_large_text_and_expanded_window', adaptive_windows)]:
-        case = ET.SubElement(suite, 'testcase', classname='ReleaseApkSmoke', name=name)
-        started = time.monotonic()
-        try:
-            action()
-        except Exception as error:
-            ET.SubElement(case, 'failure', message=str(error)).text = repr(error)
-            print(f'::error title=Release APK smoke test::{name}: {str(error)[:2500]}')
-            failed = True
-            break
-        finally:
-            case.set('time', str(round(time.monotonic()-started, 3)))
-except Exception as error:
-    case = ET.SubElement(suite, 'testcase', classname='ReleaseApkSmoke', name='release_install')
-    ET.SubElement(case, 'failure', message=str(error)).text = repr(error)
-    print(f'::error title=Release APK smoke test::{error}')
-    failed = True
-finally:
-    with contextlib.suppress(Exception):
-        screenshot('release-final-state')
-    for command in [('shell','wm','size','reset'), ('shell','wm','density','reset'),
-                    ('shell','settings','put','system','font_scale','1.0')]:
+
+def main():
+    failed = False
+    try:
+        apks = list((root / 'verified-artifacts').rglob('sample-android-release.apk'))
+        assert len(apks) == 1, f'Expected the one build-job release artifact, found {apks}'
+        proofs=list((root / 'verified-artifacts').rglob('release-verification.json'))
+        assert len(proofs)==1, 'Missing build-job release verification'
+        proof=json.loads(proofs[0].read_text())
+        assert hashlib.sha256(apks[0].read_bytes()).hexdigest()==proof['apk_sha256'], 'Release artifact changed after verification'
+        print('::notice title=Exact release APK installed::'+proof['apk_sha256'])
+        adb('uninstall', 'com.tuxcompose.sample.test', check=False)
+        adb('uninstall', 'com.tuxcompose.sample', check=False)
+        adb('install', str(apks[0]))
+        for name, action in [('release_launch_import_navigation', launch_and_controls),
+                             ('release_fluidsynth_playback', playback),
+                             ('release_lossless_showcase_and_sections', showcase_sections),
+                             ('release_expressive_theme_and_padded_capsule', theme_and_cursor),
+                             ('release_large_text_and_expanded_window', adaptive_windows)]:
+            case = ET.SubElement(suite, 'testcase', classname='ReleaseApkSmoke', name=name)
+            started = time.monotonic()
+            try:
+                action()
+            except Exception as error:
+                ET.SubElement(case, 'failure', message=str(error)).text = repr(error)
+                print(f'::error title=Release APK smoke test::{name}: {str(error)[:2500]}')
+                failed = True
+                break
+            finally:
+                case.set('time', str(round(time.monotonic()-started, 3)))
+    except Exception as error:
+        case = ET.SubElement(suite, 'testcase', classname='ReleaseApkSmoke', name='release_install')
+        ET.SubElement(case, 'failure', message=str(error)).text = repr(error)
+        print(f'::error title=Release APK smoke test::{error}')
+        failed = True
+    finally:
         with contextlib.suppress(Exception):
-            adb(*command, check=False)
-    tests = len(suite.findall('testcase'))
-    failures = len(suite.findall('./testcase/failure'))
-    suite.set('tests', str(tests)); suite.set('failures', str(failures)); suite.set('errors','0'); suite.set('skipped','0')
-    ET.ElementTree(suite).write(report / 'TEST-ReleaseApkSmoke.xml', encoding='utf-8', xml_declaration=True)
-    print('::notice title=Release smoke summary::'+json.dumps(dict(tests=tests, failures=failures, errors=0, skipped=0)))
-sys.exit(1 if failed else 0)
+            screenshot('release-final-state', settled=False)
+        for command in [('shell','wm','size','reset'), ('shell','wm','density','reset'),
+                        ('shell','settings','put','system','font_scale','1.0')]:
+            with contextlib.suppress(Exception):
+                adb(*command, check=False)
+        tests = len(suite.findall('testcase'))
+        failures = len(suite.findall('./testcase/failure'))
+        suite.set('tests', str(tests)); suite.set('failures', str(failures)); suite.set('errors','0'); suite.set('skipped','0')
+        ET.ElementTree(suite).write(report / 'TEST-ReleaseApkSmoke.xml', encoding='utf-8', xml_declaration=True)
+        (report / 'scene-captures.json').write_text(json.dumps(captures, indent=2)+'\n')
+        print('::notice title=Release smoke summary::'+json.dumps(dict(tests=tests, failures=failures, errors=0, skipped=0, settled_scenes=sum(c['settled'] for c in captures.values()))))
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == '__main__':
+    main()

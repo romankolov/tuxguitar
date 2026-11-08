@@ -7,6 +7,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -29,6 +30,11 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     // Font-relative but beat-independent: voices, chords, slides, accidentals and
     // ornaments must not make the capsule "breathe" while the cursor moves.
     private val capsuleFretSlot by lazy { (0..99).maxOf { text.measure(it.toString().padStart(2,'0'),TGTextRole.Note).width } }
+    // Cache vector GEOMETRY, never a low-resolution bitmap. Android 7 HWUI can
+    // raster-cache a normalized 1x1 path before its Canvas scale, blurring heads
+    // and clefs. Bake physical-size vertices first and cancel the same scale on
+    // the Canvas: final geometry/stroke and layout coordinates remain identical.
+    private val glyphPaths = mutableMapOf<TGVectorGlyph,MutableMap<Float,Path>>()
 
     fun DrawScope.render(layout: TGSongLayout, viewport: Rect) {
         layout.visible(viewport).forEach { staff ->
@@ -492,8 +498,15 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     }
 
     private fun DrawScope.glyph(g: TGVectorGlyph, x: Float, y: Float, size: Float, filled: Boolean = true) {
-        withTransform({ translate(x,y); scale(size,size,Offset.Zero) }) {
-            drawPath(g.path,colors.noteHead,style=if (filled) Fill else Stroke(.8f / size))
+        val factor=config.renderScale
+        val path=glyphPaths.getOrPut(g) { mutableMapOf() }.getOrPut(size) {
+            Path().apply {
+                addPath(g.path)
+                transform(Matrix().apply { scale(size*factor,size*factor) })
+            }
+        }
+        withTransform({ translate(x,y); scale(1f/factor,1f/factor,Offset.Zero) }) {
+            drawPath(path,colors.noteHead,style=if (filled) Fill else Stroke(.8f*factor))
         }
     }
     private fun digitsWidth(value: Int, size: Float): Float = value.toString().sumOf { TGNumberPainter.digit(it.digitToInt()).width.toDouble() }.toFloat() * size + (value.toString().length-1) * .1f*size
