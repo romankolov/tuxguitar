@@ -71,9 +71,15 @@ class ShowcaseAuditTest {
         assertTrue(score.tracks.map {it.measures.map {m->m.start}}.distinct().size==1)
     }
     @Test fun nativePlaybackContainsTheFullArrangementPercussionAndPitchEffects() {
-        val sequence=DemoSequence(read().native)
+        val decoded=read()
+        val sequence=DemoSequence(decoded.native)
+        // The original parser emits LOGICAL TuxGuitar channel IDs. The separate
+        // GM router maps bank-128 events to physical MIDI channel 10 (index 9).
+        val drumId=decoded.native.getTrack(2).channelId
         assertTrue(sequence.events.count {it.kind==DemoMidiEvent.Kind.NoteOn}>200)
-        assertTrue(sequence.events.any {it.kind==DemoMidiEvent.Kind.NoteOn && it.channel==9 && it.a==36})
+        assertTrue(sequence.events.any {it.kind==DemoMidiEvent.Kind.NoteOn && it.channel==drumId && it.a==36})
+        assertTrue(sequence.events.any {it.kind==DemoMidiEvent.Kind.Control && it.channel==drumId && it.a==0 && it.b==128})
+        (0..2).forEach {ti->assertTrue(sequence.events.any {it.kind==DemoMidiEvent.Kind.NoteOn && it.channel==decoded.native.getTrack(ti).channelId})}
         assertTrue(sequence.events.any {it.kind==DemoMidiEvent.Kind.Pitch})
         assertTrue(sequence.spans.size>32,"Native repeat expansion must still run")
         assertTrue(sequence.endMicros>30_000_000)

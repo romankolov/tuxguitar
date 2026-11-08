@@ -129,7 +129,9 @@ The workflow runs these on the same source before publication:
   modes × 2 compact choices × 2 justification choices × 4 track-focus choices × 3
   render scales. Checks parent width, finite geometry, unscaled glyphs, source identity,
   cursor lookup, vertical note bounds, caption bands and pairwise caption collisions.
-  Machine-readable reports: `demo-tuxguitar/build/reports/showcase-*-*.json`.
+  Geometry comparisons allow 0.01 logical units for Float accumulation at adjacent
+  padded band boundaries; the independent raw-Java differential tolerance stays 0.025
+  physical pixels. Machine-readable reports: `demo-tuxguitar/build/reports/showcase-*-*.json`.
 - Android API **24 and 35**: actual-font/pixel tests, fixed capsule width across fret/chord/
   rest/style/zoom/padding changes, let-ring continuations, native spacing, strums, taps,
   smooth motion, manual-scroll priority, responsive labels/48dp targets, 200% text,
