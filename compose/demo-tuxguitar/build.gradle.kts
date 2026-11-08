@@ -24,3 +24,12 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 tasks.withType<JavaCompile>().configureEach { options.release.set(17) }
+
+// These are real test outputs: cache hits must restore the audit payloads as well
+// as JUnit XML, rather than silently dropping the 1,152-layout/feature reports.
+tasks.withType<Test>().configureEach {
+    outputs.files(
+        layout.buildDirectory.file("reports/showcase-feature-coverage.json"),
+        layout.buildDirectory.file("reports/showcase-layout-audit.json")
+    ).withPropertyName("showcaseAudits")
+}

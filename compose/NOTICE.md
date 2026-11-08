@@ -23,7 +23,11 @@ Its default lossless TG decoding and GP5 companion export remain demo-only integ
 no parser, Material UI, native audio or music asset is added to the core library.
 
 The **Android sample only** enables `com.android.tools:desugar_jdk_libs_nio:2.1.5`
-so the actual TG ZIP/XML path's Java time/NIO APIs work on Android 7 (API 24).
+for optional demo Java time/NIO APIs on Android 7 (API 24). The TG adapter uses
+ordinary Java ZIP streams for its archive envelope to avoid a Commons Compress
+`ZipEntry`/`FileTime` API-conversion incompatibility on API 24. Upstream TG XML
+serialization/parsing and its version checks remain unchanged; the file format is
+interoperability-tested in both directions against the unmodified upstream streams.
 Corresponding source: [google/desugar_jdk_libs, 2.1.5 preparation commit
 73170c345e6a762fc6a1f0301bb15218850023ef](https://github.com/google/desugar_jdk_libs/tree/73170c345e6a762fc6a1f0301bb15218850023ef).
 OpenJDK GPLv2 text, Classpath-exception licensing information and assembly exception

@@ -6,7 +6,6 @@ import app.tuxguitar.io.base.TGSongReaderHandle
 import app.tuxguitar.io.base.TGSongStreamContext
 import app.tuxguitar.io.gtp.*
 import app.tuxguitar.io.midi.MidiSongReader
-import app.tuxguitar.io.tg.TGSongReaderImpl
 import app.tuxguitar.song.factory.TGFactory
 import app.tuxguitar.song.managers.TGSongManager
 import app.tuxguitar.util.TGContext
@@ -44,10 +43,10 @@ object TuxGuitarImporter {
             }
             bytes[0] == 0x50.toByte() && bytes[1] == 0x4b.toByte() -> {
                 preflightZip(bytes)
-                if (extension == "tg") TGSongReaderImpl() else app.tuxguitar.io.gpx.v7.GPXInputStream()
+                if (extension == "tg") PortableTgReader() else app.tuxguitar.io.gpx.v7.GPXInputStream()
             }
             prefix.startsWith("MThd") -> MidiSongReader(TGContext())
-            extension == "tg" -> TGSongReaderImpl()
+            extension == "tg" -> PortableTgReader()
             else -> throw IllegalArgumentException("Supported formats: GP3, GP4, GP5, GPX, GP7/GP and TG, MIDI")
         }
         val handle = TGSongReaderHandle().apply {

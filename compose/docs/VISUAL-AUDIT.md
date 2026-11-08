@@ -74,6 +74,11 @@ Java-oracle tests deliberately disable these documented Compose enhancements, re
 the original 0.025-physical-pixel tolerance and run the actual upstream Java layout.
 This is not a claim that the safety-enhanced layout is pixel-identical to upstream.
 
+Let-ring dashes are explicit 3-on/2-off Canvas segments, not a hardware
+`drawLine` dash `PathEffect` (ignored by Android 7). The visible-period calculation
+preserves the original phase while visiting only on-screen dashes. Terminal caps
+remain independent 6-unit strokes.
+
 Visible caption runs use a cached interval index. A very long wrapped caption computes
 its first/last visible line indices directly, rather than scanning thousands of hidden
 lines on each cursor frame.
@@ -86,6 +91,13 @@ The default uses lossless `.tg` because the existing GP5 writer cannot preserve 
 dots or per-measure clef changes. Genuine GP3/4/5/GPX/GP7 import remains in the separate
 demo module, and the overflow action exports an actual GP5 companion. The older compact
 `DemoSongFactory` remains a stable GP3/4/5 differential/decoder fixture.
+
+`PortableTgArchive` changes only the ZIP envelope to standard Java ZIP streams: the
+Commons Compress `ZipEntry`/`FileTime` override bridge is not available on Android 7,
+even with NIO desugaring. The upstream XML writer/parser and native major/minor version
+checks are still used. Exact archive membership, duplicate rejection and a cumulative
+32-MiB expansion bound are preserved. Two-way interoperability tests use the unmodified
+upstream TG writer and reader; this is not a new score format or a replacement parser.
 
 32 bars, three audible parts (acoustic guitar, fingered bass, percussion), eight sections:
 
@@ -113,7 +125,9 @@ a constant-tempo navigation clock.
 Connected choice cells measure their labels at the current system font scale, compute
 how many complete cells fit, then wrap into connected rows. There is no ellipsis or
 font shrinking in these choices. Single-cell rows have complete rounded shapes; target
-height remains at least 48dp. Settings headings expose heading semantics. The transport
+height remains at least 48dp. Labels use their full padded content width, centered,
+and natural height rather than a rounded-down intrinsic glyph width or a forced
+row height. Settings headings expose heading semantics. The transport
 combines section/count, scrubber and sound in one row, retaining a separate dominant
 play action and a stacked fallback on narrow windows.
 
@@ -131,15 +145,19 @@ The workflow runs these on the same source before publication:
   cursor lookup, vertical note bounds, caption bands and pairwise caption collisions.
   Geometry comparisons allow 0.01 logical units for Float accumulation at adjacent
   padded band boundaries; the independent raw-Java differential tolerance stays 0.025
-  physical pixels. Machine-readable reports: `demo-tuxguitar/build/reports/showcase-*-*.json`.
+  physical pixels. Machine-readable reports: `demo-tuxguitar/build/reports/showcase-*.json`. These files are declared Gradle
+  test outputs, so cache hits restore the machine-readable audits along with JUnit XML.
 - Android API **24 and 35**: actual-font/pixel tests, fixed capsule width across fret/chord/
   rest/style/zoom/padding changes, let-ring continuations, native spacing, strums, taps,
   smooth motion, manual-scroll priority, responsive labels/48dp targets, 200% text,
   section navigation, saved preferences, genuine GP decoding and FluidSynth PCM/AudioTrack.
-- The sample enables pinned JDK time/NIO desugaring for the actual ZIP/XML decoder on
-  API 24 (no JDK/runtime dependency added to core). API-24 pixel tests crop a real
-  UiAutomation display screenshot because Compose's Window PixelCopy helper requires
-  API 26; they are not skipped or replaced with a synthetic rendering.
+- The sample enables pinned JDK time/NIO desugaring for optional demo APIs on API 24
+  (no JDK/runtime dependency added to core); TG ZIP envelope portability is handled
+  separately as described above. API-24 pixel tests fence a real hardware draw and
+  two display vsyncs, then crop an actual UiAutomation screenshot using screen/window
+  translation. This prevents stale intermediate-animation frames. Compose's Window
+  PixelCopy helper requires API 26; no pixel test is skipped or replaced by a software
+  rendering.
 - Both emulators then uninstall debug, verify the build-job APK digest and install that
   **exact R8/non-debuggable release**. Black-box tests cover startup, transport/audio,
   section navigation, settings, dark theme, 200% text and expanded windows. Screenshots

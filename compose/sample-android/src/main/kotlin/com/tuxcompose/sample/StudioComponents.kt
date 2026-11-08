@@ -18,7 +18,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -59,7 +59,10 @@ fun <T> StudioChoices(options: List<T>, selected: T, label: (T) -> String,
                                 index==row.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                             },contentPadding=PaddingValues(horizontal=8.dp,vertical=10.dp)) {
-                            Text(label(item),style=style,maxLines=2,modifier=Modifier.testTag("choice-label-${tag(item)}"))
+                            // Use the entire padded content width, not a fractional intrinsic
+                            // glyph width rounded down to an Int by the Text layout.
+                            Text(label(item),style=style,maxLines=2,textAlign=TextAlign.Center,
+                                modifier=Modifier.fillMaxWidth().testTag("choice-label-${tag(item)}"))
                         }
                     }
                 }

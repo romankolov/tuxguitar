@@ -4,7 +4,6 @@ package com.tuxcompose.demo
 import app.tuxguitar.io.base.TGSongWriterHandle
 import app.tuxguitar.io.gtp.GP5OutputStream
 import app.tuxguitar.io.gtp.GTPSettings
-import app.tuxguitar.io.tg.TGSongWriterImpl
 import app.tuxguitar.song.factory.TGFactory
 import app.tuxguitar.song.models.*
 import java.io.ByteArrayOutputStream
@@ -167,7 +166,7 @@ object ShowcaseSongFactory {
     private fun write(gp: Boolean): ByteArray {
         val output=ByteArrayOutputStream()
         val handle=TGSongWriterHandle().apply {factory=TGFactory();song=create();outputStream=output}
-        if(gp) GP5OutputStream(GTPSettings()).write(handle) else TGSongWriterImpl().write(handle)
+        if(gp) GP5OutputStream(GTPSettings()).write(handle) else PortableTgWriter().write(handle)
         return output.toByteArray()
     }
 }

@@ -45,7 +45,7 @@ class ResponsiveChoicesDeviceTest {
             compose.onNodeWithTag("choice-label-audit-${style.name}",useUnmergedTree=true)
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
             assertEquals(1,layouts.size)
-            assertFalse("${style.name} must not be cropped: size=${layouts.single().size}, lines=${layouts.single().lineCount}, horizontal=${layouts.single().didOverflowWidth}, vertical=${layouts.single().didOverflowHeight}",layouts.single().hasVisualOverflow)
+            assertFalse("${style.name} must not be cropped: size=${layouts.single().size}, lines=${layouts.single().lineCount}, horizontal=${layouts.single().didOverflowWidth}, vertical=${layouts.single().didOverflowHeight}, paragraphWidth=${layouts.single().multiParagraph.width}, intrinsic=${layouts.single().multiParagraph.maxIntrinsicWidth}, constraints=${layouts.single().layoutInput.constraints}",layouts.single().hasVisualOverflow)
             repeat(layouts.single().lineCount) {assertFalse(layouts.single().isLineEllipsized(it))}
             node.performClick().assertIsOn()
             b

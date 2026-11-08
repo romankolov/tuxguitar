@@ -34,8 +34,8 @@ android {
     }
     buildFeatures { compose = true }
     compileOptions {
-        // TG ZIP/XML imports use java.time and java.nio through Commons Compress.
-        // Keep the promised API-24 floor, including that actual decoder path.
+        // Optional native/demo utilities use Java time/NIO. The TG envelope has a
+        // separate Java-ZIP adapter for API-24 ZipEntry/FileTime compatibility.
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

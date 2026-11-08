@@ -7,7 +7,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -481,10 +480,11 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             val from = a.lineFrom; val to = a.lineTo
             if (from != null && to != null) {
                 // Limit dash work to the visible interval, retaining the original dash phase.
-                val start = maxOf(from.x,viewport.left-1)
-                val end = minOf(to.x,viewport.right+1)
-                if (end > start) drawLine(colors.beatText,Offset(start,from.y),Offset(end,to.y),.8f,
-                    pathEffect=PathEffect.dashPathEffect(floatArrayOf(3f,2f),(start-from.x)%5f))
+                // Explicit segments also work on API-24 hardware Canvas, where
+                // drawLine's dash PathEffect is ignored. Never scan offscreen dashes.
+                forEachLetRingDash(from.x,to.x,viewport.left-1,viewport.right+1) { left,right ->
+                    line(left,from.y,right,to.y,colors.beatText,.8f)
+                }
                 if (a.endCap && to.x >= viewport.left-1 && to.x <= viewport.right+1)
                     line(to.x,to.y-3,to.x,to.y+3,colors.beatText,.8f)
             }
