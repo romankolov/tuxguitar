@@ -136,6 +136,10 @@ The workflow runs these on the same source before publication:
   rest/style/zoom/padding changes, let-ring continuations, native spacing, strums, taps,
   smooth motion, manual-scroll priority, responsive labels/48dp targets, 200% text,
   section navigation, saved preferences, genuine GP decoding and FluidSynth PCM/AudioTrack.
+- The sample enables pinned JDK time/NIO desugaring for the actual ZIP/XML decoder on
+  API 24 (no JDK/runtime dependency added to core). API-24 pixel tests crop a real
+  UiAutomation display screenshot because Compose's Window PixelCopy helper requires
+  API 26; they are not skipped or replaced with a synthetic rendering.
 - Both emulators then uninstall debug, verify the build-job APK digest and install that
   **exact R8/non-debuggable release**. Black-box tests cover startup, transport/audio,
   section navigation, settings, dark theme, 200% text and expanded windows. Screenshots

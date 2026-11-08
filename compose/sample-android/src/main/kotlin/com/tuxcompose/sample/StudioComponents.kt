@@ -49,10 +49,10 @@ fun <T> StudioChoices(options: List<T>, selected: T, label: (T) -> String,
         val columns=((maxWidth+gap)/(minimumCell+gap)).toInt().coerceIn(1,options.size)
         Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
             options.chunked(columns).forEach { row ->
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min),horizontalArrangement=Arrangement.spacedBy(gap)) {
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(gap),verticalAlignment=Alignment.CenterVertically) {
                     row.forEachIndexed { index,item ->
                         ToggleButton(checked=selected==item,onCheckedChange={ onSelect(item) },
-                            modifier=Modifier.weight(1f).fillMaxHeight().heightIn(min=48.dp).testTag(tag(item)).semantics { role=Role.RadioButton },
+                            modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag(tag(item)).semantics { role=Role.RadioButton },
                             shapes=when {
                                 row.size==1 -> ToggleButtonDefaults.shapesFor(48.dp)
                                 index==0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()

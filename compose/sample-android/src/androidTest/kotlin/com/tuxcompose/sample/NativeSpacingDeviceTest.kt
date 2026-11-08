@@ -78,7 +78,7 @@ class NativeSpacingDeviceTest {
         compose.waitUntil(5000) { clicked != null }
         assertEquals(current.beats[2].startTick,clicked)
         zoomed.staves.flatMap { it.measures }.forEach { assertTrue(it.bounds.right <= zoomed.width+.01f) }
-        assertNotNull(compose.onNodeWithTag("native-viewport").captureToImage())
+        assertNotNull(compose.onNodeWithTag("native-viewport").captureScoreImage())
     }
 
     @Test fun nativeFontsIgnoreSystemSpMultiplierUnlessExplicitlyEnabled() {

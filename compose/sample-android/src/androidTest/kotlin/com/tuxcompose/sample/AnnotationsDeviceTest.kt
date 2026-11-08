@@ -75,7 +75,7 @@ class AnnotationsDeviceTest {
             compose.waitForIdle()
             val anchor=page!!.cursorAt(0,960)!!
             val b=anchor.bounds
-            val pixels=compose.onNodeWithTag("capsule").captureToImage().also { save(it,"capsule-$zoom") }.toPixelMap()
+            val pixels=compose.onNodeWithTag("capsule").captureScoreImage().also { save(it,"capsule-$zoom") }.toPixelMap()
             fun at(x: Float,y: Float)=pixels[(x*factor).toInt().coerceIn(0,pixels.width-1),(y*factor).toInt().coerceIn(0,pixels.height-1)]
             val cy=b.center.y
             assertFalse("Capsule centre must stay transparent",magenta(at(anchor.x,cy)))
@@ -142,7 +142,7 @@ class AnnotationsDeviceTest {
             val last=rings.last { it.lineFrom!=null && it.lineTo!=null && it.endCap }
             compose.runOnIdle { state.scrollTo(y=(last.bounds.top-8f).coerceAtLeast(0f)) }
             compose.waitForIdle()
-            val pixels=compose.onNodeWithTag("annotations").captureToImage().also { save(it,"annotations-$mode-$zoom") }.toPixelMap()
+            val pixels=compose.onNodeWithTag("annotations").captureScoreImage().also { save(it,"annotations-$mode-$zoom") }.toPixelMap()
             val end=last.lineTo!!
             val px=((end.x-state.scrollX)*factor).toInt()
             fun painted(x: Int,y: Int)=(-1..1).any { dx -> (-1..1).any { dy ->
@@ -163,7 +163,7 @@ class AnnotationsDeviceTest {
             val textBounds=afterCaption?.labelBounds ?: Rect(afterBeat.x,afterMeasure.textTop,afterBeat.x+100f,afterMeasure.textTop+20f)
             compose.runOnIdle { state.scrollTo(y=(textBounds.top-8f).coerceAtLeast(0f)) }
             compose.waitForIdle()
-            val afterPixels=compose.onNodeWithTag("annotations").captureToImage().also { save(it,"after-$mode-$zoom") }.toPixelMap()
+            val afterPixels=compose.onNodeWithTag("annotations").captureScoreImage().also { save(it,"after-$mode-$zoom") }.toPixelMap()
             val lx=((textBounds.left-state.scrollX)*factor).toInt().coerceIn(0,afterPixels.width-1)
             val rx=((textBounds.right-state.scrollX)*factor).toInt().coerceIn(lx,afterPixels.width-1)
             val ty=((textBounds.top-state.scrollY)*factor).toInt().coerceIn(0,afterPixels.height-1)

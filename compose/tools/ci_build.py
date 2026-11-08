@@ -41,6 +41,11 @@ Path('build/ci-summary.json').write_text(json.dumps(summary, indent=2))
 if reports:
     totals = {key: sum(r[key] for r in reports) for key in ('tests', 'failures', 'errors', 'skipped')}
     print('::notice title=JUnit test summary::' + json.dumps(totals) + ' — ' + '; '.join(f"{r['name']}: {r['tests']} tests" for r in reports))
+if not result.returncode:
+    for audit in sorted(Path('demo-tuxguitar/build/reports').glob('showcase-*.json')):
+        payload=json.dumps(dict(report=audit.name,results=json.loads(audit.read_text())),separators=(',',':'))
+        assert len(payload)<3500, 'Showcase audit summary exceeds Checks budget'
+        print('::notice title=Showcase audit::'+payload)
 if result.returncode:
     # GitHub annotations truncate at 4096 characters. Keep early compiler errors AND
     # the final task failures; --continue lets independent modules report together.

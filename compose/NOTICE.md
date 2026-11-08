@@ -21,3 +21,12 @@ The bundled **Technique Atlas** is original programmatically authored demonstrat
 in `demo-tuxguitar/ShowcaseSongFactory.kt`, not a downloaded third-party transcription.
 Its default lossless TG decoding and GP5 companion export remain demo-only integrations;
 no parser, Material UI, native audio or music asset is added to the core library.
+
+The **Android sample only** enables `com.android.tools:desugar_jdk_libs_nio:2.1.5`
+so the actual TG ZIP/XML path's Java time/NIO APIs work on Android 7 (API 24).
+Corresponding source: [google/desugar_jdk_libs, 2.1.5 preparation commit
+73170c345e6a762fc6a1f0301bb15218850023ef](https://github.com/google/desugar_jdk_libs/tree/73170c345e6a762fc6a1f0301bb15218850023ef).
+OpenJDK GPLv2 text, Classpath-exception licensing information and assembly exception
+are retained as `Desugar-JDK-*.txt` under APK `assets/licenses/`. Applicable individual
+source files retain their original notices/exceptions. This does not change the core
+AAR's dependencies or licence. No JDK implementation source is copied into the core.

@@ -34,6 +34,9 @@ android {
     }
     buildFeatures { compose = true }
     compileOptions {
+        // TG ZIP/XML imports use java.time and java.nio through Commons Compress.
+        // Keep the promised API-24 floor, including that actual decoder path.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -51,6 +54,7 @@ androidComponents {
 }
 tasks.named("preBuild").configure { dependsOn(demoAssets) }
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
     implementation(project(":tux-compose-core"))
     implementation(project(":demo-tuxguitar"))
     implementation(project(":demo-synth"))

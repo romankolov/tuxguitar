@@ -52,7 +52,7 @@ class FixedCapsuleDeviceTest {
             for(tick in listOf(960L,1920L,2880L,3840L)) {
                 compose.runOnIdle {state.cursor.seek(tick)};compose.waitForIdle()
                 val anchor=page!!.cursorAt(0,tick)!!
-                val pixels=compose.onNodeWithTag("fixed-capsule").captureToImage().toPixelMap()
+                val pixels=compose.onNodeWithTag("fixed-capsule").captureScoreImage().toPixelMap()
                 var lo=pixels.width;var hi=-1
                 for(y in 0 until pixels.height) for(x in 0 until pixels.width) {
                     val c=pixels[x,y]
