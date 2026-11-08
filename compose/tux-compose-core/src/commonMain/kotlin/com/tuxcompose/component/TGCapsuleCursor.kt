@@ -7,15 +7,14 @@ import androidx.compose.ui.geometry.Rect
 internal data class TGCapsuleCursorGeometry(val pathBounds: Rect, val radius: Float, val strokeWidth: Float)
 
 /** Keep the complete stroke inset, and retain a transparent interior even on very short rows. */
-internal fun capsuleCursorGeometry(x: Float, bounds: Rect, config: TGCursorConfig, inkHalfWidth: Float = 4f): TGCapsuleCursorGeometry? {
+internal fun capsuleCursorGeometry(x: Float, bounds: Rect, config: TGCursorConfig, fretSlotWidth: Float = 12f): TGCapsuleCursorGeometry? {
     val height = bounds.height
     if (!x.isFinite() || !bounds.top.isFinite() || !height.isFinite() || height <= 0f) return null
-    if (!inkHalfWidth.isFinite() || inkHalfWidth < 0f) return null
-    // width is a minimum, not a tight six-unit outline through an eight-unit note.
-    // Inner half-width = outer half-width - the complete stroke, hence +width here.
-    val requested = maxOf(config.capsuleWidth,2f*(inkHalfWidth+config.capsuleInnerPadding+config.width))
-    val width = minOf(requested,height)
-    val inset = config.capsuleInset.coerceAtMost((height-width)/2f)
+    if (!fretSlotWidth.isFinite() || fretSlotWidth < 0f) return null
+    // One font-sized, TWO-DIGIT fret slot for the entire renderer. Never inspect
+    // the active chord, head, accidental, rest or beat bounds to choose this width.
+    val width = maxOf(config.capsuleWidth,fretSlotWidth+2f*(config.capsuleInnerPadding+config.width))
+    val inset = config.capsuleInset.coerceAtMost(((height-width)/2f).coerceAtLeast(0f))
     val outerHeight = height-2f*inset
     val stroke = minOf(config.width,width/3f,outerHeight/3f)
     if (stroke <= 0f) return null

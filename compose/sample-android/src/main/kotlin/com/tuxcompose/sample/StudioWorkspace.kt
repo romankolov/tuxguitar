@@ -43,7 +43,8 @@ fun StudioTopBar(title: String, subtitle: String, busy: Boolean, onOpen: () -> U
 @Composable
 fun StudioScore(state: TablatureState, preferences: StudioPreferences, layout: TGLayoutConfig,
     trackName: String, busy: Boolean, onTracks: () -> Unit, onSettings: () -> Unit,
-    onChange: (StudioPreferences) -> Unit, onSeek: (Long) -> Unit, modifier: Modifier = Modifier) {
+    onChange: (StudioPreferences) -> Unit, onSeek: (Long) -> Unit, modifier: Modifier = Modifier,
+    onLayout: (TGSongLayout) -> Unit = {}) {
     Column(modifier) {
         Row(Modifier.fillMaxWidth().padding(bottom=4.dp),verticalAlignment=Alignment.CenterVertically) {
             TextButton(onClick=onTracks,enabled=state.song!=null,modifier=Modifier.weight(1f).testTag("track-picker"),
@@ -71,14 +72,14 @@ fun StudioScore(state: TablatureState, preferences: StudioPreferences, layout: T
             border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)) {
             Column {
                 StudioChoices(listOf(TGLayoutStyles.Tablature,TGLayoutStyles.Score,TGLayoutStyles.Mixed),preferences.mode,
-                    {when(it) { TGLayoutStyles.Tablature -> "Tab"; TGLayoutStyles.Score -> "Score"; TGLayoutStyles.Mixed -> "Both" }},
+                    {when(it) { TGLayoutStyles.Tablature -> "Tab"; TGLayoutStyles.Score -> "Staff"; TGLayoutStyles.Mixed -> "Both" }},
                     {"mode-${it.name}"},Modifier.padding(horizontal=12.dp,vertical=8.dp)) { onChange(preferences.copy(mode=it)) }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     TablatureView(state,Modifier.fillMaxSize().testTag("score-canvas"),layout,
                         TGCursorConfig(style=preferences.cursorStyle,visible=preferences.cursorVisible,
                             follow=preferences.follow,smoothMovement=preferences.smoothCursor,
                             smoothScroll=preferences.smoothFollow,capsuleInnerPadding=preferences.cursorPadding),
-                        onBeatClicked={tick,_ -> onSeek(tick)})
+                        onBeatClicked={tick,_ -> onSeek(tick)},onLayout=onLayout)
                     if (busy) Surface(Modifier.align(Alignment.Center),shape=MaterialTheme.shapes.extraLarge,
                         color=MaterialTheme.colorScheme.surfaceContainerHigh) {
                         Column(Modifier.padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -94,7 +95,8 @@ fun StudioScore(state: TablatureState, preferences: StudioPreferences, layout: T
 
 @Composable
 fun StudioTransport(state: TablatureState, player: DemoPlayback, busy: Boolean,
-    onSound: () -> Unit, onSpeed: () -> Unit, modifier: Modifier = Modifier) {
+    onSound: () -> Unit, onSpeed: () -> Unit, modifier: Modifier = Modifier,
+    onSections: () -> Unit = {}) {
     // These derived values avoid making the whole workspace recompose at transport tick frequency.
     val measures=state.song?.tracks?.getOrNull(state.selectedTrackIndex)?.measures.orEmpty()
     val first=measures.firstOrNull()?.start ?: 0L
@@ -102,26 +104,32 @@ fun StudioTransport(state: TablatureState, player: DemoPlayback, busy: Boolean,
     val fraction by remember(state,first,end) { derivedStateOf { ((state.cursorTick-first).toDouble()/(end-first).coerceAtLeast(1)).toFloat().coerceIn(0f,1f) } }
     val measureLabel by remember(state,measures) { derivedStateOf {
         val index=measures.indexOfLast { it.start<=state.cursorTick }.coerceAtLeast(0)
-        if (measures.isEmpty()) "No score loaded" else "Measure ${index+1} / ${measures.size}"
+        if (measures.isEmpty()) "No score" else "${index+1}/${measures.size}"
     } }
     var scrub by remember(first,end) { mutableStateOf<Float?>(null) }
     Surface(modifier.testTag("transport"),shape=MaterialTheme.shapes.extraLarge,color=MaterialTheme.colorScheme.surfaceContainer) {
         BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp)) {
             val stacked=maxWidth<280.dp
             Column {
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-                    Text(measureLabel,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier=Modifier.weight(1f).testTag("playhead"))
+                // Context, scrubber and sound share one 48dp row. This leaves the
+                // music more height instead of reserving an entire row for two icons.
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick=onSections,enabled=measures.isNotEmpty(),contentPadding=PaddingValues(horizontal=4.dp),
+                        modifier=Modifier.widthIn(min=64.dp,max=112.dp).heightIn(min=48.dp).testTag("section-picker")
+                            .semantics { contentDescription="Measure $measureLabel. Jump to a score section" }) {
+                        Text(measureLabel,style=MaterialTheme.typography.labelLarge,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.testTag("playhead"))
+                        Spacer(Modifier.width(4.dp));StudioIcon(R.drawable.ic_expand_more,modifier=Modifier.size(16.dp))
+                    }
+                    Slider(value=scrub ?: fraction,onValueChange={scrub=it},
+                        onValueChangeFinished={
+                            scrub?.let { value ->
+                                val tick=(first+(end-first)*value.toDouble()).roundToLong().coerceIn(first,(end-1).coerceAtLeast(first))
+                                state.cursor.seek(tick); state.resumeAutoScroll(); player.seek(tick)
+                            }; scrub=null
+                        },enabled=!busy&&measures.isNotEmpty(),modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("timeline")
+                            .semantics { contentDescription="Score position" })
                     StudioIconButton(R.drawable.ic_headphones,"Sound and MIDI settings","sound-settings",onClick=onSound)
                 }
-                Slider(value=scrub ?: fraction,onValueChange={scrub=it},
-                    onValueChangeFinished={
-                        scrub?.let { value ->
-                            val tick=(first+(end-first)*value.toDouble()).roundToLong().coerceIn(first,(end-1).coerceAtLeast(first))
-                            state.cursor.seek(tick); state.resumeAutoScroll(); player.seek(tick)
-                        }; scrub=null
-                    },enabled=!busy&&measures.isNotEmpty(),modifier=Modifier.fillMaxWidth().heightIn(min=32.dp).testTag("timeline")
-                        .semantics { contentDescription="Score position" })
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,
                     horizontalArrangement=Arrangement.spacedBy(4.dp,Alignment.CenterHorizontally)) {
                     if (!stacked) StudioIconButton(R.drawable.ic_stop,"Stop and return to beginning","stop",!busy) { player.stop() }

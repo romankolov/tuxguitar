@@ -8,7 +8,7 @@ import com.tuxcompose.model.*
 
 /** Row-local annotation ink, cached with layout rather than rebuilt on cursor frames. */
 enum class TGAnnotationKind { Text, Accent, FadeIn, Vibrato, LetRing }
-enum class TGAnnotationBand { Text, Effects }
+enum class TGAnnotationBand { Text, Effects, Marker, ChordNames }
 @Immutable
 data class TGAnnotationLayout(
     val kind: TGAnnotationKind,
@@ -26,6 +26,14 @@ data class TGAnnotationLayout(
     val sourceTick: Long,
     val endTick: Long,
 )
+
+/** Only visit visible wrapped lines, even when one imported caption is thousands of lines. */
+internal fun TGAnnotationLayout.visibleLines(viewport: Rect): IntRange {
+    if (lines.isEmpty() || lineHeight<=0f || !labelBounds.overlaps(viewport)) return IntRange.EMPTY
+    val first=kotlin.math.floor((viewport.top-labelBounds.top)/lineHeight).toInt().coerceIn(0,lines.size)
+    val end=kotlin.math.ceil((viewport.bottom-labelBounds.top)/lineHeight).toInt().coerceIn(first,lines.size)
+    return first until end
+}
 
 internal data class TGLetRingRun(val start: Long, val end: Long, val section: Int = 0)
 
@@ -88,9 +96,9 @@ internal class TGLetRingIndex(private val runs: List<TGLetRingRun>) {
     }
 }
 
-internal data class TGAnnotationPlan(val annotations: List<TGAnnotationLayout>, val textHeight: Float, val effectHeight: Float) {
-    fun placed(textTop: Float, effectsTop: Float): List<TGAnnotationLayout> = annotations.map { a ->
-        val dy = if (a.band == TGAnnotationBand.Text) textTop else effectsTop
+internal data class TGAnnotationPlan(val annotations: List<TGAnnotationLayout>, val textHeight: Float, val effectHeight: Float, val markerHeight: Float = 0f, val chordHeight: Float = 0f) {
+    fun placed(textTop: Float, effectsTop: Float, markerTop: Float = 0f, chordTop: Float = 0f): List<TGAnnotationLayout> = annotations.map { a ->
+        val dy = when (a.band) { TGAnnotationBand.Text -> textTop; TGAnnotationBand.Effects -> effectsTop; TGAnnotationBand.Marker -> markerTop; TGAnnotationBand.ChordNames -> chordTop }
         val shift = Offset(0f,dy)
         a.copy(labelBounds=a.labelBounds.translate(shift),bounds=a.bounds.translate(shift),clipBounds=a.clipBounds.translate(shift),
             lineFrom=a.lineFrom?.plus(shift),lineTo=a.lineTo?.plus(shift))
@@ -98,13 +106,13 @@ internal data class TGAnnotationPlan(val annotations: List<TGAnnotationLayout>, 
 }
 
 /**
- * Native rhythmic X positions never move. On rows containing let-ring spans, measured captions
+ * Native rhythmic X positions never move. On every annotated row, measured captions
  * are interval-packed into separate vertical lanes. Long captions wrap instead of covering a
  * later effect; span dashes occupy their full interval, so text cannot land in the middle.
  */
 internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRingRun>,
     left: Float, right: Float, config: TGLayoutConfig, fonts: TGFontMetrics): TGAnnotationPlan? {
-    if (!config.mergeLetRing || runs.isEmpty() || measures.isEmpty()) return null
+    if (measures.isEmpty() || (!config.avoidAnnotationCollisions && (!config.mergeLetRing || runs.isEmpty()))) return null
     val clipLeft = left+1f
     val clipRight = maxOf(clipLeft+.01f,right-1f)
     val available = clipRight-clipLeft
@@ -130,7 +138,17 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
         items += Item(TGAnnotationKind.LetRing,TGAnnotationBand.Effects,if (incoming) "(let ring)" else "let ring",
             x-1f,r.start,r.end,minOf(clipRight-1f,lastX-2f),incoming,outgoing)
     }
+    if (config.avoidAnnotationCollisions) measures.filter { it.isFirstFragment }.forEach { m ->
+        m.measure.header.marker?.takeIf { it.isNotBlank() }?.let {
+            items += Item(TGAnnotationKind.Text,TGAnnotationBand.Marker,it,m.headerX,m.startTick,m.endTick)
+        }
+    }
     measures.forEach { m -> m.beats.filterNot { it.isContinuation }.forEach { b ->
+        if (config.avoidAnnotationCollisions && config.showChordNames) b.beat.chord?.let { chord ->
+            val width=fonts.measure(chord.name,TGTextRole.Chord).width
+            val x=if(config.nativeSpacing) b.x+kotlin.math.floor(4f*config.renderScale+.5f)/config.renderScale-width/2f else b.chordBounds?.left ?: b.x-4f
+            items += Item(TGAnnotationKind.Text,TGAnnotationBand.ChordNames,chord.name,x,b.startTick,b.endTick)
+        }
         b.beat.text?.takeIf { it.isNotBlank() }?.let {
             items += Item(TGAnnotationKind.Text,TGAnnotationBand.Text,it,b.x,b.startTick,b.endTick)
         }
@@ -139,17 +157,19 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             items += Item(kind,TGAnnotationBand.Effects,label,b.x-1f,b.startTick,b.endTick)
         }
     } }
+    if (items.isEmpty()) return null
     val result = mutableListOf<TGAnnotationLayout>()
     val heights = mutableMapOf<TGAnnotationBand,Float>()
     TGAnnotationBand.entries.forEach { band ->
         data class Pending(val item: Item, val lines: List<String>, val x: Float, val width: Float,
             val height: Float, val lineHeight: Float, val right: Float, val lane: Int, val below: Boolean)
+        val role=if(band==TGAnnotationBand.ChordNames) TGTextRole.Chord else TGTextRole.Text
         val prepared = items.filter { it.band == band }.map { item ->
             val vector = item.kind in listOf(TGAnnotationKind.Accent,TGAnnotationKind.FadeIn,TGAnnotationKind.Vibrato)
-            val lines = if (vector) emptyList() else wrapAnnotationText(item.text,available,fonts)
-            val lh = if (vector) 8f else lines.maxOfOrNull { fonts.measure(it,TGTextRole.Text).height }?.coerceAtLeast(1f) ?: 1f
+            val lines = if (vector) emptyList() else wrapAnnotationText(item.text,available,fonts,role)
+            val lh = if (vector) 8f else lines.maxOfOrNull { fonts.measure(it,role).height }?.coerceAtLeast(1f) ?: 1f
             val width = if (vector) (if (item.kind == TGAnnotationKind.Vibrato) 21f else 8f)
-                else lines.maxOfOrNull { fonts.measure(it,TGTextRole.Text).width } ?: 0f
+                else lines.maxOfOrNull { fonts.measure(it,role).width } ?: 0f
             val visibleWidth = minOf(width,available)
             val x = item.x.coerceIn(clipLeft,maxOf(clipLeft,clipRight-visibleWidth))
             val spanEnd = item.spanEnd?.coerceIn(clipLeft,clipRight)
@@ -168,7 +188,14 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             p.copy(lane=i)
         }
         val tops = FloatArray(sizes.size)
-        var h = 0f
+        // Measure numbers retain their native top edge. Put marker prose below
+        // that ink instead of colliding with long/multi-digit measure numbers.
+        var h = when {
+            sizes.isEmpty() -> 0f
+            band==TGAnnotationBand.Marker && config.showMeasureNumbers -> fonts.measure("0",TGTextRole.Measure).height+2f
+            band==TGAnnotationBand.ChordNames && config.showChords -> 42f
+            else -> 0f
+        }
         sizes.forEachIndexed { i,size -> tops[i]=h; h+=size }
         heights[band] = h
         packed.forEach { p ->
@@ -186,26 +213,26 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
                 drawLine && !p.item.outgoing,p.item.incoming,p.item.outgoing,p.item.source,p.item.end)
         }
     }
-    return TGAnnotationPlan(result,heights[TGAnnotationBand.Text] ?: 0f,heights[TGAnnotationBand.Effects] ?: 0f)
+    return TGAnnotationPlan(result,heights[TGAnnotationBand.Text] ?: 0f,heights[TGAnnotationBand.Effects] ?: 0f,heights[TGAnnotationBand.Marker] ?: 0f,heights[TGAnnotationBand.ChordNames] ?: 0f)
 }
 
 /** Word wrap, then Unicode-code-point emergency wrap; never truncate an entire caption. */
-internal fun wrapAnnotationText(value: String, width: Float, fonts: TGFontMetrics): List<String> {
+internal fun wrapAnnotationText(value: String, width: Float, fonts: TGFontMetrics, role: TGTextRole = TGTextRole.Text): List<String> {
     val lines = mutableListOf<String>()
     value.replace("\r\n","\n").replace('\r','\n').split('\n').forEach { paragraph ->
         var line = ""
         paragraph.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.forEach { word ->
             val proposed = if (line.isEmpty()) word else "$line $word"
-            if (fonts.measure(proposed,TGTextRole.Text).width <= width) line = proposed
+            if (fonts.measure(proposed,role).width <= width) line = proposed
             else {
                 if (line.isNotEmpty()) { lines += line; line="" }
-                if (fonts.measure(word,TGTextRole.Text).width <= width) line=word
+                if (fonts.measure(word,role).width <= width) line=word
                 else {
                     var i = 0
                     while (i < word.length) {
                         val n = if (word[i].code in 0xD800..0xDBFF && i+1 < word.length && word[i+1].code in 0xDC00..0xDFFF) 2 else 1
                         val c = word.substring(i,i+n)
-                        if (line.isNotEmpty() && fonts.measure(line+c,TGTextRole.Text).width > width) { lines += line; line="" }
+                        if (line.isNotEmpty() && fonts.measure(line+c,role).width > width) { lines += line; line="" }
                         line+=c; i+=n
                     }
                 }

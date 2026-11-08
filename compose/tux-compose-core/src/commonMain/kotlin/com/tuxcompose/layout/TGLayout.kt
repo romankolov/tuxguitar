@@ -58,6 +58,8 @@ data class TGMeasureLayout(
     val previousTripletFeel: Int = 0,
     /** Effects/text are drawn through the cached row annotation pass, not once per beat. */
     val plannedAnnotations: Boolean = false,
+    /** Collision-safe tempo/feel baseline; null retains the upstream compatibility position. */
+    val headerBaseline: Float? = null,
 ) {
     val isFirstFragment: Boolean get() = startTick == measure.start
     val isLastFragment: Boolean get() = endTick == measure.end

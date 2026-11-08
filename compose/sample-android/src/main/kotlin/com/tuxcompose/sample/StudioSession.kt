@@ -23,7 +23,7 @@ class StudioSession(application: Application, private val saved: SavedStateHandl
     val player=DemoPlayback(application,viewModelScope,state)
     val midi=ExternalMidi(application,player.audio)
     var imported by mutableStateOf<ImportedScore?>(null)
-    var status by mutableStateOf("Preparing Guitar Pro demo…")
+    var status by mutableStateOf("Preparing Technique Atlas…")
     var soundFont by mutableStateOf("GeneralUser GS 2.0.3")
     var midiStatus by mutableStateOf("Built-in FluidSynth")
     var sourceUri: String?

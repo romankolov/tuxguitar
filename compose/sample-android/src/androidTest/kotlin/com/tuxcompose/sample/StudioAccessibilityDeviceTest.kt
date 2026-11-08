@@ -50,7 +50,7 @@ class StudioAccessibilityDeviceTest {
             val loaded=StudioPreferences.load(store)
             assertEquals(StudioThemeMode.System,loaded.theme)
             assertEquals(com.tuxcompose.component.CursorStyle.Capsule,loaded.cursorStyle)
-            assertEquals(3f,loaded.cursorPadding,0f)
+            assertEquals(2f,loaded.cursorPadding,0f)
         } finally { store.edit().clear().commit() }
     }
 }

@@ -12,6 +12,15 @@ for file in (core / 'src/commonMain').rglob('*.kt'):
     if re.search(r'^import (?:android\.|java\.|javax\.|app\.tuxguitar\.|.*(?:midi|player|decoder|synth|audio)\.)', text, re.M | re.I):
         raise SystemExit(f'Forbidden platform/parser/playback import in core: {file}')
 build = (core / 'build.gradle.kts').read_text()
-if re.search(r'project\(|gervill|fluidsynth|externalNativeBuild|commons-compress|tuxguitar-lib', build):
+if re.search(r'project\(|gervill|fluidsynth|externalNativeBuild|commons-compress|tuxguitar-lib|compose\.material|material3', build):
     raise SystemExit('Core must not depend on demo/upstream runtime')
 print('Core platform/parser/playback boundary verified.')
+
+# Keep the independent APK/library version and fail-closed manifest verifier in step.
+version=re.search(r'version = "([^" ]+)"',(root/'build.gradle.kts').read_text()).group(1)
+app=(root/'sample-android/build.gradle.kts').read_text()
+code=re.search(r'versionCode = (\d+)',app).group(1)
+assert f'versionName = "{version}"' in app, 'Library/APK versions disagree'
+release=(root/'tools/verify_release.py').read_text()
+assert f"versionName='{version}'" in release and f"versionCode='{code}'" in release, 'Release verifier version disagrees'
+print(f'Library/APK/release-verifier versions agree: {version} (code {code}).')

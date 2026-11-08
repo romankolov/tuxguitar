@@ -9,7 +9,7 @@ import kotlin.random.Random
 import kotlin.test.*
 
 // v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
-private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+private val adaptiveConfig = TGLayoutConfig(avoidAnnotationCollisions=false,spacingMode=TGSpacingMode.Adaptive,compact=false,
     pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
     typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
 

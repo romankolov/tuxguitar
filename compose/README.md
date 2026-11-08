@@ -22,7 +22,7 @@ do not rebuild geometry. Overlays should draw only the visible region for large 
 
 ## Build and install
 
-Requirements: JDK 17, Android SDK 37 (compile), AGP 9.2.1 / Gradle 9.4.1 (wrapper), Python 3 for the verification tools, and build-time network access to Gradle/Google/Maven/GitHub. CI device tests use an API 35 emulator; the app targets 35 and supports API 24+. The showcase installs NDK 27.3.13750724 / CMake 3.22.1 as needed and downloads checksum-pinned synth/bank inputs; the core-only AAR needs neither.
+Requirements: JDK 17, Android SDK 37 (compile), AGP 9.2.1 / Gradle 9.4.1 (wrapper), Python 3 for the verification tools, and build-time network access to Gradle/Google/Maven/GitHub. CI device tests use API 24 and API 35 emulators; the app targets 35 and supports API 24+. The showcase installs NDK 27.3.13750724 / CMake 3.22.1 as needed and downloads checksum-pinned synth/bank inputs; the core-only AAR needs neither.
 
 For **local development/debug instrumentation** (these are not the published APK):
 
@@ -57,7 +57,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.7")
+    implementation("com.tuxcompose:tux-compose-core:0.1.8")
 }
 ```
 
@@ -139,7 +139,7 @@ fun ScoreScreen() {
                 width = 1.5f,               // stroke width
                 capsuleWidth = 6f,          // minimum outer width, expanded to clear note ink
                 capsuleInset = 6f,          // top/bottom margin inside the row
-                capsuleInnerPadding = 3f,   // clear space inside the outline around each note
+                capsuleInnerPadding = 2f,   // padding around the fixed two-digit fret slot
                 highlightNotes = true,
                 animation = CursorAnimation.Pulse,
             ),
@@ -207,8 +207,12 @@ Actual Java layout differentials compare every onset, measure bounds, row member
 headers and vertical lanes at fractional scale, including real GP3/4/5 showcase imports.
 See [the source map, mathematics and precise scope](docs/PORTING.md).
 
-For large/custom fonts or accessibility where additional collision clearance is preferred
-rather than the original fixed grid, explicitly opt in:
+Version 0.1.8 keeps that native rhythmic/greedy base and adds a separately switchable
+visible-ink/annotation safety layer. Java differentials disable the extensions rather
+than relaxing their original tolerance; [details and regressions](docs/VISUAL-AUDIT.md).
+
+For the alternative font/ink-based rhythmic profile (rather than the native base),
+explicitly opt in:
 
 ```kotlin
 TGLayoutConfig(
@@ -234,13 +238,13 @@ The sample starts with **Capsule**; the Cursor settings offer all four styles.
 The library keeps Line as its compatibility default. Select `CursorStyle.Capsule` in
 `TGCursorConfig`: `width` is its stroke (default 1.5), `capsuleWidth` its minimum outer
 width (6), `capsuleInset` its top/bottom row margin (6), and `capsuleInnerPadding` the
-clear space between the note ink and inner stroke edge (3). In 0.1.7 the outline
-expands around actual visible fret/head bounds: ordinary eight-unit ink gets a
-17-unit outer / 14-unit inner width, leaving three units clear on either side. These are **logical notation units**, not
-already density-scaled pixels. The stroke centreline is inset by half its thickness so
-all of the stroke remains inside its bounds. Tiny rows clamp the dimensions/stroke while
-retaining a transparent interior. Smooth movement, opacity/blink/pulse and follow settings
-work unchanged; fractional playhead positions are not snapped to pixels.
+padding around a fixed two-digit fret slot (2). The renderer measures `00`–`99` once
+per font profile and uses `max(capsuleWidth, slotWidth + 2*(padding + stroke))`.
+**The width does not change with the active beat, score head, chord, rest or row height.**
+The capsule remains hollow; short rows reduce its stroke/inset, not its width. These
+are logical notation units, transformed only once by density/zoom. Smooth movement,
+opacity/blink/pulse and cooperative following are unchanged.
+See [the current geometry and audit](docs/VISUAL-AUDIT.md).
 
 `TGLayoutConfig(mergeLetRing = true)` is enabled by default. Consecutive marked attacks
 in a voice now display **`let ring - - - - |`**, covering the last marked duration, not a
@@ -251,17 +255,18 @@ or oversized-bar fragment shows `(let ring)` with continuation dashes; only the 
 end receives a cap. A very short segment puts its line below its caption instead of
 losing the cap or drawing through the words.
 
-Effects in the span's middle or after it are measured and packed into separate vertical
-lanes; beat prose has its own measured, word-wrapped lanes. Whole captions are retained,
-not ellipsized or shrunk. The layout grows those rows vertically, **never widens native
-rhythmic spacing or changes source ticks, notes or bar identities**. Rows without a
-let-ring run retain their existing annotation layout. An indivisible custom-font glyph
-wider than the entire viewport is clipped, as with the other fixed-size notation.
+Markers, chord names, effects and prose are measured and packed into separate row-local
+bands **even when there is no let-ring**. Whole captions wrap rather than ellipsize,
+shrink or widen rhythmic columns. Measure numbers, tempo/feel, connection labels and
+bends receive explicit clearances. The default `avoidAnnotationCollisions=true` also
+permits **minimal local glyph clearance** where actual frets/custom fonts/effects would
+otherwise overlap on the native grid; it never uniformly scales a measure or row.
 
-This is a deliberate Compose enhancement: upstream `TGNoteImpl` prints separate `L.R`
-labels and does not implement this merged span. `mergeLetRing=false` restores per-beat
-captions and the existing lane reservations. Native Java differential fixtures containing
-let-ring explicitly disable the enhancement when comparing native geometry.
+These are documented Compose enhancements, not upstream pixel parity. For the raw
+native comparison profile set **both** `avoidAnnotationCollisions=false` and
+`mergeLetRing=false`; the latter alone only restores individual `L.R` captions.
+Indivisible custom glyphs wider than the whole viewport may still be clipped to keep
+the fixed-parent/fixed-glyph contract. See [audit mathematics and scope](docs/VISUAL-AUDIT.md).
 
 `TGStaffLayout.annotations` stores row-local caption/line/cap geometry;
 `layout.visibleAnnotations(staff, viewport)` uses a cached interval index, including
@@ -395,3 +400,24 @@ adaptive behavior, capsule padding math, toolchain and release signing/verificat
 policy. The rolling download is now
 **[sample-android-release.apk](https://github.com/romankolov/tuxguitar/releases/download/tux-compose-preview/sample-android-release.apk)**,
 not a renamed debug build.
+
+## Visual polish and Technique Atlas (0.1.8)
+
+The new original **32-bar, three-part Technique Atlas** demonstrates chords/strums,
+picking, let-ring, articulations/harmonics, bends/ornaments, dotted/double-dotted rhythm,
+triplets/quintuplets, all duration/rest values, voices/ties, keys/clefs, changing meters,
+repeats/endings/swing and a dense 64th-note bar. A marker-derived section picker lets
+you explore these directly without enabling hidden cursor/follow preferences.
+
+Startup performs a real lossless **TuxGuitar `.tg` writer → importer round trip**;
+GP5 cannot preserve all that metadata. Genuine Guitar Pro import and an actual GP5
+companion export remain available in the separate demo modules. No fake renderer-only
+notes/effects are inserted. The core remains parser/audio/Material-free.
+
+Connected choices now wrap by measured label width at the user's font scale instead
+of hiding labels. The transport gives the music more height. CI adds a **1,152-case
+real-default geometry matrix**, adversarial caption/chord/font regressions, fixed-width
+cursor pixel tests, API 24/35 device suites and exact-release section screenshots.
+See **[VISUAL-AUDIT.md](docs/VISUAL-AUDIT.md)** for source pointers, equations, coverage,
+reproduction commands and explicit limits. Actual test counts/proof are in the linked
+Actions run and release metadata; test coverage is not a universal perfection claim.

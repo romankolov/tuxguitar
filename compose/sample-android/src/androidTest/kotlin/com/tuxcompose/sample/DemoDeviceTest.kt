@@ -34,8 +34,8 @@ class DemoDeviceTest {
         compose.onNodeWithTag("cursor-tick").assertTextEquals("Tick $tick")
         compose.onNodeWithText("Done").performClick()
     }
-    @Test fun opensRealGuitarProAndNavigatesAndCustomizes() {
-        compose.onNodeWithTag("import-status").assertTextContains("Guitar Pro",substring=true)
+    @Test fun opensLosslessShowcaseAndNavigatesAndCustomizes() {
+        compose.onNodeWithTag("import-status").assertTextContains("TuxGuitar",substring=true)
         screenshot("studio-home")
         compose.onNodeWithTag("next").performClick(); assertTick(1440)
         compose.onNodeWithTag("previous").performClick(); assertTick(960)
@@ -89,6 +89,32 @@ class DemoDeviceTest {
         compose.onNodeWithTag("high-contrast").performScrollTo().assertIsOn()
         compose.onNodeWithTag("settings-Cursor").performScrollTo().performClick()
         compose.onNodeWithTag("smooth-cursor").performScrollTo().assertIsOff()
+    }
+    @Test fun comprehensiveDefaultAndExplicitSectionNavigationWorkWithFollowAndCursorHidden() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        context.getSharedPreferences("studio-settings",android.content.Context.MODE_PRIVATE).edit()
+            .putBoolean("follow",false).putBoolean("cursorVisible",false).commit()
+        compose.activityRule.scenario.recreate();awaitDemo()
+        val session=androidx.lifecycle.ViewModelProvider(compose.activity)[StudioSession::class.java]
+        val score=session.state.song!!
+        assertEquals(32,score.tracks[0].measures.size);assertEquals(3,score.tracks.size)
+        val decoded=TuxGuitarImporter.read(ByteArrayInputStream(ShowcaseSongFactory.lossless()),"atlas.tg")
+        assertTrue(decoded.score.tracks[0].measures.flatMap {it.beats}.flatMap {it.voices}.any {it.duration?.doubleDotted==true})
+        compose.onNodeWithTag("section-picker").performClick()
+        compose.onNodeWithTag("sections-list").performScrollToNode(hasTestTag("section-28"))
+        compose.onNodeWithTag("section-28").performClick()
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(score.tracks[0].measures[28].start,session.state.cursorTick)
+            assertTrue("Explicit section navigation must reveal the section",session.state.scrollY>0f)
+            assertEquals(0f,session.state.maxScrollX,0f)
+        }
+        screenshot("studio-finale")
+        compose.onNodeWithTag("settings").performClick()
+        compose.onNodeWithTag("settings-Cursor").performClick()
+        compose.onNodeWithTag("show-cursor").performScrollTo().assertIsOff()
+        compose.onNodeWithTag("follow-setting").performScrollTo().assertIsOff()
+        compose.onNodeWithTag("settings-close").performClick()
     }
     private fun screenshot(name: String) {
         val context=InstrumentationRegistry.getInstrumentation().targetContext

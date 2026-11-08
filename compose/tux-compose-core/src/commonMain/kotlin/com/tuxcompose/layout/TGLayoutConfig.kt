@@ -44,7 +44,7 @@ data class TGLayoutConfig(
     val pickStrokeSpacing: Float = 8f,
     /** Only used by Adaptive spacing; false selects its older v0.1.3 calculation. */
     val optimizeSpacing: Boolean = true,
-    /** Actual upstream measure, beat, header and track-lane algorithms, not a collision solver. */
+    /** Upstream rhythmic/greedy algorithms, with separately configurable collision protection. */
     val spacingMode: TGSpacingMode = TGSpacingMode.TuxGuitar,
     /** TGLayoutVertical's right margin, in final canvas pixels (not zoomed style units). */
     val pageRightPadding: Float = 10f,
@@ -58,6 +58,9 @@ data class TGLayoutConfig(
     val renderScale: Float = 1f,
     /** Merge let-ring runs and collision-pack captions on their rows without widening rhythm. */
     val mergeLetRing: Boolean = true,
+    /** Measured caption/header/connector lanes plus minimal local clearance for actual glyph conflicts.
+     * Captions never widen rhythm. False restores the unprotected native comparison geometry. */
+    val avoidAnnotationCollisions: Boolean = true,
 ) {
     init {
         require(scale.isFinite() && scale in 0.1f..8f)

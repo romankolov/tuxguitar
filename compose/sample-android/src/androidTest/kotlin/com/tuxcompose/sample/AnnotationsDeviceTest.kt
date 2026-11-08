@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.rememberTextMeasurer
+import com.tuxcompose.renderer.TGComposeTextMetrics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import android.graphics.Bitmap
@@ -57,8 +60,12 @@ class AnnotationsDeviceTest {
             capsuleWidth=8f,capsuleInset=8f,follow=false,movementAnimationMillis=0)
         var page: TGSongLayout?=null
         var factor=1f
+        var slot=0f
         compose.setContent {
             factor=LocalDensity.current.density*state.zoomScale
+            val measurer=rememberTextMeasurer()
+            val metrics=remember(factor) { TGComposeTextMetrics(measurer,TGTypography(),renderScale=factor) }
+            slot=(0..99).maxOf {metrics.measure(it.toString().padStart(2,'0'),TGTextRole.Note).width}
             Box(Modifier.size(360.dp,280.dp)) {
                 TablatureView(state,Modifier.fillMaxSize().testTag("capsule"),TGLayoutConfig(),cursor,onLayout={page=it})
             }
@@ -72,9 +79,11 @@ class AnnotationsDeviceTest {
             fun at(x: Float,y: Float)=pixels[(x*factor).toInt().coerceIn(0,pixels.width-1),(y*factor).toInt().coerceIn(0,pixels.height-1)]
             val cy=b.center.y
             assertFalse("Capsule centre must stay transparent",magenta(at(anchor.x,cy)))
-            val noteBounds=anchor.beat.voices.flatMap { it.notes }.flatMap { listOfNotNull(it.tabBounds,it.scoreBounds) }
-            val inkHalf=noteBounds.fold(4f) { half,rect -> maxOf(half,kotlin.math.abs(rect.left-anchor.beat.x),kotlin.math.abs(rect.right-anchor.beat.x)) }
-            val outerWidth=maxOf(cursor.capsuleWidth,2f*(inkHalf+cursor.capsuleInnerPadding+cursor.width)).coerceAtMost(b.height)
+            // A score head is deliberately NOT the width reference. The capsule is
+            // one fixed two-digit fret slot, regardless of the active ink shape.
+            val noteBounds=anchor.beat.voices.flatMap { it.notes }.mapNotNull {it.tabBounds}
+            val inkHalf=slot/2f
+            val outerWidth=maxOf(cursor.capsuleWidth,slot+2f*(cursor.capsuleInnerPadding+cursor.width))
             val edge=anchor.x-outerWidth/2f+cursor.width/2f
             assertTrue("The capsule's outlined side must be visible",(-1..1).any { dx -> magenta(at(edge+dx/factor,cy)) })
             noteBounds.forEach { note ->

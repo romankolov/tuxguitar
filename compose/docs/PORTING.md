@@ -17,6 +17,12 @@ This is a source-level layout port, not a claim that the entire editor, platform
 antialiasing or every effect painter is pixel-identical. Oversized-measure fragmentation
 remains an explicit Compose extension to meet the fixed-parent-width/fixed-glyph contract.
 
+**0.1.8 safety layer:** the equations below describe the native base. Default measured
+caption/header/connection clearance and minimal local visible-glyph corrections are
+separate Compose enhancements. Disable `avoidAnnotationCollisions` and `mergeLetRing`
+for raw Java comparison geometry. The original differential tolerance is unchanged.
+See [the current audit and exact extension mathematics](VISUAL-AUDIT.md).
+
 ### Source map
 
 | Original source | Compose implementation |
@@ -323,7 +329,8 @@ true end has a six-unit vertical cap. Dashes use a 3-on/2-off pattern, stroke 0.
 The caption precedes the line by 3 units. If a short final fragment cannot accommodate
 both, the line moves below the caption with a 4-unit gap; the cap is never discarded.
 
-On **rows intersecting a run**, preflight all effect captions and beat prose using the
+With `avoidAnnotationCollisions=true`, preflight markers, chord names, effects and prose
+on **all annotated rows**, including rows without any let-ring, using the
 shared measured font metrics. Wrap prose/captions by words, with a Unicode-code-point
 fallback for very long words. Clamp their X within the row; do not truncate strings or
 shrink fonts. An impossible single glyph is clipped at the viewport boundary. For each
@@ -348,36 +355,19 @@ the visible interval, preserving its original phase. Captions are line-culled ve
 The normal `render` pass handles these overlays after notation/connections. Standalone
 `renderMeasure` callers must draw cached row `renderAnnotation` overlays, just as with
 `renderConnection`; `plannedAnnotations` suppresses legacy duplicate beat captions.
-Rows without let-ring keep their previous/native layout.
+Rows without let-ring now receive the same measured caption protection. The separate
+visible-glyph safety pass may add minimal local clearance where actual ink conflicts;
+it does not replace the native rhythmic/greedy base. See [0.1.8 audit](VISUAL-AUDIT.md).
 
-### Hollow capsule cursor geometry (0.1.6, inner padding refined in 0.1.7)
+### Fixed-width hollow capsule cursor (0.1.8)
 
-`CursorStyle.Capsule` uses `Stroke`, never Fill. For row height `h > 0`, configured outer
-minimum width `W`, inset `I`, stroke request `S`, note-ink half-width `a` (at least 4),
-inner padding `p`, and interpolated, unsnapped logical playhead `x`:
-
-```
-requested = max(W, 2*(a+p+S))
-w = min(requested, h)
-i = min(I, (h-w)/2)
-H = h-2*i
-s = min(S, w/3, H/3)
-path = Rect(x-w/2+s/2, top+i+s/2, x+w/2-s/2, bottom-i-s/2)
-radius = (min(w,H)-s)/2
-```
-
-This is the **stroke centreline** rectangle. Its actual outside edge is inset by `i`;
-its interior width is `w-2s >= w/3 > 0`, even with a very large stroke request. Zero or
-nonfinite row geometry is skipped. Defaults: `capsuleWidth=6`, `capsuleInset=6`,
-`width=1.5`, `capsuleInnerPadding=3`; parameters are finite and validated. Visible
-fret/head bounds (including displaced voices/multi-digit frets) determine `a`. For
-ordinary eight-unit ink, defaults give outer width 17 and inner width 14: three clear
-units between ink and the inner stroke edge. Tiny rows may reduce that padding to
-retain a valid bounded outline. Canvas applies density × zoom × scale
-once afterwards. The style uses the existing tweened displayX, color/opacity/animation
-and cooperative follow logic. Core's default remains Line; the showcase starts Capsule
-with a direct four-style picker and independent inner-margin slider in its Cursor
-settings. This is visual-only geometry; native horizontal spacing is unchanged.
+`CursorStyle.Capsule` is a stroke, never a fill. It uses one maximum measured `00`–`99`
+Note-font slot, not active fret/head bounds, to keep its width fixed through chords,
+voices and rests. Defaults are `capsuleWidth=6`, `capsuleInset=6`, `width=1.5`,
+`capsuleInnerPadding=2`. Tiny rows reduce stroke/inset but not width. Fractional glide,
+color/opacity/animation and cooperative follow retain the single Canvas transform.
+See [VISUAL-AUDIT.md](VISUAL-AUDIT.md#fixed-width-hollow-cursor) for full equations,
+validation rules and the actual-font/pixel regressions.
 
 ### Adaptive/custom-font safety (opt-in)
 

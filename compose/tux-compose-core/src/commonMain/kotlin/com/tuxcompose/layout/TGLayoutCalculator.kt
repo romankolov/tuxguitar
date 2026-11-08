@@ -88,9 +88,19 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 val prefix = local.maxOf { it.first }
                 val repeat = local.maxOf { it.repeatWidth }
                 val rhythm = rhythms.max()
-                return Column(index,rhythm+prefix+2*measurePadding+repeat,q,effects,prefix,maxClef,maxKey,
-                    local,local.maxOf { it.quarters },rhythm,repeat,offsets,beatEffects,inkRights,
-                    local.maxOf { it.ink.continuationRight },nativeOffsets=maps)
+                // Retain the native grid. Only an actual visible-ink conflict can
+                // add local slack (e.g. a wide ghost fret/custom font). Translate
+                // each track's per-onset native offsets into the common envelope
+                // so a correction never desynchronizes simultaneous tracks.
+                val safe = if(config.avoidAnnotationCollisions) balanceMeasureSpacing(offsets,rhythm,measures.maxOf { it.end },
+                    local.mapIndexed { ti,metric -> metric.ink.copy(lanes=metric.ink.lanes.map { lane -> lane.map { ink ->
+                        val shift=(maps[ti][ink.tick] ?: 0f)-(offsets[ink.tick] ?: 0f)
+                        ink.copy(left=ink.left+shift,right=ink.right+shift)
+                    } }) }) else TGMeasureSpacing(offsets,rhythm,inkRights)
+                val adjusted=maps.map { map -> map.mapValues { (tick,x) -> x+(safe.offsets[tick] ?: offsets[tick] ?: 0f)-(offsets[tick] ?: 0f) } }
+                return Column(index,safe.rhythm+prefix+2*measurePadding+repeat,q,effects,prefix,maxClef,maxKey,
+                    local,local.maxOf { it.quarters },safe.rhythm,repeat,safe.offsets,beatEffects,safe.inkRights,
+                    local.maxOf { it.ink.continuationRight },nativeOffsets=adjusted)
             }
             val q = local.maxOf { it.quarter }
             val quarters = local.maxOf { it.quarters }
@@ -223,12 +233,21 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 val annotationRight = if (fitPage) viewportWidth-rightMargin else maxOf(naturalRight,viewportWidth-rightMargin)
                 val runs = ringIndices[ti].intersecting(measures.first().startTick,measures.last().endTick)
                 val annotations = planAnnotations(measures,runs,padding,annotationRight,config,fonts)
+                val headerHeight=if(config.avoidAnnotationCollisions && measures.any {it.paintTempo || it.paintTripletFeel})
+                    maxOf(32f,fonts.measure(" = 120",TGTextRole.Text).height+12f) else 0f
+                if(headerHeight>0f) lanes.register(TGTrackLane.Buffer,headerHeight)
                 if (annotations != null) {
+                    lanes.register(TGTrackLane.Chord,annotations.chordHeight)
+                    lanes.register(TGTrackLane.Marker,annotations.markerHeight)
                     lanes.register(TGTrackLane.Text,annotations.textHeight)
                     lanes.register(TGTrackLane.Effects,annotations.effectHeight)
                     measures = place().map { it.copy(plannedAnnotations=true) }
                 }
-                val placedAnnotations = annotations?.placed(measures.first().textTop,measures.first().effectsTop).orEmpty()
+                if(headerHeight>0f) {
+                    if(annotations==null) measures=place()
+                    measures=measures.map {it.copy(headerBaseline=top+lanes.position(TGTrackLane.Buffer)+headerHeight-4.5f)}
+                }
+                val placedAnnotations = annotations?.placed(measures.first().textTop,measures.first().effectsTop,top+lanes.position(TGTrackLane.Marker),top+lanes.position(TGTrackLane.Chord)).orEmpty()
                 val inkRight = placedAnnotations.maxOfOrNull { it.bounds.right } ?: naturalRight
                 val left = maxOf(naturalRight,inkRight)
                 val right = if (fitPage) minOf(left,viewportWidth) else left
@@ -356,7 +375,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         } ?: 0f
         lanes.registerPhysical(TGTrackLane.Effects,effectHeight)
         if (beats.any { it.pickStroke != TGStrokeDirection.None }) lanes.registerPhysical(TGTrackLane.PickStroke,config.pickStrokeSpacing*scale)
-        if (config.showTablature && beats.any { b -> b.voices.any { v -> !v.empty && v.notes.any { it.effects.bend != null } } }) lanes.registerPhysical(TGTrackLane.Bend,8f*scale)
+        if (config.showTablature && beats.any { b -> b.voices.any { v -> !v.empty && v.notes.any { it.effects.bend != null || (config.avoidAnnotationCollisions && it.effects.tremoloBar != null) } } }) lanes.registerPhysical(TGTrackLane.Bend,8f*scale)
         if (config.showStandardNotation) {
             lanes.registerPhysical(TGTrackLane.ScoreUp,kotlin.math.abs(minY))
             lanes.registerPhysical(TGTrackLane.Score,5*staffSpacing)
@@ -365,6 +384,17 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         if (config.showTablature) {
             lanes.registerPhysical(TGTrackLane.TabSeparator,if (config.showStandardNotation) config.scoreTabSpacing*scale else maxOf(kotlin.math.abs(minY),stringSpacing))
             lanes.registerPhysical(TGTrackLane.Tab,if (config.showStandardNotation) tabHeight+stringSpacing+pixel else maxOf(maxY,tabHeight+stringSpacing+pixel))
+        }
+        if (config.avoidAnnotationCollisions && config.showTablature) {
+            val notes=beats.flatMap { it.voices }.flatMap { it.notes }
+            // H/P labels and ties arch above the top string. A dedicated tail of
+            // the picking lane separates that ink from captions/bend labels.
+            if (notes.any { it.effects.hammer || it.effects.slide || it.tied }) {
+                val picking=if (beats.any { it.pickStroke!=TGStrokeDirection.None }) config.pickStrokeSpacing else 0f
+                lanes.register(TGTrackLane.PickStroke,picking+26f)
+            }
+            if (notes.any { it.effects.bend!=null || it.effects.tremoloBar!=null })
+                lanes.register(TGTrackLane.Bend,maxOf(14f,fonts.measure("1",TGTextRole.Grace).height+6f))
         }
         lanes.registerPhysical(TGTrackLane.Lyric,10*pixel)
         val target = if (config.showStandardNotation) TGTrackLane.ScoreUp else TGTrackLane.Tab
@@ -507,6 +537,13 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         if (allBeats.any { it.pickStroke != TGStrokeDirection.None })
             lanes.register(TGTrackLane.PickStroke,maxOf(8f,config.pickStrokeSpacing))
         if (config.showTablature && notes.any { it.effects.bend != null || it.effects.tremoloBar != null }) lanes.register(TGTrackLane.Bend, 16f)
+        if (config.avoidAnnotationCollisions && config.showTablature && notes.any { it.effects.hammer || it.effects.slide || it.tied }) {
+            val picking=if (allBeats.any { it.pickStroke!=TGStrokeDirection.None }) config.pickStrokeSpacing else 0f
+            lanes.register(TGTrackLane.PickStroke,picking+26f)
+        }
+        if (config.avoidAnnotationCollisions && config.showTablature && notes.any { it.effects.bend!=null || it.effects.tremoloBar!=null })
+            lanes.register(TGTrackLane.Bend,maxOf(16f,fonts.measure("1",TGTextRole.Grace).height+6f))
+
         if (config.showStandardNotation) {
             val positions = measures.flatMap { m -> m.beats.flatMap { it.voices }.flatMap { it.notes }.map { note -> notePosition(track, m, note) * config.staffSpacing / 2 } }
             // Same max/min registration strategy as TGLayoutVertical; reserve stem and ledger space.

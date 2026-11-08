@@ -16,3 +16,8 @@ The Android Studio workspace uses Material Symbols Rounded vector assets from
 google/material-design-icons, commit 10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7,
 under Apache-2.0. The license is packaged in assets/licenses/Material-Symbols-Apache.txt.
 Material3 1.5.0-rc01 is used only by the Android sample; it is not a core dependency.
+
+The bundled **Technique Atlas** is original programmatically authored demonstration music
+in `demo-tuxguitar/ShowcaseSongFactory.kt`, not a downloaded third-party transcription.
+Its default lossless TG decoding and GP5 companion export remain demo-only integrations;
+no parser, Material UI, native audio or music asset is added to the core library.

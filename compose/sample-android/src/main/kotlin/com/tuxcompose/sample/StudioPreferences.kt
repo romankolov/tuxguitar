@@ -19,7 +19,7 @@ data class StudioPreferences(
     val mode: TGLayoutStyles = TGLayoutStyles.Mixed,
     val orientation: TGLayoutOrientation = TGLayoutOrientation.Page,
     val cursorStyle: CursorStyle = CursorStyle.Capsule,
-    val cursorPadding: Float = 3f,
+    val cursorPadding: Float = 2f,
     val cursorVisible: Boolean = true,
     val smoothCursor: Boolean = true,
     val smoothFollow: Boolean = true,
@@ -28,7 +28,7 @@ data class StudioPreferences(
     val compact: Boolean = true,
     val justify: Boolean = true,
     val chordDiagrams: Boolean = false,
-    val chordNames: Boolean = false,
+    val chordNames: Boolean = true,
     val wideStrings: Boolean = false,
     val reverb: Boolean = true,
     val chorus: Boolean = true,
@@ -56,12 +56,12 @@ data class StudioPreferences(
                 mode=choice("mode",TGLayoutStyles.Mixed,TGLayoutStyles.entries.toTypedArray()),
                 orientation=choice("orientation",TGLayoutOrientation.Page,TGLayoutOrientation.entries.toTypedArray()),
                 cursorStyle=choice("cursorStyle",CursorStyle.Capsule,CursorStyle.entries.toTypedArray()),
-                cursorPadding=store.getFloat("cursorPadding",3f).takeIf { it.isFinite() }?.coerceIn(0f,8f) ?: 3f,
+                cursorPadding=store.getFloat("cursorPadding",2f).takeIf { it.isFinite() }?.coerceIn(0f,8f) ?: 2f,
                 dynamicColor=flag("dynamicColor",false), highContrast=flag("highContrast",false),
                 cursorVisible=flag("cursorVisible",true), smoothCursor=flag("smoothCursor",true),
                 smoothFollow=flag("smoothFollow",true), follow=flag("follow",true),
                 allTracks=flag("allTracks",false), compact=flag("compact",true), justify=flag("justify",true),
-                chordDiagrams=flag("chordDiagrams",false), chordNames=flag("chordNames",false),
+                chordDiagrams=flag("chordDiagrams",false), chordNames=flag("chordNames",true),
                 wideStrings=flag("wideStrings",false), reverb=flag("reverb",true), chorus=flag("chorus",true))
         }
     }

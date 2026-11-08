@@ -91,10 +91,10 @@ def tick():
 def launch_and_controls():
     adb('shell', 'am', 'start', '-W', '-n', 'com.tuxcompose.sample/.MainActivity')
     wait_node(tag='next')
-    # Main content is not ready until GP parsing completes.
+    # Main content is not ready until the real lossless TG decoder completes.
     deadline = time.monotonic()+65
     while wait_node(tag='next').get('enabled') != 'true':
-        assert time.monotonic() < deadline, 'Release GP import did not finish'
+        assert time.monotonic() < deadline, 'Release TG import did not finish'
         time.sleep(.3)
     assert adb('shell', 'run-as', 'com.tuxcompose.sample', 'id', check=False).find(b'not debuggable') >= 0
     assert tick() == 960
@@ -115,6 +115,38 @@ def playback():
     assert find(tree(), tag='error') is None, 'Release audio reported an error'
     assert tick() > 960, 'R8 release playback did not move the cursor'
     click(tag='stop'); assert tick() == 960
+
+
+def section(tag):
+    click(tag='section-picker')
+    # Lazy section rows are reachable by ordinary touch, including on API 24.
+    for _ in range(8):
+        doc=tree()
+        node=find(doc,tag=tag)
+        if node is not None:
+            tap(node)
+            return
+        listing=find(doc,tag='sections-list')
+        assert listing is not None, 'Missing section list'
+        x1,y1,x2,y2=map(int,re.findall(r'\d+',listing.get('bounds','')))
+        adb('shell','input','swipe',str((x1+x2)//2),str(y2-20),str((x1+x2)//2),str(y1+20),'300')
+    raise AssertionError('Section could not be reached: '+tag)
+
+
+def showcase_sections():
+    section('section-4'); assert tick()==16320
+    screenshot('studio-release-articulation')
+    section('section-12'); assert tick()==47040
+    screenshot('studio-release-rhythm')
+    section('section-16'); assert tick()==62400
+    screenshot('studio-release-voices')
+    section('section-28'); assert tick()==107520
+    canvas=wait_node(tag='score-canvas')
+    x1,y1,x2,y2=map(int,re.findall(r'\d+',canvas.get('bounds','')))
+    for _ in range(2):
+        adb('shell','input','swipe',str((x1+x2)//2),str(y2-20),str((x1+x2)//2),str(y1+20),'450')
+    screenshot('studio-release-dense')
+    click(tag='stop'); assert tick()==960
 
 
 def theme_and_cursor():
@@ -155,6 +187,7 @@ try:
     adb('install', str(apks[0]))
     for name, action in [('release_launch_import_navigation', launch_and_controls),
                          ('release_fluidsynth_playback', playback),
+                         ('release_lossless_showcase_and_sections', showcase_sections),
                          ('release_expressive_theme_and_padded_capsule', theme_and_cursor),
                          ('release_large_text_and_expanded_window', adaptive_windows)]:
         case = ET.SubElement(suite, 'testcase', classname='ReleaseApkSmoke', name=name)

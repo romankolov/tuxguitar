@@ -77,7 +77,7 @@ internal class NativeLayoutReference(input: NativeSong, val config: TGLayoutConf
         if (completeRests) layout.updateSong() else updateWithoutRestCompletion()
         layout.paint(painter,UIRectangle(0f,0f,physicalWidth,1_000_000f),0f,0f)
         model = TuxGuitarImporter.adapt(song)
-        actual = TGLayoutCalculator(config.copy(renderScale=scale)).calculate(model,physicalWidth/scale,selectedTrack)
+        actual = TGLayoutCalculator(config.copy(renderScale=scale,avoidAnnotationCollisions=false)).calculate(model,physicalWidth/scale,selectedTrack)
     }
 
     /** Also exercise the original width methods on deliberately short/overfull caller data. */

@@ -64,6 +64,8 @@ fun TuxComposeDemo() {
     var busy by remember { mutableStateOf(true) }
     var settings by remember { mutableStateOf<SettingsPage?>(null) }
     var trackSheet by remember { mutableStateOf(false) }
+    var sectionsSheet by remember { mutableStateOf(false) }
+    var scoreLayout by remember { mutableStateOf<TGSongLayout?>(null) }
     var midiSheet by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf(false) }
     var about by remember { mutableStateOf(false) }
@@ -81,6 +83,7 @@ fun TuxComposeDemo() {
         onDispose { lifecycle.removeObserver(observer) }
     }
     fun install(score: ImportedScore, resetPosition: Boolean = true) {
+        scoreLayout=null
         player.load(score); imported=score; state.song=score.score
         state.selectedTrackIndex=if(resetPosition) 0 else state.selectedTrackIndex.coerceIn(0,score.score.tracks.lastIndex)
         val measures=score.score.tracks[state.selectedTrackIndex].measures
@@ -98,7 +101,7 @@ fun TuxComposeDemo() {
             install(withContext(Dispatchers.IO) {
                 restoredUri?.let { value ->
                     requireNotNull(context.contentResolver.openInputStream(android.net.Uri.parse(value))).use { TuxGuitarImporter.read(it,restoredName) }
-                } ?: TuxGuitarImporter.read(ByteArrayInputStream(DemoSongFactory.guitarPro()),"greenwood.gp5")
+                } ?: TuxGuitarImporter.read(ByteArrayInputStream(ShowcaseSongFactory.lossless()),"technique-atlas.tg")
             },resetPosition=false)
         } catch(e: CancellationException) { throw e }
         catch(e: Exception) { error=e.message ?: "The demo could not be opened"; status="Unable to load score" }
@@ -149,7 +152,7 @@ fun TuxComposeDemo() {
     val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         if(uri!=null) scope.launch {
             try {
-                withContext(Dispatchers.IO) { requireNotNull(context.contentResolver.openOutputStream(uri)).use { it.write(DemoSongFactory.guitarPro()) } }
+                withContext(Dispatchers.IO) { requireNotNull(context.contentResolver.openOutputStream(uri)).use { it.write(ShowcaseSongFactory.guitarPro()) } }
                 snackbar.showSnackbar("Bundled demo exported")
             } catch(e: CancellationException) { throw e }
             catch(e: Exception) { error=e.message ?: "Unable to export the bundled demo" }
@@ -176,8 +179,10 @@ fun TuxComposeDemo() {
                     DropdownMenu(expanded=more,onDismissRequest={more=false}) {
                         DropdownMenuItem(text={Text("Score details")},leadingIcon={StudioIcon(R.drawable.ic_info)},
                             onClick={more=false;details=true},modifier=Modifier.testTag("score-details"))
-                        DropdownMenuItem(text={Text("Export bundled demo GP5")},leadingIcon={StudioIcon(R.drawable.ic_download)},
-                            onClick={more=false;export.launch("greenwood-study.gp5")})
+                        DropdownMenuItem(text={Text("Explore score sections")},leadingIcon={StudioIcon(R.drawable.ic_graphic_eq)},
+                            onClick={more=false;sectionsSheet=true},modifier=Modifier.testTag("score-sections"))
+                        DropdownMenuItem(text={Text("Export showcase GP5")},leadingIcon={StudioIcon(R.drawable.ic_download)},
+                            onClick={more=false;export.launch("technique-atlas.gp5")})
                         DropdownMenuItem(text={Text("Return to beginning")},leadingIcon={StudioIcon(R.drawable.ic_restart_alt)},
                             onClick={more=false;player.stop()})
                         HorizontalDivider()
@@ -185,7 +190,7 @@ fun TuxComposeDemo() {
                     }
                 } },
                 bottomBar={ if(!wide) Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=16.dp,vertical=8.dp)) {
-                    StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound},Modifier.fillMaxWidth())
+                    StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound},Modifier.fillMaxWidth(),onSections={sectionsSheet=true})
                 } },
                 snackbarHost={ SnackbarHost(snackbar) { data -> Snackbar(data,modifier=Modifier.testTag("error")) } }) { padding ->
                 val track=state.song?.tracks?.getOrNull(state.selectedTrackIndex)
@@ -193,11 +198,11 @@ fun TuxComposeDemo() {
                     horizontalArrangement=Arrangement.spacedBy(16.dp)) {
                     StudioScore(state,preferences,layout,track?.name ?: "Choose a track",busy,
                         {trackSheet=true},{settings=SettingsPage.Display},{preferences=it},{player.seek(it)},
-                        Modifier.weight(1f).fillMaxHeight())
+                        Modifier.weight(1f).fillMaxHeight(),onLayout={scoreLayout=it})
                     if(wide) Column(Modifier.width(280.dp).fillMaxHeight().verticalScroll(rememberScrollState()).testTag("wide-controls"),
                         verticalArrangement=Arrangement.spacedBy(16.dp)) {
                         SettingsHeading("Practice, at your pace","Focus on the music. Your controls stay close.")
-                        StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound})
+                        StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound},onSections={sectionsSheet=true})
                         SettingsAction("Workspace settings","Layout, playhead, sound and color.",R.drawable.ic_tune,"wide-settings") { settings=SettingsPage.Display }
                     }
                 }
@@ -208,6 +213,16 @@ fun TuxComposeDemo() {
             imported?.score?.tracks?.size ?: 0,soundFont,midiStatus,busy,
             {settings=null;openSoundFont.launch(arrayOf("*/*"))},{resetBank()},
             {settings=null;midiSheet=true},{settings=null}) }
+        if(sectionsSheet) StudioSections(state.song,state.selectedTrackIndex,{sectionsSheet=false}) { tick ->
+            player.pause();state.clearSelection();state.cursor.seek(tick);player.seek(tick)
+            // Explicit navigation reveals the requested section even when automatic
+            // following or the cursor itself is disabled. Do not overwrite either preference.
+            scoreLayout?.beatAt(state.selectedTrackIndex,tick)?.let { beat ->
+                state.scrollTo(x=if(preferences.orientation==TGLayoutOrientation.Horizontal) (beat.x-28f).coerceAtLeast(0f) else 0f,
+                    y=if(preferences.orientation==TGLayoutOrientation.Page) (beat.bounds.top-4f).coerceAtLeast(0f) else 0f)
+            }
+            state.resumeAutoScroll();sectionsSheet=false
+        }
         if(trackSheet) ModalBottomSheet(onDismissRequest={trackSheet=false},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
             Column(Modifier.fillMaxWidth().semantics { testTagsAsResourceId=true }.padding(horizontal=16.dp).verticalScroll(rememberScrollState()).padding(bottom=24.dp).selectableGroup()) {
                 Text("Find your part",style=MaterialTheme.typography.headlineSmall,modifier=Modifier.padding(horizontal=8.dp))
@@ -246,7 +261,7 @@ fun TuxComposeDemo() {
                 }
             },confirmButton={TextButton(onClick={details=false}) {Text("Done")}})
         if(about) AlertDialog(onDismissRequest={about=false},icon={StudioIcon(R.drawable.ic_music_note)},
-            title={Text("Tux Compose 0.1.7")},text={ Text("A focused practice workspace built with Material 3 Expressive.\n\nTuxGuitar Guitar Pro import · FluidSynth 2.6.2 · GeneralUser GS 2.0.3.\n\nThis is an evaluation app. Source, usage, mathematics and third-party licensing notes are available in the project documentation; licence texts are bundled in the APK.") },
+            title={Text("Tux Compose 0.1.8")},text={ Text("A focused practice workspace built with Material 3 Expressive.\n\nTuxGuitar Guitar Pro import · FluidSynth 2.6.2 · GeneralUser GS 2.0.3.\n\nThis is an evaluation app. Source, usage, mathematics and third-party licensing notes are available in the project documentation; licence texts are bundled in the APK.") },
             confirmButton={TextButton(onClick={about=false;uriHandler.openUri("https://github.com/romankolov/tuxguitar/tree/arena/285632fe-tuxguitar/compose")}) {Text("Source & licences")}},
             dismissButton={TextButton(onClick={about=false}) {Text("Close")}})
     }

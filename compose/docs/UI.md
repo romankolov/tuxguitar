@@ -1,4 +1,4 @@
-# Studio workspace — Material 3 Expressive (0.1.7)
+# Studio workspace — Material 3 Expressive (0.1.8)
 
 The Android sample is a **practice workspace**, not a component catalogue. The music
 gets the largest continuous surface. File actions, reading choices and transport are
@@ -7,7 +7,7 @@ core library's immutable-model → layout → Canvas architecture.
 
 ## Documented design basis
 
-Reviewed on **7 November 2026**, against the official guidance:
+Design references for the pinned implementation:
 
 - [Start building with Material 3 Expressive](https://m3.material.io/blog/building-with-m3-expressive):
   hierarchy through color, emphasized type, containment, appropriate shape and motion.
@@ -20,7 +20,7 @@ Reviewed on **7 November 2026**, against the official guidance:
   [sliders](https://m3.material.io/components/sliders/overview), and
   [bottom sheets](https://m3.material.io/components/bottom-sheets/overview).
 - [AndroidX Material3 release notes](https://developer.android.com/jetpack/androidx/releases/compose-material3).
-  The sample pins **1.5.0-rc01** (4 November 2026). This is a release candidate, not a
+  The sample pins **1.5.0-rc01**. This is a release candidate, not a
   claim that Expressive is in stable Material3 1.4.0: that stable line removed the
   experimental Expressive API surface. We use real Expressive components, not a
   collection of look-alike custom chips on the older library.
@@ -36,10 +36,10 @@ the actual compatibility gate.
 | --- | --- | --- |
 | Top app bar | Identify/open the score | Song title, format/measure count, open file, overflow |
 | Reading bar | Focus on a part | Track sheet, follow/resume, workspace settings |
-| Score surface | Read the music | Connected Tab / Score / Both toggle buttons, notation, pinch/scroll/seek |
-| Transport surface | Practise | Score-position slider, previous, primary play/pause, next, stop, speed/sound shortcuts |
+| Score surface | Read the music | Connected Tab / Staff / Both toggle buttons, notation, pinch/scroll/seek |
+| Transport surface | Practise | Section/count picker, score-position slider, previous, primary play/pause, next, stop, speed/sound shortcuts |
 | Settings sheet | Deliberate customization | Display, Cursor, Sound, Theme tabs |
-| Overflow | Infrequent actions | Score details, export **bundled demo** GP5, return to beginning, source/licensing information |
+| Overflow | Infrequent actions | Score details, explore sections, export **bundled showcase** GP5, return to beginning, source/licensing information |
 
 There are no more horizontally scrolling rows of unrelated settings above the score.
 The settings tabs may scroll on a narrow/large-font screen; their *contents* scroll
@@ -106,42 +106,24 @@ This is not a claim of exhaustive TalkBack/device/RTL/foldable parity. Device te
 cover important targets, large text, dark theme, saved choices and actual expanded
 windows. Physical-device user research remains valuable.
 
-## Capsule inner margin
+## Fixed capsule and responsive choices
 
-The old six-unit outline could cut through an eight-unit note. `capsuleInset` was only
-**outside vertical row clearance**, not padding *inside* the capsule. These are now
-separate:
+`capsuleInnerPadding=2f` pads a fixed font-measured two-digit fret slot. The hollow
+outline no longer changes width with chords, rests, heads, accidentals or row height.
+`capsuleInset=6f` is independent top/bottom row clearance; `width=1.5f` is the stroke.
+All are logical canvas units. See [the exact equations and pixel tests](VISUAL-AUDIT.md).
 
-```kotlin
-TGCursorConfig(
-    style = CursorStyle.Capsule,
-    width = 1.5f,              // stroke
-    capsuleWidth = 6f,         // MINIMUM outer width, not a tight box
-    capsuleInset = 6f,         // row top/bottom clearance
-    capsuleInnerPadding = 3f,  // note ink → inner stroke edge
-)
-```
+Connected choices measure labels at the actual system font scale and form as many
+complete cells per row as fit. Labels do not ellipsize or shrink. Single-cell rows have
+complete rounded shapes and every target is at least 48dp. Settings group headings
+expose heading semantics. The compact transport combines section/count, scrubber and
+sound in one row while keeping play dominant and retaining narrow-window stacking.
 
-The renderer takes the maximum left/right distance of visible fret/head bounds from
-the beat anchor (at least 4 units), including multi-digit frets and displaced voices.
-For ink half-width `a`, padding `p`, requested stroke `S`, minimum outer width `W`,
-row height `h`:
-
-```
-requestedWidth = max(W, 2 * (a + p + S))
-w = min(requestedWidth, h)
-i = min(capsuleInset, (h-w)/2)
-H = h - 2*i
-s = min(S, w/3, H/3)
-innerWidth = w - 2*s
-```
-
-For an ordinary eight-unit note, defaults yield outer width **17**, inner width **14**:
-8 units of ink + **3 clear units on either side**. The capsule is still transparent,
-never a filled highlight. Tiny rows degrade safely (padding may have to reduce), never
-overflow or become a solid bar. Stroke, density, zoom, fractional glide, opacity and
-follow keep the existing single-transform pipeline. This does **not** widen measures
-or change any immutable note/tick identity. See [PORTING.md](PORTING.md).
+The default score is the original 32-bar **Technique Atlas**, with three audible parts
+and eight marker-derived sections. The section picker seeks and reveals a requested
+section without turning on a disabled cursor/follow setting. Startup uses the actual
+lossless TG writer/decoder so double dots and clefs survive; real GP import/GP5 export
+remain available. [Feature map and validation](VISUAL-AUDIT.md).
 
 ## Release build and signing policy
 
@@ -175,10 +157,10 @@ The CI policy verifier expects the evaluation certificate subject configured in
    64-bit 16KiB / 32-bit 4KiB alignment, license payload and audio-free core AAR.
 3. `apksigner` verification, non-debug certificate, manifest version/non-debuggable
    check, nontrivial R8 mapping; record digest/certificate in `BUILD-VERIFICATION.json`.
-4. Full detailed Android debug instrumentation (pixels, fonts, interactions, PCM).
+4. Full detailed Android API 24/35 debug instrumentation (pixels, fonts, interactions, PCM).
 5. Uninstall debug; install the **exact hashed release artifact** from the build job.
-   Black-box accessibility-tree checks exercise GP import, native audio/playback,
-   navigation, capsule/settings, dark theme, 200% text and an expanded window. A
+   Black-box accessibility-tree checks exercise lossless TG startup, native audio/playback,
+   sections/navigation, capsule/settings, dark theme, 200% text and an expanded window. A
    non-debuggable `run-as` rejection is checked too. This catches R8/JNI issues that
    a debug-only suite would miss.
 6. Only after both build/device jobs succeed, publish `sample-android-release.apk`,

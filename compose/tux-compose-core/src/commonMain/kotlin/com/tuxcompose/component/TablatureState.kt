@@ -35,12 +35,12 @@ data class TGCursorConfig(
     val scrollAnimationMillis: Int = 280,
     /** Idle grace after drag, wheel, fling or zoom; browsing away also waits for cursor visibility. */
     val followResumeDelayMillis: Int = 1200,
-    /** Minimum capsule outer width; the note ink plus inner padding can make it wider. */
+    /** Fixed outer-width floor. The font-sized two-digit fret slot, never active note ink, determines the width. */
     val capsuleWidth: Float = 6f,
     /** Vertical padding inside the row; the complete stroke stays inside this inset. */
     val capsuleInset: Float = 6f,
-    /** Horizontal clear space between note ink and the inner stroke edge, in logical units. */
-    val capsuleInnerPadding: Float = 3f,
+    /** Horizontal padding around the fixed two-digit fret slot, in logical units. */
+    val capsuleInnerPadding: Float = 2f,
 ) {
     init {
         require(width.isFinite() && width > 0 && blockAlpha in 0f..1f && animationMillis > 0)

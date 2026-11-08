@@ -67,9 +67,9 @@ fun StudioSettings(preferences: StudioPreferences, page: SettingsPage, onPage: (
                         SettingsSwitch("Chord names","Show chord names without changing the imported notes.",preferences.chordNames,"show-chord-names") { onChange(preferences.copy(chordNames=it)) }
                     }
                     SettingsPage.Cursor -> {
-                        SettingsHeading("Playhead style","Capsule is a hollow outline with breathing room around the notes.")
+                        SettingsHeading("Playhead style","Capsule keeps one fixed, padded two-digit fret width, including on chords and rests.")
                         StudioChoices(CursorStyle.entries.toList(),preferences.cursorStyle,{it.name},{"cursor-${it.name}"}) { onChange(preferences.copy(cursorStyle=it)) }
-                        SettingsHeading("Inner margin · ${preferences.cursorPadding.roundToInt()} units","Clear space on either side between note ink and the inside edge of the stroke.")
+                        SettingsHeading("Inner margin · ${preferences.cursorPadding.roundToInt()} units","Padding around the fixed fret slot; note heads, accidentals and ornaments never change its width.")
                         Slider(preferences.cursorPadding,{onChange(preferences.copy(cursorPadding=it))},
                             valueRange=0f..8f,steps=7,modifier=Modifier.testTag("capsule-padding"))
                         SettingsSwitch("Show playhead","Keep your position visible while practising.",preferences.cursorVisible,"show-cursor") { onChange(preferences.copy(cursorVisible=it)) }
