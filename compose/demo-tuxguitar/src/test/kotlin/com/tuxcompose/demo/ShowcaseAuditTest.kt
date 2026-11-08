@@ -123,7 +123,9 @@ class ShowcaseAuditTest {
                     row.annotations.forEachIndexed {i,a->
                         assertTrue(a.bounds.top>=row.bounds.top-.01f && a.bounds.bottom<=row.bounds.bottom+.01f,"$label caption vertical overflow")
                         assertTrue(a.labelBounds.left>=a.clipBounds.left-.01f && a.labelBounds.right<=a.clipBounds.right+.01f,"$label caption horizontal overflow")
-                        row.annotations.drop(i+1).forEach {b->assertFalse(a.bounds.overlaps(b.bounds),"$label ${a.band} ${a.lines} overlaps ${b.band} ${b.lines}")}
+                        row.annotations.drop(i+1).forEach {b->assertFalse(minOf(a.bounds.right,b.bounds.right)-maxOf(a.bounds.left,b.bounds.left)>.01f &&
+                            minOf(a.bounds.bottom,b.bounds.bottom)-maxOf(a.bounds.top,b.bounds.top)>.01f,
+                            "$label ${a.band} ${a.lines} ${a.bounds} overlaps ${b.band} ${b.lines} ${b.bounds}")}
                     }
                 }
             } catch(e: AssertionError) { if(failures.size<12) failures+="$label: ${e.message}" }

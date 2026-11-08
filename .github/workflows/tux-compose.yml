@@ -114,6 +114,9 @@ jobs:
       - name: Preview large-text workspace
         if: always()
         run: python3 compose/tools/report_screenshots.py studio-release-large-text studio-large-text
+      - name: Preview narrow large-text workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-narrow-large-text
       - name: Preview expanded workspace
         if: always()
         run: python3 compose/tools/report_screenshots.py studio-release-wide

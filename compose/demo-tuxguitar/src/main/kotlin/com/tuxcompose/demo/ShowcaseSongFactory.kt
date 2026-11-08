@@ -114,7 +114,7 @@ object ShowcaseSongFactory {
                                     }
                                     11 -> {effect.isAccentuatedNote=bi%2==0;effect.isPalmMute=bi in 2..4;effect.isVibrato=bi==6}
                                     17 -> isTiedNote=bi==1
-                                    21 -> isAltEnharmonic=bi==2
+                                    21 -> if(bi==2) toggleAltEnharmonic()
                                 }
                             }
                         }

@@ -165,6 +165,16 @@ def adaptive_windows():
     wait_node(tag='next')
     screenshot('studio-release-large-text')
     click(tag='settings'); wait_node(tag='settings-close'); click(tag='settings-close')
+    adb('shell','wm','size','960x1920')
+    adb('shell','wm','density','480')  # genuine 320dp-wide / 200% text window
+    canvas=wait_node(tag='score-canvas')
+    x1,y1,x2,y2=map(int,re.findall(r'\d+',canvas.get('bounds','')))
+    assert x2-x1>=250*3 and y2-y1>=96*3, 'Narrow large-text controls crowded out the music'
+    for tag in ('open-file','settings','play','previous','next','follow-cursor'):
+        target=wait_node(tag=tag)
+        a,b,c,d=map(int,re.findall(r'\d+',target.get('bounds','')))
+        assert c-a>=48*3-1 and d-b>=48*3-1, 'A primary target shrank: '+tag
+    screenshot('studio-release-narrow-large-text')
     adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0')
     adb('shell', 'wm', 'size', '1280x800')
     adb('shell', 'wm', 'density', '160')

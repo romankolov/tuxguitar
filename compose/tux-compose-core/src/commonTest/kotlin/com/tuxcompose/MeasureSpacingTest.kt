@@ -209,7 +209,9 @@ class MeasureSpacingTest {
             10,30,55 -> b.copy(text="careful annotation")
             else -> b
         } }
-        val config = adaptiveConfig.copy(justifySystems=false)
+        // Chord names used to be painted even with their flag off in Adaptive.
+        // This test owns a visible long NAME, so enable it explicitly.
+        val config = adaptiveConfig.copy(justifySystems=false,showChordNames=true)
         val page = TGLayoutCalculator(config).calculate(data(m),220f)
         val pieces = page.staves.flatMap { it.measures }
         assertTrue(pieces.size>1)

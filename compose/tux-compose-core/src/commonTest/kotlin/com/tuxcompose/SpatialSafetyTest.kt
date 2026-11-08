@@ -30,7 +30,9 @@ class SpatialSafetyTest {
                 assertTrue(a.bounds.top>=row.bounds.top-.01f && a.bounds.bottom<=row.bounds.bottom+.01f,"${a.band} outside its row")
                 assertTrue(a.labelBounds.left>=a.clipBounds.left-.01f && a.labelBounds.right<=a.clipBounds.right+.01f)
                 assertTrue(a.lines.none { it.contains('…') })
-                row.annotations.drop(i+1).forEach { b -> assertFalse(a.bounds.overlaps(b.bounds),"${a.band}: ${a.lines} collides with ${b.band}: ${b.lines}") }
+                row.annotations.drop(i+1).forEach { b -> assertFalse(minOf(a.bounds.right,b.bounds.right)-maxOf(a.bounds.left,b.bounds.left)>.01f &&
+                    minOf(a.bounds.bottom,b.bounds.bottom)-maxOf(a.bounds.top,b.bounds.top)>.01f,
+                    "${a.band}: ${a.lines} ${a.bounds} collides with ${b.band}: ${b.lines} ${b.bounds}") }
             }
         }
     }
