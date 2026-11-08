@@ -35,7 +35,7 @@ fun StudioSections(song: TGSong?, trackIndex: Int, onDismiss: () -> Unit, onSeek
                 contentPadding=PaddingValues(start=16.dp,end=16.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 itemsIndexed(sections,key={_,m->m.number}) { index,measure ->
                     val last=sections.getOrNull(index+1)?.number?.minus(1) ?: measures.lastOrNull()?.number ?: measure.number
-                    ListItem(headlineContent={Text(measure.header.marker ?: "Beginning")},
+                    ListItem(headlineContent={Text(measure.header.marker?.takeIf { it.isNotBlank() } ?: "Beginning")},
                         supportingContent={Text("Measures ${measure.number}–$last")},
                         leadingContent={StudioIcon(R.drawable.ic_music_note)},
                         colors=ListItemDefaults.colors(containerColor=MaterialTheme.colorScheme.surfaceContainerHigh),

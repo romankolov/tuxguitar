@@ -4,7 +4,8 @@
 Usage: report_screenshots.py preferred-scene [fallback-scene ...]
 One scene is emitted per step. Workflow annotations truncate at 4096 characters, so
 split the WebP into independently valid JSON chunks and keep each step below ten
-notices. This permits visual review even when the artifact CDN is unavailable.
+notices. Ten scenes also share a 50-annotation job budget, so each scene
+uses at most four chunks. This permits visual review even when the artifact CDN is unavailable.
 """
 import base64
 import hashlib
@@ -14,21 +15,26 @@ from pathlib import Path
 import sys
 from PIL import Image
 
-CHUNK_SIZE = 3000
-MAX_CHUNKS = 8
+CHUNK_SIZE = 3500
+MAX_CHUNKS = 4
 
 
 def preview_chunks(path, name):
     image = Image.open(path).convert('RGB')
     image.thumbnail((480, 640))
     while True:
-        buffer = BytesIO()
-        image.save(buffer, format='WEBP', quality=70, method=6)
-        data = buffer.getvalue()
-        encoded = base64.b64encode(data).decode('ascii')
-        if len(encoded) <= CHUNK_SIZE * MAX_CHUNKS:
-            break
-        image.thumbnail((max(1, int(image.width * .8)), max(1, int(image.height * .8))))
+        # Prefer retaining readable text dimensions before reducing the thumbnail.
+        for quality in (70, 60, 50, 40):
+            buffer = BytesIO()
+            image.save(buffer, format='WEBP', quality=quality, method=6)
+            data = buffer.getvalue()
+            encoded = base64.b64encode(data).decode('ascii')
+            if len(encoded) <= CHUNK_SIZE * MAX_CHUNKS:
+                break
+        else:
+            image.thumbnail((max(1, int(image.width * .8)), max(1, int(image.height * .8))))
+            continue
+        break
     parts = (len(encoded) + CHUNK_SIZE - 1) // CHUNK_SIZE
     for index in range(parts):
         yield dict(name=name, mime='image/webp', part=index + 1, parts=parts,

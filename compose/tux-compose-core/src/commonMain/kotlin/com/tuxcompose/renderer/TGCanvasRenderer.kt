@@ -100,7 +100,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         val color = base.copy(alpha = base.alpha * opacity)
         when (cursor.style) {
             CursorStyle.Capsule -> {
-                capsuleCursorGeometry(x,b,cursor,capsuleFretSlot)?.let { g ->
+                capsuleCursorGeometry(x,position.capsuleBounds,cursor,capsuleFretSlot)?.let { g ->
                     drawRoundRect(color,g.pathBounds.topLeft,g.pathBounds.size,
                         CornerRadius(g.radius,g.radius),style=Stroke(g.strokeWidth))
                 }

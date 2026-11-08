@@ -629,7 +629,8 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             if (config.multiTrack) col.clef else metric.clef, if (config.multiTrack) col.key else metric.key,
             area, beats, bounds.top + lanes.position(TGTrackLane.Effects), bounds.top + lanes.position(TGTrackLane.Bend),
             bounds.top + lanes.position(TGTrackLane.Text), bounds.top + lanes.position(TGTrackLane.Chord), bounds.top + lanes.position(TGTrackLane.RepeatEnding), bounds.top + lanes.position(TGTrackLane.Tuplet1), percussion=track.percussion,headerX=bounds.left+measurePadding,pickStrokeTop=bounds.top+lanes.position(TGTrackLane.PickStroke),compact=compact,
-            paintTripletFeel=metric.paintTripletFeel,previousTripletFeel=if (metric.paintTripletFeel) track.measures.getOrNull(index-1)?.header?.tripletFeel ?: 0 else 0)
+            paintTripletFeel=metric.paintTripletFeel,previousTripletFeel=if (metric.paintTripletFeel) track.measures.getOrNull(index-1)?.header?.tripletFeel ?: 0 else 0,
+            notationTop=bounds.top+lanes.position(TGTrackLane.Chord)+lanes.size(TGTrackLane.Chord))
     }
 
     private data class Group(val id: Int, val beats: List<Int>, val positions: List<List<Int>>, val up: Boolean)

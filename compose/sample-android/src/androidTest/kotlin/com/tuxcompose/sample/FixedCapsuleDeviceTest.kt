@@ -71,4 +71,37 @@ class FixedCapsuleDeviceTest {
             assertEquals(0f,state.maxScrollX,.01f)
         }
     }
+    @Test fun capsuleOutlineDoesNotStrikeThroughLeadingCaptionsWithActualFonts() {
+        val beats=List(4) {i->TGBeat(960+960L*i,TGDuration(4),listOf(TGVoice(notes=listOf(TGNote(7+i,1)))),
+            text=if(i==0) "Let this complete instruction remain clear" else null,
+            chord=if(i==0) TGChord("Em(add9)",listOf(0,0,0,2,2,0)) else null)}
+        val data=TGSong(tracks=listOf(TGTrack(1,"Caption clearance",listOf(64,59,55,50,45,40),listOf(
+            TGMeasure(1,TGMeasureHeader(marker="A section title crossing the first onset"),beats,960)))))
+        val state=TablatureState(data,960)
+        var page: TGSongLayout?=null;var factor=1f
+        compose.setContent {
+            factor=LocalDensity.current.density
+            Box(Modifier.size(360.dp,420.dp)) {
+                TablatureView(state,Modifier.fillMaxSize().testTag("capsule-metadata"),TGLayoutConfig(showChordNames=true),
+                    TGCursorConfig(style=CursorStyle.Capsule,color=Color.Magenta,follow=false,movementAnimationMillis=0),onLayout={page=it})
+            }
+        }
+        compose.waitForIdle()
+        val cursor=page!!.cursorAt(0,960)!!
+        val leading=page!!.staves.first().annotations.filter {it.band!=TGAnnotationBand.Effects}
+        assertTrue(leading.size>=3)
+        assertTrue(leading.all {it.bounds.bottom<=cursor.capsuleBounds.top+.01f})
+        val pixels=compose.onNodeWithTag("capsule-metadata").captureScoreImage().toPixelMap()
+        val bodyTop=(cursor.capsuleBounds.top*factor).toInt().coerceIn(0,pixels.height)
+        var painted=false
+        for(y in 0 until pixels.height) for(x in 0 until pixels.width) {
+            val c=pixels[x,y]
+            if(c.red>.75f && c.blue>.75f && c.green<.25f) {
+                assertTrue("Capsule stroke crosses a leading caption at ($x,$y)",y>=bodyTop)
+                painted=true
+            }
+        }
+        assertTrue("The capsule must still actually be drawn below the captions",painted)
+    }
+
 }

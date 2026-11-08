@@ -101,6 +101,8 @@ jobs:
           api-level: ${{ matrix.api }}
           arch: x86_64
           profile: pixel_2
+          # The bundled bank/native APK and install sessions need headroom on API 24.
+          disk-size: 4096M
           disable-animations: true
           script: bash compose/tools/device_test.sh
       # Each scene has its own step: bounded JSON chunks stay under Checks' per-step

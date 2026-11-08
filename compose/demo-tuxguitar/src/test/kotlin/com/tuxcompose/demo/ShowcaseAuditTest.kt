@@ -112,6 +112,9 @@ class ShowcaseAuditTest {
                     row.measures.forEach {m->
                         assertSame(data.tracks[row.trackIndex].measures[m.measureIndex],m.measure)
                         assertEquals(1f,m.contentScale,0f)
+                        assertTrue(m.notationTop>=row.bounds.top && m.notationTop<row.bounds.bottom,"$label invalid capsule body")
+                        row.annotations.filter {it.band in setOf(TGAnnotationBand.Marker,TGAnnotationBand.Text,TGAnnotationBand.ChordNames)}
+                            .forEach {a->assertTrue(a.bounds.bottom<=m.notationTop+.01f,"$label cursor crosses leading caption")}
                         if(!m.isFirstFragment || !m.isLastFragment) fragments++
                         m.beats.forEach {b->
                             val cursor=page.cursorAt(row.trackIndex,b.startTick,false)

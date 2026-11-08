@@ -37,7 +37,7 @@ data class TGCursorConfig(
     val followResumeDelayMillis: Int = 1200,
     /** Fixed outer-width floor. The font-sized two-digit fret slot, never active note ink, determines the width. */
     val capsuleWidth: Float = 6f,
-    /** Vertical padding inside the row; the complete stroke stays inside this inset. */
+    /** Vertical inset inside musical row lanes, excluding leading captions/chord metadata. */
     val capsuleInset: Float = 6f,
     /** Horizontal padding around the fixed two-digit fret slot, in logical units. */
     val capsuleInnerPadding: Float = 2f,

@@ -110,7 +110,7 @@ windows. Physical-device user research remains valuable.
 
 `capsuleInnerPadding=2f` pads a fixed font-measured two-digit fret slot. The hollow
 outline no longer changes width with chords, rests, heads, accidentals or row height.
-`capsuleInset=6f` is independent top/bottom row clearance; `width=1.5f` is the stroke.
+`capsuleInset=6f` is top/bottom musical-body clearance (leading captions are excluded); `width=1.5f` is the stroke.
 All are logical canvas units. See [the exact equations and pixel tests](VISUAL-AUDIT.md).
 
 Connected choices measure labels at the actual system font scale and form as many

@@ -132,7 +132,7 @@ fun TablatureView(
         }
     }
     val viewport = Rect(state.scrollX,state.scrollY,state.scrollX+width,state.scrollY+height)
-    val cursorInView = cursorIntersectsViewport(cursorPosition,viewport)
+    val cursorInView = cursorIntersectsViewport(cursorPosition,viewport,cursorConfig.style==CursorStyle.Capsule)
     LaunchedEffect(enabled,userScrolling,quietGeneration,userGeneration,cursorInView) {
         if (enabled && !userScrolling && quietGeneration == userGeneration && cursorInView)
             followingGeneration = userGeneration

@@ -13,10 +13,10 @@ requested stroke, and `W` the explicit outer-width floor:
 
 ```
 w = max(W, F + 2*(p+S))
-i = min(capsuleInset, max(0, (rowHeight-w)/2))
-H = rowHeight - 2*i
+i = min(capsuleInset, max(0, (bodyHeight-w)/2))
+H = bodyHeight - 2*i
 s = min(S, w/3, H/3)
-path = Rect(x-w/2+s/2, rowTop+i+s/2, x+w/2-s/2, rowBottom-i-s/2)
+path = Rect(x-w/2+s/2, notationTop+i+s/2, x+w/2-s/2, rowBottom-i-s/2)
 ```
 
 The outer width is **independent of the current beat, chord, voice, rest, score head,
@@ -25,7 +25,13 @@ explicit cursor configuration. Ordinary rows have interior width `F+2*p`, leavin
 `p` clear units on either side of the fixed fret slot. The default is now `p=2`.
 A large custom `capsuleWidth` remains an intentional override. Very short rows reduce
 the stroke/inset, not the width. Null/nonfinite/nonpositive vertical geometry is skipped.
-The stroke is hollow; no fill is introduced. Fret ornaments and score heads do not
+`notationTop` is the end of the leading metadata lanes (marker, prose, tempo/feel,
+repeat and chord metadata); `bodyHeight=rowBottom-notationTop`. Capsule strokes no
+longer strike through a section title or chord caption. Fragment extraction rebases
+this boundary with its row's lanes, and all beats/rests in that row share it. Full-row
+hit/selection/follow-destination bounds and native rhythmic positions are unchanged.
+Manual-follow resumption tests the capsule body rather than mistaking visible metadata
+for a visible capsule. The stroke is hollow; no fill is introduced. Fret ornaments and score heads do not
 make it pulse wider. Density/zoom is applied once by the existing Canvas transform.
 
 ## Measured caption bands, even without let-ring
@@ -142,7 +148,8 @@ The workflow runs these on the same source before publication:
 - **1,152 real-default layout configurations** = 4 widths × 3 notation modes × 2 spacing
   modes × 2 compact choices × 2 justification choices × 4 track-focus choices × 3
   render scales. Checks parent width, finite geometry, unscaled glyphs, source identity,
-  cursor lookup, vertical note bounds, caption bands and pairwise caption collisions.
+  cursor lookup, vertical note bounds, caption bands, pairwise caption collisions and
+  the capsule/leading-caption boundary, including rebased fragments.
   Geometry comparisons allow 0.01 logical units for Float accumulation at adjacent
   padded band boundaries; the independent raw-Java differential tolerance stays 0.025
   physical pixels. Machine-readable reports: `demo-tuxguitar/build/reports/showcase-*.json`. These files are declared Gradle
@@ -164,6 +171,12 @@ The workflow runs these on the same source before publication:
   include articulations, tuplets, voices and dense reflow in addition to the workspace.
 - APK signing/non-debug/R8/version checks, bank hash/licenses, four ABIs/dependencies,
   page alignment, and core parser/audio/Material isolation. Publication needs every job.
+- Device runners allocate a 4-GiB data partition and check boot/package-manager readiness.
+  Bounded environment/installer diagnostics remain visible through Checks if deployment
+  fails before a test can start. Test failures are not retried or suppressed.
+- Ten preview scenes use at most four 3,500-character chunks each, leaving headroom
+  under the observed 50-annotation job limit. Full-resolution lossless PNGs remain in
+  device artifacts; preview resizing/compression is not a pixel-test tolerance.
 
 Run source guards locally with `python3 compose/tools/verify.py`. Run the unit suites
 with `cd compose && ./gradlew :tux-compose-core:desktopTest :demo-tuxguitar:test`.

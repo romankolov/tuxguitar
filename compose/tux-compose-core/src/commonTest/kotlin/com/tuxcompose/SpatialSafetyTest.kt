@@ -2,6 +2,7 @@
 package com.tuxcompose
 
 import androidx.compose.ui.geometry.Rect
+import com.tuxcompose.component.cursorIntersectsViewport
 import com.tuxcompose.layout.*
 import com.tuxcompose.model.*
 import kotlin.test.*
@@ -110,4 +111,34 @@ class SpatialSafetyTest {
         assertTrue(a.visibleLines(Rect(120f,0f,140f,50f)).isEmpty())
         assertTrue(a.visibleLines(Rect(0f,110000f,100f,110050f)).isEmpty())
     }
+    @Test fun capsulesStartAfterLeadingMetadataIncludingRebasedFragments() {
+        for(style in TGLayoutStyles.entries) for(spacing in TGSpacingMode.entries) for(width in listOf(240f,320f,600f)) {
+            val page=TGLayoutCalculator(TGLayoutConfig(style=style,spacingMode=spacing,showChordNames=true,showChords=true))
+                .calculate(source(chords=true,captions=true,rings=true),width)
+            page.staves.forEach {row->
+                val leading=row.annotations.filter {it.band in setOf(TGAnnotationBand.Marker,TGAnnotationBand.Text,TGAnnotationBand.ChordNames)}
+                val leadingBottom=leading.maxOfOrNull {it.bounds.bottom} ?: row.bounds.top
+                val tops=mutableListOf<Float>()
+                row.measures.forEach {m->m.beats.forEach {b->
+                    val cursor=page.cursorAt(row.trackIndex,b.startTick)!!
+                    assertSame(b,cursor.beat)
+                    assertEquals(b.bounds.top,cursor.bounds.top,.001f,"Do not change full-row hit/follow bounds")
+                    assertTrue(cursor.capsuleBounds.top>=leadingBottom-.01f,"$style/$spacing/$width: capsule strikes metadata")
+                    assertTrue(cursor.capsuleBounds.top>=row.bounds.top && cursor.capsuleBounds.bottom<=row.bounds.bottom+.01f)
+                    assertTrue(cursor.capsuleBounds.height>0f)
+                    tops+=cursor.capsuleBounds.top
+                }}
+                assertTrue(tops.max()-tops.min()<.01f,"Capsule height must not pulse with the active beat")
+            }
+        }
+    }
+    @Test fun browsingOnlyMetadataDoesNotCountAsSeeingTheCapsuleForFollowResume() {
+        val page=TGLayoutCalculator(TGLayoutConfig(showChordNames=true)).calculate(source(chords=true),320f)
+        val cursor=page.cursorAt(0,960)!!
+        val captions=Rect(0f,cursor.bounds.top,320f,cursor.capsuleBounds.top-1f)
+        assertTrue(cursorIntersectsViewport(cursor,captions)) // full-row line cursor
+        assertFalse(cursorIntersectsViewport(cursor,captions,notationOnly=true))
+        assertTrue(cursorIntersectsViewport(cursor,Rect(0f,cursor.capsuleBounds.top,320f,cursor.capsuleBounds.bottom),notationOnly=true))
+    }
+
 }

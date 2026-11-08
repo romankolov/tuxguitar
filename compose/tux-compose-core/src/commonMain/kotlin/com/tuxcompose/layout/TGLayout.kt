@@ -60,6 +60,8 @@ data class TGMeasureLayout(
     val plannedAnnotations: Boolean = false,
     /** Collision-safe tempo/feel baseline; null retains the upstream compatibility position. */
     val headerBaseline: Float? = null,
+    /** Start of musical lanes, after marker/prose/tempo/repeat/chord metadata. */
+    val notationTop: Float = bounds.top,
 ) {
     val isFirstFragment: Boolean get() = startTick == measure.start
     val isLastFragment: Boolean get() = endTick == measure.end
@@ -74,8 +76,12 @@ data class TGHitResult(val trackIndex: Int, val measureIndex: Int, val beatTick:
 
 /** The active beat stays discrete for highlighting; the playhead can sweep continuously through it. */
 @Immutable
-data class TGCursorLayout(val beat: TGBeatLayout, val x: Float, val systemIndex: Int, val measureIndex: Int, val trackIndex: Int) {
+data class TGCursorLayout(val beat: TGBeatLayout, val x: Float, val systemIndex: Int, val measureIndex: Int, val trackIndex: Int,
+    val notationTop: Float = beat.bounds.top) {
+    /** Full-row hit/selection/follow geometry is unchanged. */
     val bounds: Rect get() = beat.bounds.translate(Offset(x - beat.x,0f))
+    /** The hollow capsule must not strike through leading captions or chord names. */
+    val capsuleBounds: Rect get() = bounds.let { Rect(it.left,notationTop.coerceAtLeast(it.top).coerceAtMost(it.bottom),it.right,it.bottom) }
 }
 
 /** Immutable geometry plus binary-search indices, independent of cursor/selection/scroll. */
@@ -108,7 +114,7 @@ class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaff
         val end = beat.endTick
         val fraction = if (smooth && end > beat.startTick)
             ((tick - beat.startTick).toDouble() / (end - beat.startTick)).toFloat().coerceIn(0f,1f) else 0f
-        return TGCursorLayout(beat,beat.x + (beat.endX - beat.x) * fraction,located.systemIndex,m.measureIndex,trackIndex)
+        return TGCursorLayout(beat,beat.x + (beat.endX - beat.x) * fraction,located.systemIndex,m.measureIndex,trackIndex,m.notationTop)
     }
     fun visible(viewport: Rect): Sequence<TGStaffLayout> {
         // Systems are ordered by Y. Lower-bound the first intersecting staff, then stop below viewport.
