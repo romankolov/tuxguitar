@@ -75,8 +75,13 @@ class PortableTgArchiveTest {
         assertEquals(32,h.song.countMeasureHeaders())
     }
     @Test fun malformedAndOverlongVersionHeadersAreRejectedBeforeXmlDecoding() {
-        for(version in listOf("", "not-a-tg-version", "TuxGuitar_file_format nope", "x".repeat(257))) {
+        for(version in listOf("", "not-a-tg-version", "x".repeat(257))) {
             assertFailsWith<IllegalArgumentException> {PortableTgReader().read(handle(versioned(version)))}
+        }
+        // TGVersion intentionally maps invalid numeric text to 0.0 rather than
+        // throwing. The unchanged native major-version gate rejects that value.
+        assertFailsWith<TGFileFormatException> {
+            PortableTgReader().read(handle(versioned("TuxGuitar_file_format nope")))
         }
     }
     @Test fun missingUnknownAndDuplicateArchiveMembersAreRejected() {
