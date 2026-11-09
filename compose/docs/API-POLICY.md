@@ -30,6 +30,12 @@ failure, or the exact optimized-release black-box checks. Artifact inspection ve
 non-debuggable/R8 output, synth payload/licences, ELF alignment and signing. Device
 captures are evidence, not an assertion of universal correctness.
 
+Verified 1.x publications also create `tux-compose-v<version>` GitHub releases with
+immutable tags/assets; existing versioned releases are never force-moved or clobbered.
+The `tux-compose-preview` alias remains a separately moving latest-verified build.
+A stable core-library version does not turn the sample's evaluation key into production
+signing or a Play Store update identity.
+
 For reproducibility, retain the release source SHA, CI run, BUILD-VERIFICATION.json,
 SHA256SUMS.txt and signer digest. Uninstall a differently signed evaluation sample
 before installing a new one; this clears that app's private data. A real distributable

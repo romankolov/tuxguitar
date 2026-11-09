@@ -4,6 +4,9 @@
 
 The library has **no decoder, file access, playback clock, MIDI, synthesizer, audio dependency, Android View, SWT or AWT**. The showcase intentionally has these integrations, in separate modules.
 
+**Downloads:** [1.0.0 release APK / AAR / checksums](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-v1.0.0).
+See [release changes, test evidence and signing warning](docs/RELEASE-1.0.0.md).
+
 ## 1.0.0 highlights
 
 - **Native TuxGuitar spacing remains the default.** The compared 16 Java UI/layout

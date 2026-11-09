@@ -149,6 +149,9 @@ jobs:
       - name: Preview dense full-size reflow
         if: always()
         run: python3 compose/tools/report_screenshots.py studio-release-dense
+      - name: Preview chord engraving pixel regression
+        if: always()
+        run: python3 compose/tools/report_screenshots.py engraving-Mixed-TuxGuitar-1.0
       - name: Upload device reports and screenshots
         if: always()
         uses: actions/upload-artifact@v7
@@ -187,7 +190,8 @@ jobs:
           cp "$(find verified-artifacts -name 'release-verification.json' -print -quit)" release/BUILD-VERIFICATION.json
           cp "$aar" release/tux-compose-core-release.aar
           (cd release && sha256sum *.apk *.aar > SHA256SUMS.txt)
-          notes="Optimized, R8-shrunk, non-debuggable release APK and core AAR. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Evaluation build, not a Play Store release. See compose/README.md and compose/docs/PORTING.md for scope and parity limits."
+          version=$(python3 -c "import json; print(json.load(open('release/BUILD-VERIFICATION.json'))['version'])")
+          notes="Tux Compose $version: immutable decoded score to native Compose Canvas, without core parsers or playback. Native TuxGuitar spacing remains the default; includes chord/accidental/tie/grace improvements, skyline captions and opt-in Spring spacing with hard glyph minimums. Pinned TuxGuitar/alphaTab comparisons and explicit limitations are documented. Optimized, R8-shrunk, non-debuggable release APK and core AAR. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Evaluation build, not a Play Store release. Source and usage: https://github.com/$GH_REPO/tree/$GITHUB_SHA/compose. Comparison and mathematics: https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/UPSTREAM-COMPARISON.md and https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/ENGRAVING.md. This is not a blanket superiority or complete-editor parity claim."
           if gh release view tux-compose-preview >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GH_REPO/git/refs/tags/tux-compose-preview" -f sha="$GITHUB_SHA" -F force=true
             gh release edit tux-compose-preview --notes "$notes"
@@ -197,4 +201,15 @@ jobs:
           gh release upload tux-compose-preview release/* --clobber
           if gh release view tux-compose-preview --json assets --jq '.assets[].name' | grep -qx sample-android-debug.apk; then
             gh release delete-asset tux-compose-preview sample-android-debug.apk --yes
+          fi
+
+          # 1.x library releases get an immutable versioned tag/assets as well.
+          # The moving preview alias remains useful for subsequent branch builds.
+          if [[ "$version" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]]; then
+            version_tag="tux-compose-v$version"
+            if gh release view "$version_tag" >/dev/null 2>&1; then
+              echo "Versioned $version_tag already exists; leave its tag and assets unchanged."
+            else
+              gh release create "$version_tag" release/* --target "$GITHUB_SHA" --latest --title "Tux Compose $version · library and evaluation demo" --notes "$notes"
+            fi
           fi
