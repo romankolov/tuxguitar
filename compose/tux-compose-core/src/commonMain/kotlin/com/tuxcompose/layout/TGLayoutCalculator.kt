@@ -217,6 +217,8 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             val extra = if (config.orientation == TGLayoutOrientation.Page && filled[si] && config.justifySystems)
                 if (config.nativeSpacing) difference else difference.coerceAtLeast(0f) else 0f
             tracks.forEachIndexed { ti,track ->
+                val rowTop=top
+                var overflow=TGAlphaStaffSize(0f,0f,1f)
                 val lanes = staffSpacing(track,columns.map { track.measures[it.index] })
                 fun place(): List<TGMeasureLayout> {
                     var left = padding
@@ -260,10 +262,10 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                             else->TGTrackLane.Chord
                         })
                     } ?: 0f
-                    // Native marker/prose baselines may lie at the measure origin.
-                    // Include their ascenders in the row's INK envelope; do not
-                    // move the native baseline merely to make a top-left box fit.
-                    if(top+minInk<0f) top= -minInk
+                    // AlphaTab RenderStaff treats ascenders outside the native content
+                    // origin as STAFF overflow. Move the whole staff, not its text anchor.
+                    overflow=alphaStaffSize(1f,listOf(-minInk*config.renderScale),emptyList())
+                    top=rowTop+overflow.top/config.renderScale
                     measures = place().map { it.copy(plannedAnnotations=true) }
                 }
                 if(headerHeight>0f) {
@@ -274,12 +276,14 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 val inkRight = placedAnnotations.maxOfOrNull { it.bounds.right } ?: naturalRight
                 val left = maxOf(naturalRight,inkRight)
                 val right = if (fitPage) minOf(left,viewportWidth) else left
-                val inkTop=minOf(top,placedAnnotations.minOfOrNull {it.bounds.top} ?: top)
-                val inkBottom=maxOf(top+lanes.height,placedAnnotations.maxOfOrNull {it.bounds.bottom} ?: top)
+                val inkTop=minOf(rowTop,placedAnnotations.minOfOrNull {it.bounds.top} ?: rowTop)
+                val inkBottom=maxOf(rowTop+lanes.height+(overflow.height-1f)/config.renderScale,
+                    placedAnnotations.maxOfOrNull {it.bounds.bottom} ?: top)
                 staves += TGStaffLayout(si,indices[ti],Rect(padding,inkTop,right,inkBottom),measures,annotations=placedAnnotations)
                 if (!fitPage) maxRight = maxOf(maxRight,if (config.nativeSpacing && config.orientation == TGLayoutOrientation.Horizontal)
                     if (left-padding+leftMargin > viewportWidth) left-padding+leftMargin+config.pagePadding else viewportWidth else left+rightMargin)
-                top += if (config.nativeSpacing) kotlin.math.floor(lanes.physicalHeight+config.systemSpacing*config.renderScale+.5f+.5f)/config.renderScale else lanes.height+config.systemSpacing
+                top = rowTop+(if (config.nativeSpacing) kotlin.math.floor(lanes.physicalHeight+config.systemSpacing*config.renderScale+.5f+.5f)/config.renderScale else lanes.height+config.systemSpacing)+
+                    (overflow.height-1f)/config.renderScale
             }
         }
         return TGSongLayout(maxRight,(if (config.nativeSpacing) top+config.firstTrackSpacing-nativeRound(config.firstTrackSpacing) else top-config.systemSpacing+padding).coerceAtLeast(0f),connectStaves(staves,config))

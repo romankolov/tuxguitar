@@ -1,15 +1,33 @@
 # Engraving and workspace audit
 
-> **1.0.1 correction:** the historical let-ring endpoint, parenthesised-continuation
-> and row-top number rules below are superseded by the actual-source geometry in
-> [ENGRAVING](ENGRAVING.md#correct-native-text-baselines-and-grouped-effects) and
-> [UPSTREAM-COMPARISON](UPSTREAM-COMPARISON.md#annotation-correction-source-behaviour-not-another-placement-scheme).
-> Do not treat the older layout-only checks as annotation paint parity.
+> **1.0.1 correction:** annotations now use actual native painter origins and
+> alphaTab grouped-glyph/effect-band behaviour. The previous duration-end,
+> parenthesised-continuation and row-top number rules are removed. See
+> [the current equations](ENGRAVING.md#correct-native-text-baselines-and-grouped-effects)
+> and [source/evidence scope](UPSTREAM-COMPARISON.md).
+> Older layout-only passes are not annotation paint parity.
 
 This release extends the native-based renderer; it does **not** claim perfect desktop
 engraving, complete editor parity, exhaustive accessibility or human listening approval.
 Tests are publication gates, not proof that every possible score/device is defect-free.
 The exact source revision, APK hash and signing identity accompany each published build.
+
+## 1.0.1 annotation evidence gates
+
+Original Java annotation draw calls and actual alphaTab grouped paints/registries
+are now compared, not merely widths/lane origins. Every device job must preserve
+all 32 detailed annotation/engraving/cursor PNGs before target cleanup, verify their
+integrity/names/SHA-256, and export all previews in an independent neutral Check.
+Neutral means evidence export only, never automatic visual approval. Both debug
+and exact optimized-release UI/PCM checks remain required; a missing capture fails.
+
+The number-origin hardware test covers Score/TAB/Mixed at 100%/150% zoom. It checks
+real blue number pixels in native staff-baseline regions and the centred source
+let-ring anchor by owning row/voice. A row's ascender-inclusive ink bounds are not
+the native beat/measure origin. No tolerance or pixel gate is weakened to confuse
+them. An additional pixel guard rejects prior-row black rhythm inside following
+prose. Actual alphaTab staff overflow grows the whole staff's content/height rather
+than merely expanding a culling rectangle. MPL licence/attribution bytes are verified in both APK and core AAR.
 
 ## 1.0 audit additions
 

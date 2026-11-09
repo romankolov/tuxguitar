@@ -38,10 +38,10 @@ python3 tools/upstream/check.py             # byte-compare checked reference res
 bash gradlew :tux-compose-core:desktopTest :demo-tuxguitar:test --stacktrace
 ```
 
-The checked TSV contains **3,380 records**, not 3,380 separate test methods:
+The checked TSV contains **3,444 records**, not 3,444 separate test methods:
 2,048 skyline operations, eight resets, 400 force/width cases, 128 accidental-column
 cases, 360 ranged-glyph paint cases, 256 grouped-effect flag patterns and 128
-effect-placement systems, plus 52 actual Score/Tab registry entries. Seven JVM test methods compare the Kotlin helpers and
+effect-placement systems, plus 52 actual Score/Tab registry entries and 64 staff-overflow cases. Eight JVM test methods compare the Kotlin helpers and
 model adaptation with those actual upstream results. Additional brute-force/randomized tests exercise
 our own implementation and boundary rules. `--update` is an explicit fixture maintenance
 operation, never an automatic CI repair. The CI build runs source/fixture verification
@@ -97,7 +97,8 @@ No performance win is claimed without a controlled benchmark.
 TuxGuitar-derived shipping code and native vectors remain **LGPL-2.1-or-later**.
 Unlike 1.0.0, **1.0.1 deliberately adapts upstream implementation code**:
 `TGAlphaEffectLayout.kt` ports alphaTab's `LineRangedGlyph` paint geometry and
-`EffectSystemPlacement` priority/chain-placement kernel. That file remains
+`EffectSystemPlacement` priority/chain-placement kernel, plus `RenderStaff`
+overflow aggregation/content-origin accounting. That file remains
 **MPL-2.0**, with original attribution, pin, full licence and public corresponding
 source. The POM lists both licences; see [NOTICE](../NOTICE.md).
 No alphaTab parser, playback engine, font or JavaScript runtime is incorporated.
@@ -154,6 +155,14 @@ not establish measure-number or let-ring parity.
    sine-like stroke or font substitute. This is targeted annotation correction, not complete editor
    or all-effects pixel parity.
 
+7. **Staff overflow — alphaTab.** Marker/prose ascenders above the native content
+   origin are registered as staff top overflow, included in its height and added
+   to the whole staff's content offset. Merely extending culling bounds was not
+   sufficient: visual review exposed TAB beams touching following prose at 150%
+   zoom with larger fonts. The correction copies `RenderStaff`'s actual overflow
+   aggregation/height rule and tests it against 64 original-source cases. It does
+   not nudge a caption relative to its own staff or weaken a pixel tolerance.
+
 ### New executable evidence
 
 - Original Java `paintDivisions`, `paintMarker` and `paintTexts` execute with a
@@ -163,8 +172,8 @@ not establish measure-number or let-ring parity.
   voice widths and every recorded move/line/cubic/flush call.
 - Original alphaTab classes produce **360 ranged-glyph paint records**, **256
   grouped-effect flag patterns** and **128 effect-placement systems**. These are
-  checked alongside **52 original Score/Tab registry entries** and the previous
-  2,584 records: **3,380** in total, not invented expectations.
+  checked alongside **52 original Score/Tab registry entries**, **64 staff-overflow cases** and the previous
+  2,584 records: **3,444** in total, not invented expectations.
 - Native source pinning now includes the Android font-baseline backend, beat/text
   painters and harmonic labels: **20** byte-identical reference files.
 - Android tests check real hardware number pixels near their staff baselines,

@@ -171,6 +171,8 @@ class AnnotationsDeviceTest {
             val by=((textBounds.bottom-state.scrollY)*factor).toInt().coerceIn(ty,afterPixels.height-1)
             assertTrue("$mode zoom=$zoom: following text must paint in both planned and untouched rows",
                 (lx..rx).any { x -> (ty..by).any { y -> magenta(afterPixels[x,y]) } })
+            assertFalse("$mode zoom=$zoom: previous-row rhythm must not paint inside following prose",
+                (lx..rx).any {x->(ty..by).any {y->afterPixels[x,y].let {it.red<.35f && it.green<.35f && it.blue<.35f}}})
         }
     }
     @Test fun measureNumbersPaintAtNativeStaffBaselinesNotAtTheRowOrMarkerOrigin() {

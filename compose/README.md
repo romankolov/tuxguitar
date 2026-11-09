@@ -1,4 +1,4 @@
-# Tux Compose 1.0.0
+# Tux Compose 1.0.1 (correction candidate)
 
 **Immutable score → shared layout → Compose Canvas.** A standalone rendering library and an Android showcase built alongside (not inside) the legacy TuxGuitar applications.
 
@@ -89,7 +89,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:1.0.0")
+    implementation("com.tuxcompose:tux-compose-core:1.0.1")
 }
 ```
 
@@ -278,21 +278,28 @@ are logical notation units, transformed only once by density/zoom. Smooth moveme
 opacity/blink/pulse and cooperative following are unchanged.
 See [the current geometry and audit](docs/VISUAL-AUDIT.md).
 
-`TGLayoutConfig(mergeLetRing = true)` is enabled by default. Consecutive marked attacks
-in a voice now display **`let ring - - - - |`**, covering the last marked duration, not a
-label at every note. Reattacks without the flag, rests, time gaps and repeat/ending
-boundaries stop a run. Tied continuations sustain it without another onset label.
-Overlapping voice runs share a display span, but tracks remain independent. A row break
-or oversized-bar fragment shows `(let ring)` with continuation dashes; only the actual
-end receives a cap. A very short segment puts its line below its caption instead of
-losing the cap or drawing through the words.
+`TGLayoutConfig(mergeLetRing = true)` is enabled by default. The 1.0.1 correction
+uses alphaTab's actual grouped-glyph semantics: **`let ring - - - - |`** is centred
+on the first explicitly flagged note **of that voice**, and ends on the last linked
+onset—not at a duration-interpolated endpoint. Repeat/ending boundaries do not split
+the chain. An unmarked voice beat/rest stops it; no automatic tie inheritance or
+union of different voices is added. Each row restarts the same plain label and has
+its upstream cap when a line fits. A singleton/short span is label-only: no invented
+parentheses, below-text line or compulsory cap.
 
-Markers, chord names, effects and prose are measured and packed into separate row-local
-bands **even when there is no let-ring**. Whole captions wrap rather than ellipsize,
-shrink or widen rhythmic columns. Measure numbers, tempo/feel, connection labels and
-bends receive explicit clearances. The default `avoidAnnotationCollisions=true` also
-permits **minimal local glyph clearance** where actual frets/custom fonts/effects would
-otherwise overlap on the native grid; it never uniformly scales a measure or row.
+TuxGuitar supplies the measure-number/repeat baseline, marker/prose/chord anchors,
+native effect spelling and offline vector paths. The alphaTab effect-band priority
+and query/commit placement kernel is an attributed MPL-2.0 adaptation. Source Score
+and TAB priorities are checked independently. Metadata positions are baselines;
+a row's culling/ink envelope can extend above its native measure origin.
+
+Markers/prose retain their musical X anchors and can emergency-wrap for the fixed
+parent; atomic chord/effect labels are not moved, wrapped or shrunk to fit a shelf.
+Missing boundary ink space can consume the existing margins/signature prefix before
+any extra minimum is reserved. Default `avoidAnnotationCollisions=true` preserves
+the native rhythmic/greedy base and permits only local measured-ink clearance.
+Full coordinate mathematics and the exact scope are in [ENGRAVING](docs/ENGRAVING.md)
+and [UPSTREAM-COMPARISON](docs/UPSTREAM-COMPARISON.md).
 
 These are documented Compose enhancements, not upstream pixel parity. For the raw
 native comparison profile set **both** `avoidAnnotationCollisions=false` and
@@ -414,9 +421,15 @@ custom-bank behavior, footprint and test/hardware limitations.
 - `commonTest`: duration/tuplet validation, immutable snapshots, spacing, wrapping, multi-track alignment, hit testing, culling, beaming, empty/extreme inputs and state navigation.
 - `demo-tuxguitar:test`: full native Java layout differentials (`NativeLayoutParityTest`) compare widths, every onset, row packing/justification, header flags and vertical lanes across styles, compact modes, fractional scale, effects, polyphony and real GP3/4/5 imports. The actual Android style class is compiled into tests, not copied. `native-layout-parity.json` is included in CI diagnostics. Also tests every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; whole-measure and projected-fragment row packing against `TGLayoutVertical.getTempLines`; recorded strum/picking vectors against the actual Java painters; GP3/4/5 strum round trips (plus GP4/5 picking marks); original MIDI event generation.
 - Android instrumentation: native-default mixed-duration reflow, actual-font zoom/pointer transforms, native/system-font-scale policy, real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the full GeneralUser GS bank**. FluidSynth instrumentation covers version, melodic/drum presets, reverb tails, chorus changes, RPN pitch bends and invalid-bank/close safety. Actual-font annotation tests also cover caption clearances, terminal-cap pixels, all three notation styles, font scale/reflow/zoom and hollow capsule pixels. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
+- Original Java annotation painters additionally record 288 number, 36 repeat-count
+  and 360 offline-path cases; pinned alphaTab code generates 3,444 records including
+  grouped-glyph painting and the real Score/TAB effect registries. Detailed hardware
+  images are fail-closed, byte-preserved and hash-manifested: 32 required scenes/API.
 - `python3 tools/verify.py`: reproducible glyph source hashes and a fail-closed check against platform/parser/player imports or demo dependencies in core.
 
-Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The showcase now dynamically links LGPL FluidSynth and packages GeneralUser GS under its own license; full dependency notices are in `demo-synth/src/main/assets/licenses/` and the APK. See [synth provenance and relinking](docs/SYNTH.md). Original Gervill files remain untouched in the repository but are no longer compiled into this sample. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.
+Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; the attributed
+`TGAlphaEffectLayout.kt` source adaptation retains **MPL-2.0**. Both notices/full
+licences are checked in the shipped AAR/APK. See [the exact copying boundary](docs/UPSTREAM-COMPARISON.md#licence-boundary-after-the-annotation-correction); see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The showcase now dynamically links LGPL FluidSynth and packages GeneralUser GS under its own license; full dependency notices are in `demo-synth/src/main/assets/licenses/` and the APK. See [synth provenance and relinking](docs/SYNTH.md). Original Gervill files remain untouched in the repository but are no longer compiled into this sample. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.
 
 ## Focused Material 3 Expressive workspace (0.1.7)
 

@@ -117,4 +117,17 @@ class AlphaTabOracleTest {
         assertEquals(16,checked)
     }
 
+    @Test fun staffOverflowAndContentOriginMatchTheActualAlphaTabStaff() {
+        var checked=0
+        records().filter {it[0]=="staff-size"}.forEach {r->
+            val size=alphaStaffSize(r[1].toFloat(),r[2].split(',').map {it.toFloat()},r[3].split(',').map {it.toFloat()})
+            assertEquals(r[4].toFloat(),size.top,.0001f)
+            assertEquals(r[5].toFloat(),size.bottom,.0001f)
+            assertEquals(r[6].toFloat(),size.height,.0001f)
+            assertEquals(r[7].toFloat(),size.top,.0001f,"renderer content origin includes top overflow")
+            checked++
+        }
+        assertEquals(64,checked)
+    }
+
 }

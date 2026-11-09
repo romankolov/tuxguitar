@@ -82,3 +82,13 @@ internal fun alphaPlaceEffectBands(bands: List<TGAlphaEffectBand>, left: Float, 
     val height=bands.indices.maxOf {magnitudes[it]+bands[it].height}
     return TGAlphaEffectPlacement(height,bands.indices.map {height-magnitudes[it]-bands[it].height})
 }
+
+/** RenderStaff.registerOverflow{Top,Bottom}/calculateHeightForAccolade.
+ * Overflow is outside the renderer's native content origin. It grows the staff,
+ * not an individual caption offset, and is rounded once at physical-pixel size. */
+internal data class TGAlphaStaffSize(val top: Float,val bottom: Float,val height: Float)
+internal fun alphaStaffSize(contentHeight: Float,tops: List<Float>,bottoms: List<Float>): TGAlphaStaffSize {
+    val top=maxOf(0f,tops.maxOrNull() ?: 0f)
+    val bottom=maxOf(0f,bottoms.maxOrNull() ?: 0f)
+    return TGAlphaStaffSize(top,bottom,contentHeight+if(contentHeight>0f) kotlin.math.ceil(top+bottom) else 0f)
+}

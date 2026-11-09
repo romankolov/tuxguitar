@@ -313,66 +313,56 @@ source is offscreen. Indexed intervals avoid scanning an offscreen prefix. Rest 
 prevent reconnection across rests. Beams and tuplet/ending brackets continue row-locally;
 no connection is drawn diagonally through another staff or row gap.
 
-### Let-ring semantics and collision-free caption bands (0.1.6)
+### Native annotations and alphaTab grouped effects (1.0.1 correction)
 
-**Source audit:** `TGNoteImpl.paintOfflineEffects` draws `L.R` separately at each flagged note
-(and other offline effects in category lanes). It has no merged dashed span to port.
-`mergeLetRing=true` therefore opts the default Compose view into the explicitly requested
-annotation enhancement; setting it false retains the existing/native lane arithmetic.
-The immutable source effects remain unchanged in either mode.
+`TGNoteImpl.paintOfflineEffects` draws native `L.R` separately at each flagged note;
+that is retained with `mergeLetRing=false`. The default grouped mode uses an
+attributed MPL-2.0 adaptation of alphaTab's `LineRangedGlyph` and effect-placement
+kernel, not the old invented duration-union/parenthesised-continuation scheme.
+Decoded immutable flags are not changed in either mode.
 
-`TGAnnotations.kt` first walks source events, **before fragmentation**, per track/voice.
-Consecutive flagged attacks extend `[start,end)` through the last marked duration.
-An unmarked reattack/rest closes it, a time gap starts another, tied continuations extend
-it without duplicate captions, and repeat-open/close or changed alternate endings cut it.
-Unrelated voices do not terminate a held voice. Overlapping/touching runs in the same
-repeat section are unioned for display; different tracks/sections never merge. Sorted,
-disjoint run intervals provide binary-search row lookup.
+Walk consecutive voice beats before fragmentation, retaining a separate explicit
+flag chain per voice. Repeats and endings do not stop a chain. Unmarked voice beats
+stop it; the layout does not add let-ring to an unmarked tie or union other voices.
+An indexed row lookup keeps only intersecting source runs. The label is centred at
+the row's first marked onset. Its line ends at the last linked **onset** visible in
+that row. Each system restarts a plain label and independently applies the upstream
+short-group rule: singleton/insufficient-length groups have no dashes or cap.
+Drawable segments have the upstream fixed-size cap, including outgoing segments.
 
-For a source time inside a placed beat, project with the same rhythmic interval used by
-the cursor:
+Dash size/gap/thickness are `s`, `.5s`, `.16s`, where `s` is the fixed staff-space.
+The line starts half a gap beyond the centred label's right edge, at its vertical
+midpoint. No below-text fallback, forced terminal cap or horizontal text clamp is
+added. Dashes/caps are filled rectangles; visible-prefix indexing preserves phase
+without scanning offscreen periods. [ENGRAVING](ENGRAVING.md) gives every equation.
 
-```
-u = clamp((tick - beat.startTick) / (beat.endTick - beat.startTick), 0, 1)
-x(tick) = beat.x + u * (beat.endX - beat.x)
-```
+Effect placement follows source category, descending visual order, voice and bar,
+with linked bands queried before any chain member commits its skyline range.
+Native named track lanes provide musical clearance and bottom alignment. Score and
+TAB profile ordering are verified from the actual upstream renderer registries.
+Native accent/heavy-accent, fade, vibrato and trill paths use original Java painter
+vertices and the original voice width—not a different arrow or sine-like stroke.
 
-Split the run against each system/fragment's half-open source interval. At an incoming
-edge label it `(let ring)`; at an outgoing edge omit the cap. The final endpoint is two
-logical units before the projected duration end, keeping it off the barline. Only the
-true end has a six-unit vertical cap. Dashes use a 3-on/2-off pattern, stroke 0.8.
-The caption precedes the line by 3 units. If a short final fragment cannot accommodate
-both, the line moves below the caption with a 4-unit gap; the cap is never discarded.
+Numbers/repeat counts use the actual first staff/barline baseline, not the row top.
+Markers/prose use their native musical X and baseline; chord names use their native
+centred X and Android top-line baseline conversion. `TGFontMetrics.firstBaseline`
+is overridable, with the real Compose implementation returning its cached layout.
+A row's ink bounds may extend above its native measure origin; those are not the
+same coordinate. Enlarging culling bounds must not move native paint anchors.
 
-With `avoidAnnotationCollisions=true`, preflight markers, chord names, effects and prose
-on **all annotated rows**, including rows without any let-ring, using the
-shared measured font metrics. Wrap prose/captions by words, with a Unicode-code-point
-fallback for very long words. Clamp their X within the row; do not truncate strings or
-shrink fonts. An impossible single glyph is clipped at the viewport boundary. For each
-of the Text/Effects bands, sort intervals by left edge and reuse the first lane with
-`previousRight + 2 <= nextLeft`; otherwise allocate a new lane. A let-ring interval
-includes its caption **and the whole dashed span**, so an interior or immediately
-following label cannot occupy the same ink space. Each lane's height is its largest
-caption/line/cap box plus clearance (and at least `effectSpacing` in Effects).
+The existing fixed-parent emergency wrapping remains for prose only. Atomic
+chord/effect labels remain attached to their notes; the measured-ink machinery
+reserves a missing boundary minimum only after using existing margin/signature
+space. No font/staff/system scaling is introduced. Truly indivisible ink wider
+than the whole viewport still has that documented clipping limit.
 
-Increase, never decrease, the corresponding `TGSpacing` reservations, then re-place the
-row with the same horizontal columns. Cached fragments rebase their lanes independently.
-The original style-specific lane permutations keep Effects above ScoreUp in score-only
-mode and in their native position for mixed/tab rows; no extra unrelated score padding is
-introduced. No native natural width, greedy row
-threshold, justification equation, note/font size, source identity or hit-test tick is
-changed. Adaptive does not reserve a fresh horizontal `let ring` word on every attack;
-its other optional ink constraints remain independent.
-
-`TGStaffLayout.annotations` caches the resulting immutable geometry; a balanced interval
-index finds visible ink even with an offscreen label. Renderer dash work is limited to
-the visible interval, preserving its original phase. Captions are line-culled vertically.
-The normal `render` pass handles these overlays after notation/connections. Standalone
-`renderMeasure` callers must draw cached row `renderAnnotation` overlays, just as with
-`renderConnection`; `plannedAnnotations` suppresses legacy duplicate beat captions.
-Rows without let-ring now receive the same measured caption protection. The separate
-visible-glyph safety pass may add minimal local clearance where actual ink conflicts;
-it does not replace the native rhythmic/greedy base. See [0.1.8 audit](VISUAL-AUDIT.md).
+`TGStaffLayout.annotations` and its cached interval index feed the normal render
+pass. `renderMeasure` callers must also draw cached row `renderAnnotation` and
+`renderConnection` overlays. `plannedAnnotations` suppresses legacy duplicates.
+The original five `TGAnnotationKind` categories remain source-compatible; optional
+`nativeEffect` metadata distinguishes additional native paths. Core still has no
+parser, playback, Material or heavyweight View dependency. See [the pinned sources,
+licences and evidence limits](UPSTREAM-COMPARISON.md).
 
 ### Fixed-width hollow capsule cursor (0.1.8)
 

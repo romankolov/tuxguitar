@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Test harness only. Imports UNMODIFIED, checksum-pinned alphaTab MPL-2.0 sources.
 // Neither the reference sources nor their bundle are distributed with the library.
+import {RenderStaff} from '@coderline/alphatab/rendering/staves/RenderStaff';
 import {Environment} from '@coderline/alphatab/Environment';
 import {ScoreBarRendererFactory} from '@coderline/alphatab/rendering/ScoreBarRendererFactory';
 import {TabBarRendererFactory} from '@coderline/alphatab/rendering/TabBarRendererFactory';
@@ -149,5 +150,19 @@ for(const profile of ['score','tab']) {
             (b.effect.effectId==='EffectSlightNoteVibrato' ? '~':'-');
         lines.push(['effect-order',profile,label,b.effect.effectId,b.effect.placementCategory,b.order??i].join('\t'));
     });
+}
+// Actual RenderStaff overflow aggregation and content-origin/height accounting.
+for(let run=0;run<64;run++) {
+    const height=1+random(200);
+    const tops=Array.from({length:1+run%5},()=> (random(80)-12)/4);
+    const bottoms=Array.from({length:1+run%3},()=> (random(48)-8)/4);
+    const system:any={index:0,staves:[],layout:{renderer:{settings:{display:{
+        firstNotationStaffPaddingTop:0,notationStaffPaddingTop:0,lastNotationStaffPaddingBottom:0,notationStaffPaddingBottom:0}}}}};
+    const staff=new RenderStaff(system,0,{track:{score:{stylesheet:{hideEmptyStaves:false}}}} as any,{} as any);
+    system.staves.push(staff);
+    staff.barRenderers=[{height}] as any;
+    tops.forEach(v=>staff.registerOverflowTop(v));bottoms.forEach(v=>staff.registerOverflowBottom(v));
+    staff.calculateHeightForAccolade();
+    lines.push(['staff-size',height,tops.join(','),bottoms.join(','),staff.topOverflow,staff.bottomOverflow,staff.height,staff.contentTop].join('\t'));
 }
 console.log(lines.join('\n'));

@@ -140,6 +140,30 @@ class AnnotationTest {
         assertEquals(1,page.staves.filter { it.trackIndex==0 }.sumOf { it.annotations.count { a -> a.kind==TGAnnotationKind.LetRing } })
         assertTrue(page.staves.filter { it.trackIndex==1 }.all { it.annotations.isEmpty() })
     }
+    @Test fun nativeBaselineAscendersReserveAlphaStaffOverflowBeforeTheFollowingRow() {
+        val first=bar(count=64)
+        val start=4800L
+        val after=TGMeasure(2,TGMeasureHeader(),List(4) {i->
+            TGBeat(start+960L*i,TGDuration(4),listOf(TGVoice(notes=listOf(TGNote(5,1)))),
+                text=if(i==0) "after ringing" else null)
+        },start)
+        val fonts=TGFontMetrics {value,role->TGFontMetrics.Approximate.measure(value,role).let {
+            TGTextSize(it.width*1.4f,it.height*1.4f)
+        }}
+        for(style in TGLayoutStyles.entries) for(scale in listOf(1f,2.625f,3.9375f)) {
+            val page=layout(song(first,after),240f,base.copy(style=style,renderScale=scale),fonts)
+            val rowIndex=page.staves.indexOfFirst {row->row.annotations.any {it.sourceTick==start && it.band==TGAnnotationBand.Text}}
+            assertTrue(rowIndex>0)
+            val previous=page.staves[rowIndex-1]
+            val inkBottom=previous.measures.flatMap {it.beats}.flatMap {it.voices}.filter {it.notes.isNotEmpty()}.maxOf {v->
+                val beamOffset=if(v.up) maxOf(0,v.duration.beamCount-1)*4f else 0f
+                maxOf(v.stemStartY,v.stemEndY+beamOffset+if(v.duration.beamCount>0) 2.4f else .4f)
+            }
+            val caption=page.staves[rowIndex].annotations.single {it.band==TGAnnotationBand.Text && it.sourceTick==start}
+            assertTrue(caption.bounds.top>inkBottom+.01f,"$style/$scale prose ${caption.bounds} overlaps prior rhythm down to $inkBottom")
+            assertClear(page)
+        }
+    }
     @Test fun annotationPackingDoesNotChangeNativeOnsetsOrGlyphSizes() {
         val data=song(bar(other=true),bar(1))
         val plain=layout(data,800f,base.copy(mergeLetRing=false))

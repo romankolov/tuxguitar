@@ -76,7 +76,9 @@ class NativeAnnotationPaintTest {
                     val annotation=safe.staves.flatMap {it.annotations}.single {it.band==TGAnnotationBand.Marker}
                     assertEquals(marker.x,annotation.labelBounds.left*scale,.025f,"marker must not be moved to headerX")
                     val baseline=annotation.labelBounds.top+TGFontMetrics.Approximate.firstBaseline(annotation.lines.first(),TGTextRole.Text)
-                    assertEquals(marker.baseline,baseline*scale,.025f,"marker BASELINE, not top-left")
+                    val safeMeasure=safe.staves.flatMap {it.measures}.single {it.measureIndex==m.measureIndex}
+                    assertEquals(marker.baseline-native.posY,(baseline-safeMeasure.bounds.top)*scale,.025f,
+                        "marker BASELINE relative to native content; alphaTab reserves staff overflow outside it")
                 }
                 val prose=ref.paintStrings(native,"paintTexts").single()
                 val beat=m.beats.single {it.beat.text==prose.value}

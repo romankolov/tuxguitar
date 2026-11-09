@@ -193,6 +193,23 @@ upward. Different voice/effect bands do not constrain each other's rhythmic X.
 Prose's fixed-parent emergency wrapping remains a documented adaptation, not a
 claim that all of alphaTab's staff skyline, fonts and overlay rods were reproduced.
 
+### Staff overflow is height, not just culling
+
+AlphaTab `RenderStaff.registerOverflowTop/Bottom` keeps the maximum positive
+paint overflow; `calculateHeightForAccolade` adds `ceil(topOverflow+bottomOverflow)`
+to a positive content height (zero additional source paddings in our oracle).
+The renderer's content origin includes `topOverflow`. The Kotlin MPL adaptation
+uses that rule at physical-pixel scale around the existing native row geometry.
+
+For baseline-oriented prose with `minInkY < 0`, merely extending the row rectangle
+upward does not reserve room: preceding TAB beams can still touch the text. Shift
+the **entire native content origin** by the registered top overflow and increase
+row advance by its source-rounded height. Marker/prose remain at the exact native
+baseline relative to that content, and numbers remain attached to their staff.
+Raw-reference mode is unchanged. A hardware check rejects dark rhythm pixels inside
+the following prose box; a common regression covers three styles/scales, and 64
+actual `RenderStaff` executions compare maximum overflows, height and content offset.
+
 ## Optional power-law springs with hard rods
 
 **Native remains the default.** Select `TGSpacingMode.Spring` explicitly, with

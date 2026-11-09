@@ -86,6 +86,10 @@ jobs:
     permissions:
       contents: read
       checks: write
+    # 13 job previews * 3 chunks + 6 success notices = 45, below the job's 50.
+    # The independent detailed Check has its own batched annotation budget.
+    env:
+      TUX_PREVIEW_MAX_CHUNKS: '3'
     strategy:
       fail-fast: false
       matrix:
@@ -126,6 +130,7 @@ jobs:
         if: always() && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
+          TUX_PREVIEW_MAX_CHUNKS: '4'
         run: python3 compose/tools/publish_device_previews.py ${{ matrix.api }}
       # Each scene has its own step: bounded JSON chunks stay under Checks' per-step
       # annotation count and 4096-character message limits, unlike one huge base64 line.
@@ -207,7 +212,7 @@ jobs:
           cp "$aar" release/tux-compose-core-release.aar
           (cd release && sha256sum *.apk *.aar > SHA256SUMS.txt)
           version=$(python3 -c "import json; print(json.load(open('release/BUILD-VERIFICATION.json'))['version'])")
-          notes="Tux Compose $version: immutable decoded score to native Compose Canvas, without core parsers or playback. Native TuxGuitar spacing remains the default; includes chord/accidental/tie/grace improvements, skyline captions and opt-in Spring spacing with hard glyph minimums. Pinned TuxGuitar/alphaTab comparisons and explicit limitations are documented. Optimized, R8-shrunk, non-debuggable release APK and core AAR. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Evaluation build, not a Play Store release. Source and usage: https://github.com/$GH_REPO/tree/$GITHUB_SHA/compose. Comparison and mathematics: https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/UPSTREAM-COMPARISON.md and https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/ENGRAVING.md. This is not a blanket superiority or complete-editor parity claim."
+          notes="Tux Compose $version: immutable decoded score to native Compose Canvas, without core parsers or playback. Native TuxGuitar spacing remains the default; includes the 1.0.1 source-backed annotation correction (native text baselines/paths and attributed MPL-2.0 alphaTab grouped effects), chord/accidental/tie/grace improvements and opt-in Spring spacing with hard glyph minimums. Pinned TuxGuitar/alphaTab comparisons and explicit limitations are documented. Optimized, R8-shrunk, non-debuggable release APK and core AAR. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Both APIs preserved all 32 required detailed hardware capture scenes. Evaluation build, not a Play Store release. Source and usage: https://github.com/$GH_REPO/tree/$GITHUB_SHA/compose. Comparison and mathematics: https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/UPSTREAM-COMPARISON.md and https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/ENGRAVING.md. This is not a blanket superiority or complete-editor parity claim."
           if gh release view tux-compose-preview >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GH_REPO/git/refs/tags/tux-compose-preview" -f sha="$GITHUB_SHA" -F force=true
             gh release edit tux-compose-preview --notes "$notes"

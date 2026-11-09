@@ -23,7 +23,7 @@ and effect-band placement, rather than adding another caption-placement scheme.
 ## Evidence required before publication
 
 - Original Java annotation paint-call differentials, not only width/layout tests.
-- 3,380 checksum-pinned alphaTab records including actual grouped glyph painting,
+- 3,444 checksum-pinned alphaTab records including actual grouped glyph painting,
   flag linking, effect-band placement and Score/Tab priorities; 20 native source-file comparisons.
 - Existing JVM, 1,728-layout matrix, Android API 24/35 and exact-release tests.
 - Hardware pixel checks for number baselines and grouped effects; all 32 required
