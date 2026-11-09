@@ -36,9 +36,21 @@ def annotations(folder, required=None):
 
 
 def gh(endpoint, method, data):
-    response=subprocess.check_output(['gh','api','--method',method,endpoint,'--input','-'],
-                                     input=json.dumps(data).encode())
-    return json.loads(response)
+    response=subprocess.run(['gh','api','--method',method,endpoint,'--input','-'],
+                            input=json.dumps(data).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    if response.returncode:
+        raise RuntimeError(f'GitHub {method} {endpoint} exited {response.returncode}: '+
+                           response.stderr.decode(errors='replace')[:1800])
+    try:
+        return json.loads(response.stdout)
+    except ValueError as error:
+        raise RuntimeError(f'GitHub {method} {endpoint} returned invalid JSON: '+
+                           response.stdout.decode(errors='replace')[:300]) from error
+
+
+def workflow_error(title,error):
+    message=str(error).replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+    print(f'::error title={title}::{message}',flush=True)
 
 
 def main():
@@ -51,15 +63,26 @@ def main():
              'PNG SHA-256 and original dimensions accompany each image. '
              'Export only: this neutral check is NOT visual approval. '
              'All test and explicit publication gates remain separate.')
-    check=gh(f'repos/{repo}/check-runs','POST',dict(name=title,head_sha=sha,status='in_progress',
-              output=dict(title=title,summary=summary)))
-    endpoint=f'repos/{repo}/check-runs/{check["id"]}'
+    check=None
+    endpoint=None
     try:
+        check=gh(f'repos/{repo}/check-runs','POST',dict(name=title,head_sha=sha,status='in_progress',
+                  external_id=f'{os.environ.get("GITHUB_RUN_ID","local")}:{os.environ.get("GITHUB_RUN_ATTEMPT","1")}:{api}',
+                  output=dict(title=title,summary=summary)))
+        endpoint=f'repos/{repo}/check-runs/{check["id"]}'
         for offset in range(0,len(items),50):
             gh(endpoint,'PATCH',dict(output=dict(title=title,summary=summary,annotations=items[offset:offset+50])))
         gh(endpoint,'PATCH',dict(status='completed',conclusion='neutral',output=dict(title=title,summary=summary)))
-    except Exception:
-        gh(endpoint,'PATCH',dict(status='completed',conclusion='failure',output=dict(title=title,summary='Hardware preview export failed.')))
+    except Exception as error:
+        # Report the ORIGINAL failure through Checks even when log/artifact download
+        # is unavailable. A failed cleanup must not hide that original diagnosis.
+        workflow_error('Detailed hardware export failed',error)
+        if endpoint is not None:
+            try:
+                gh(endpoint,'PATCH',dict(status='completed',conclusion='failure',
+                    output=dict(title=title,summary='Hardware preview export failed: '+str(error)[:1800])))
+            except Exception as cleanup:
+                workflow_error('Detailed hardware export cleanup failed',cleanup)
         raise
     digest=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest()
     print('::notice title=Detailed hardware previews exported::'+json.dumps(dict(api=api,check_id=check['id'],

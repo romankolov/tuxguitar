@@ -62,6 +62,11 @@ The preview manifest fingerprints for the reviewed run are
 `0768ad251b93013ff507ac0b49df7727af3691c9de7073de5bc192b29665e016` (API 24) and
 `a63cb4e3eba73d00e91efdba598ae8c6e59ec15be9a957d44ca581513ee08be3` (API 35).
 These identify that visual qualification, not the separately rebuilt final APK.
+A promotion attempt subsequently passed rendering/device/release tests but failed
+while uploading a detailed Check; publication stayed blocked. Export failures now
+preserve their original GitHub/HTTP diagnosis in workflow annotations, even if
+cleanup also fails. Two additional host tests cover that diagnostics seam (19
+host harness tests in the publishing source, versus 17 in the visual-approval run).
 This is targeted source/annotation evidence, not exhaustive editor, whole-page,
 all-effect optical or physical-device parity. No human speaker-listening claim is made.
 

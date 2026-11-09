@@ -6,7 +6,9 @@ from pathlib import Path
 import tempfile
 import unittest
 from PIL import Image
-from publish_device_previews import annotations
+from publish_device_previews import annotations, gh
+from unittest.mock import patch
+import subprocess
 
 
 class DetailedPreviewExportTest(unittest.TestCase):
@@ -24,6 +26,18 @@ class DetailedPreviewExportTest(unittest.TestCase):
             self.assertEqual([945,945],chunks[0]['original_png_size'])
             self.assertEqual(1,manifest['required'])
             self.assertTrue(all(item['annotation_level']=='notice' for item in items))
+
+    def test_github_failure_preserves_http_diagnosis(self):
+        failure=subprocess.CompletedProcess([],1,b'',b'HTTP 502: Bad Gateway')
+        with patch('publish_device_previews.subprocess.run',return_value=failure):
+            with self.assertRaisesRegex(RuntimeError,'GitHub PATCH.*HTTP 502'):
+                gh('repos/example/example/check-runs/1','PATCH',{})
+
+    def test_github_invalid_json_is_not_silent(self):
+        failure=subprocess.CompletedProcess([],0,b'not-json',b'')
+        with patch('publish_device_previews.subprocess.run',return_value=failure):
+            with self.assertRaisesRegex(RuntimeError,'returned invalid JSON: not-json'):
+                gh('repos/example/example/check-runs','POST',{})
 
     def test_export_cannot_silently_skip_missing_required_frame(self):
         with tempfile.TemporaryDirectory() as directory:
