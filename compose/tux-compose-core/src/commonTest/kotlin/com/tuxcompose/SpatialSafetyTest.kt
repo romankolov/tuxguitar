@@ -58,6 +58,17 @@ class SpatialSafetyTest {
             assertTrue(names.all { it.lines.joinToString(" ")=="Cmaj7(add9)/G" })
         }
     }
+    @Test fun centredCaptionsConsumeExistingSignaturePrefixBeforeAddingWhitespace() {
+        val fonts=TGFontMetrics {value,role->TGFontMetrics.Approximate.measure(value,role).let {
+            TGTextSize(if(role==TGTextRole.Chord) 73.2f else it.width,it.height)
+        }}
+        val data=source(chords=true,captions=false)
+        val cfg=TGLayoutConfig(showChords=false,showChordNames=true,justifySystems=false)
+        val plain=TGLayoutCalculator(cfg.copy(showChordNames=false),fonts).calculate(data,1000f).staves.first().measures.first()
+        val named=TGLayoutCalculator(cfg,fonts).calculate(data,1000f).staves.first().measures.first()
+        assertEquals(plain.beats.map {it.x},named.beats.map {it.x},"Existing clef/time prefix already contains the centred caption")
+        assertEquals(plain.bounds.width,named.bounds.width,.01f)
+    }
     @Test fun fractionalCaptionMinimaSurviveNativePixelRoundingAtEveryRenderScale() {
         val fonts=TGFontMetrics { value,role ->TGFontMetrics.Approximate.measure(value,role).let {
             TGTextSize(if(role==TGTextRole.Chord) 73.2f else it.width,it.height)
@@ -70,7 +81,7 @@ class SpatialSafetyTest {
             page.staves.forEach {row->
                 row.annotations.filter {it.band==TGAnnotationBand.ChordNames}.forEach {a->
                     val b=row.measures.flatMap {it.beats}.first {it.startTick==a.sourceTick}
-                    val expected=if(mode==TGSpacingMode.TuxGuitar) b.chordBounds!!.center.x+
+                    val expected=if(mode==TGSpacingMode.TuxGuitar) b.x+
                         kotlin.math.floor(4f*scale+.5f)/scale else b.x
                     assertEquals(expected,a.labelBounds.center.x,.01f,"$mode / $scale")
                     assertEquals(listOf("Cmaj7(add9)/G"),a.lines)

@@ -19,7 +19,7 @@ internal fun nativeOfflineEffectPaintCalls(kind: TGAnnotationKind, voiceWidth: F
         TGAnnotationKind.HeavyAccent->{move(0f,5f);line(3f,1f);move(3f,1f);line(6f,5f)}
         TGAnnotationKind.FadeIn->{
             move(0f,4f);cubic(0f,4f,voiceWidth,4f,voiceWidth,0f)
-            move(0f,4f);cubic(0f,4f,voiceWidth,4f,voiceWidth,8f)
+            move(0f,4f);cubic(0f,4f,voiceWidth,4f,voiceWidth,8f);move(voiceWidth,8f)
         }
         TGAnnotationKind.Vibrato,TGAnnotationKind.Trill->{
             val trill=kind==TGAnnotationKind.Trill

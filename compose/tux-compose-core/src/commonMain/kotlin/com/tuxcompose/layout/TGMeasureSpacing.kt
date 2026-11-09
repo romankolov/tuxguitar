@@ -11,6 +11,8 @@ internal data class TGMeasureInk(
     val lanes: List<List<TGHorizontalInk>> = emptyList(),
     val leading: Float = 0f,
     val continuationRight: Float = 0f,
+    /** Required total prefix, consuming existing header whitespace before adding any. */
+    val captionLeft: Float = 0f,
 )
 internal data class TGMeasureSpacing(val offsets: Map<Long,Float>, val rhythm: Float, val inkRights: Map<Long,Float>)
 
@@ -155,10 +157,13 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
         }}
         if (beat.pickStroke != TGStrokeDirection.None) picking += TGHorizontalInk(beat.start,-4f,4f)
     }
-    val lanes = (listOf(score,tab,chords,text,picking)+effects.values+atomicCaptions).filter { it.isNotEmpty() }
-    // Also protects an attack that becomes the first beat of a later page fragment.
-    val leading = ((lanes.maxOfOrNull { lane -> -lane.minOf { it.left } } ?: 0f)-config.firstNoteSpacing).coerceAtLeast(0f)
-    return TGMeasureInk(lanes,leading,continuationRight)
+    val ordinary=(listOf(score,tab,chords,text,picking)+effects.values).filter {it.isNotEmpty()}
+    val lanes=ordinary+atomicCaptions
+    // Staff glyphs must clear the signatures; captions in a separate vertical
+    // band can consume the WHOLE existing prefix, not just first-note spacing.
+    val leading=((ordinary.maxOfOrNull {lane->-lane.minOf {it.left}} ?: 0f)-config.firstNoteSpacing).coerceAtLeast(0f)
+    val captionLeft=(atomicCaptions.maxOfOrNull {lane->-lane.minOf {it.left}} ?: 0f).coerceAtLeast(0f)
+    return TGMeasureInk(lanes,leading,continuationRight,captionLeft)
 }
 
 /**

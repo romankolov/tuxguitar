@@ -108,6 +108,20 @@ coalesce. No unsupported logarithmic-update or whole-page speed claim is made.
 
 ## Correct native text baselines and grouped effects
 
+A row's **ink envelope** is not the native measure origin. Marker/prose baselines
+can be at that origin, with ascenders above it. Include that actual ink in culling
+bounds instead of shifting the baseline down to a box's top. `TGFontMetrics` now
+exposes `firstBaseline`; the Compose implementation returns the same cached
+`TextLayoutResult.firstBaseline` used for painting. Custom metric providers may
+override it; its default remains explicitly approximate.
+
+Native prose/marker text top is `laneBaseline-firstBaseline`. Native chord names
+use `chordTop+diagramHeight+FMTopLine`, i.e. text top
+`chordTop+diagramHeight-.2*firstBaseline` on Android. Vertically separated atomic
+captions first consume the entire existing signature/prefix and margins; only a
+missing minimum adds whitespace, not space on top of a sufficient signature.
+
+
 ### Numbers and repeat counts
 
 The Android native painter uses baseline coordinates, with `FMBaseLine = 0`.

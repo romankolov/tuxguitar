@@ -149,7 +149,9 @@ not establish measure-number or let-ring parity.
    attack instead of silently dropping it. Palm mute uses native `P.M`; TAB harmonic
    labels keep the actual `N.H`, `A.H`, `T.H`, `P.H`, `S.H` type, while score/mixed
    do not duplicate the harmonic caption. Heavy accents use the native vector,
-   not a font caret. This is targeted annotation correction, not complete editor
+   not a font caret. Native fades use the two original cubics; vibrato and trill use
+   the original filled paths at the un-justified native voice width, not a generic
+   sine-like stroke or font substitute. This is targeted annotation correction, not complete editor
    or all-effects pixel parity.
 
 ### New executable evidence
@@ -157,9 +159,12 @@ not establish measure-number or let-ring parity.
 - Original Java `paintDivisions`, `paintMarker` and `paintTexts` execute with a
   recording `UIPainter`; **288 number and 36 repeat-count calls** cover all three
   styles, page/horizontal layout, one/six strings and three physical scales.
+  An additional differential compares **360 original native offline paths**, their
+  voice widths and every recorded move/line/cubic/flush call.
 - Original alphaTab classes produce **360 ranged-glyph paint records**, **256
   grouped-effect flag patterns** and **128 effect-placement systems**. These are
-  added to the previous 2,584 records: **3,380** in total, not invented expectations.
+  checked alongside **52 original Score/Tab registry entries** and the previous
+  2,584 records: **3,380** in total, not invented expectations.
 - Native source pinning now includes the Android font-baseline backend, beat/text
   painters and harmonic labels: **20** byte-identical reference files.
 - Android tests check real hardware number pixels near their staff baselines,

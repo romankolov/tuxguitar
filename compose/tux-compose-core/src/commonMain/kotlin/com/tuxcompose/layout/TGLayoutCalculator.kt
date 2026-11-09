@@ -148,8 +148,8 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             val m = t.measures[col.index]
             if (config.repeatSystemSignatures) {
                 val metric = measureMetrics(t,m,t.measures.getOrNull(col.index-1),compact,true)
-                metric.copy(paintTempo=false,paintTripletFeel=false,first=round(metric.clef+metric.key+(if (metric.paintTime) 10f+config.timeSignatureSpacing else 0f)+config.firstNoteSpacing)+metric.ink.leading)
-            } else col.metrics[ti].copy(first=config.firstNoteSpacing+col.metrics[ti].ink.leading,clef=0f,key=0f,paintClef=false,paintKey=false,paintTime=false,paintTempo=false,paintTripletFeel=false,previousKey=0)
+                metric.copy(paintTempo=false,paintTripletFeel=false,first=maxOf(round(metric.clef+metric.key+(if (metric.paintTime) 10f+config.timeSignatureSpacing else 0f)+config.firstNoteSpacing)+metric.ink.leading,metric.ink.captionLeft))
+            } else col.metrics[ti].copy(first=maxOf(config.firstNoteSpacing+col.metrics[ti].ink.leading,col.metrics[ti].ink.captionLeft),clef=0f,key=0f,paintClef=false,paintKey=false,paintTime=false,paintTempo=false,paintTripletFeel=false,previousKey=0)
         }
         val systems = mutableListOf<List<Column>>()
         val filled = mutableListOf<Boolean>()
@@ -260,7 +260,10 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                             else->TGTrackLane.Chord
                         })
                     } ?: 0f
-                    if(minInk<0f) lanes.register(TGTrackLane.Top,lanes.size(TGTrackLane.Top)-minInk)
+                    // Native marker/prose baselines may lie at the measure origin.
+                    // Include their ascenders in the row's INK envelope; do not
+                    // move the native baseline merely to make a top-left box fit.
+                    if(top+minInk<0f) top= -minInk
                     measures = place().map { it.copy(plannedAnnotations=true) }
                 }
                 if(headerHeight>0f) {
@@ -271,7 +274,9 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 val inkRight = placedAnnotations.maxOfOrNull { it.bounds.right } ?: naturalRight
                 val left = maxOf(naturalRight,inkRight)
                 val right = if (fitPage) minOf(left,viewportWidth) else left
-                staves += TGStaffLayout(si,indices[ti],Rect(padding,top,right,top+lanes.height),measures,annotations=placedAnnotations)
+                val inkTop=minOf(top,placedAnnotations.minOfOrNull {it.bounds.top} ?: top)
+                val inkBottom=maxOf(top+lanes.height,placedAnnotations.maxOfOrNull {it.bounds.bottom} ?: top)
+                staves += TGStaffLayout(si,indices[ti],Rect(padding,inkTop,right,inkBottom),measures,annotations=placedAnnotations)
                 if (!fitPage) maxRight = maxOf(maxRight,if (config.nativeSpacing && config.orientation == TGLayoutOrientation.Horizontal)
                     if (left-padding+leftMargin > viewportWidth) left-padding+leftMargin+config.pagePadding else viewportWidth else left+rightMargin)
                 top += if (config.nativeSpacing) kotlin.math.floor(lanes.physicalHeight+config.systemSpacing*config.renderScale+.5f+.5f)/config.renderScale else lanes.height+config.systemSpacing
@@ -327,7 +332,8 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             clef+key+(if (metric.paintTime) nativeRound(10f+config.timeSignatureSpacing) else 0f)+config.firstNoteSpacing))
         // An ink minimum is a hard rod: nearest-pixel rounding must not reduce it.
         // The unprotected native prefix/rounding is unchanged when leading is zero.
-        return base+kotlin.math.ceil(metric.ink.leading*config.renderScale)/config.renderScale
+        val missing=maxOf(metric.ink.leading,metric.ink.captionLeft-base,0f)
+        return base+kotlin.math.ceil(missing*config.renderScale)/config.renderScale
     }
 
     /**
@@ -557,7 +563,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             if (distance > 0) quarter = maxOf(quarter, (beatWidths[i] - beatEffects[i]) / distance.toFloat())
         }
         val ink = if (config.optimizeSpacing) measureInk(track,m,config,fonts,compact,prev,voiceGroups(track,m).mapValues {it.value.up}) else TGMeasureInk()
-        return Metric(quarter, beatEffects.sum(), first+ink.leading, clef, key, quarters, if (m.header.repeatClose > 0) 20f else 0f, beatWidths, beatEffects, paintClef, paintKey, paintTime, paintTempo, previousKey, ink)
+        return Metric(quarter, beatEffects.sum(), maxOf(first+ink.leading,ink.captionLeft), clef, key, quarters, if (m.header.repeatClose > 0) 20f else 0f, beatWidths, beatEffects, paintClef, paintKey, paintTime, paintTempo, previousKey, ink)
     }
 
     private fun staffSpacing(track: TGTrack, measures: List<TGMeasure>): TGSpacing {

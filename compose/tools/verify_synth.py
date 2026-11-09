@@ -91,8 +91,14 @@ with ZipFile(aar) as core:
     assert not any(n.startswith(('jni/', 'assets/soundbank/')) for n in core.namelist()), 'Audio payload leaked into core AAR'
     with ZipFile(BytesIO(core.read('classes.jar'))) as classes:
         assert not any('/demo/' in n or '/synth/' in n or '/midi/' in n for n in classes.namelist()), 'Demo audio classes leaked into core'
+        licence='META-INF/licenses/alphaTab-MPL-2.0.txt'
+        assert licence in classes.namelist(), 'MPL licence missing from AAR: '+repr([n for n in classes.namelist() if n.startswith('META-INF/')])
+        assert classes.read(licence)==(root/'licenses/alphaTab-MPL-2.0.txt').read_bytes()
+        assert b'TGAlphaEffectLayout.kt' in classes.read('META-INF/Tux-Compose-NOTICE.txt'), 'AAR attribution missing'
+
 summary['soundfont_sha256'] = expected_bank
 summary['core_has_audio_payload'] = False
+summary['core_mpl_licence_and_notice'] = True
 (root / 'build').mkdir(exist_ok=True)
 (root / 'build/synth-verification.json').write_text(json.dumps(summary, indent=2)+'\n')
 print('::notice title=Synth payload verified::' + json.dumps({key: summary[key] for key in ('apk_sha256', 'soundfont_sha256', 'core_has_audio_payload')} | {'abis': list(summary['abis'])}))

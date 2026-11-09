@@ -84,7 +84,9 @@ class NativeAnnotationPaintTest {
                 val annotation=safe.staves.flatMap {it.annotations}.single {it.band==TGAnnotationBand.Text && it.sourceTick==beat.startTick}
                 assertEquals(prose.x,annotation.labelBounds.left*scale,.025f,"prose must not be clamped back from its note")
                 val baseline=annotation.labelBounds.top+TGFontMetrics.Approximate.firstBaseline(annotation.lines.first(),TGTextRole.Text)
-                assertEquals(prose.baseline,baseline*scale,.025f,"prose BASELINE, not top-left")
+                val safeMeasure=safe.staves.flatMap {it.measures}.single {it.measureIndex==m.measureIndex}
+                assertEquals(prose.baseline-native.posY,(baseline-safeMeasure.bounds.top)*scale,.025f,
+                    "prose baseline relative to its native measure origin; protected rows may be taller")
             }
         }
     }
