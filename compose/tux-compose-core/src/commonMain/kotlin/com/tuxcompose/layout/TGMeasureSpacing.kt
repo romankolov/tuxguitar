@@ -26,6 +26,7 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
     val text = mutableListOf<TGHorizontalInk>()
     val effects = mutableListOf<TGHorizontalInk>()
     val picking = mutableListOf<TGHorizontalInk>()
+    val atomicCaptions = mutableListOf<List<TGHorizontalInk>>()
     val engraving=scoreEngraving(track,measure,previous,config,directions)
     var continuationRight = 0f
     measure.beats.forEachIndexed { bi,beat ->
@@ -98,6 +99,24 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
             if (config.showTablature) { hasTab = true; tabRight = maxOf(tabRight,right) }
             else { hasScore = true; scoreRight = maxOf(scoreRight,right) }
         }
+        // Preserve source-centred atomic labels at row edges. They may consume the
+        // existing measure margins; only an insufficient boundary margin is reserved.
+        // Each is an isolated envelope, NOT an edge between successive rhythmic onsets.
+        fun atomicCaption(left: Float, right: Float) {
+            val a=minOf(0f,left+config.measurePadding)
+            val b=maxOf(0f,right-config.measurePadding)
+            atomicCaptions+=listOf(TGHorizontalInk(beat.start,a,b,1f))
+            continuationRight=maxOf(continuationRight,b+1f)
+        }
+        if(config.avoidAnnotationCollisions && config.mergeLetRing && voices.any {v->v.notes.any {it.effects.letRing}}) {
+            val half=fonts.measure("let ring",TGTextRole.Text).width/2f
+            atomicCaption(-half,half)
+        }
+        if(config.avoidAnnotationCollisions && config.showChordNames) beat.chord?.let {
+            val half=fonts.measure(it.name,TGTextRole.Chord).width/2f
+            val shift=if(config.nativeSpacing) kotlin.math.floor(4f*config.renderScale+.5f)/config.renderScale else 0f
+            atomicCaption(shift-half,shift+half)
+        }
         if (hasScore) score += TGHorizontalInk(beat.start,scoreLeft,scoreRight)
         if (hasTab) tab += TGHorizontalInk(beat.start,tabLeft,tabRight)
         beat.chord?.takeIf { config.showChords || (config.showChordNames && !config.avoidAnnotationCollisions) }?.let { chord ->
@@ -116,20 +135,21 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
             chords += TGHorizontalInk(beat.start,-4f,right)
         }
         if (!config.avoidAnnotationCollisions) beat.text?.let { text += TGHorizontalInk(beat.start,0f,fonts.measure(it,TGTextRole.Text).width,4f) }
-        if (!config.avoidAnnotationCollisions) effectLabels(beat).filterNot { config.mergeLetRing && it == "let ring" }.takeIf { it.isNotEmpty() }?.let { labels ->
+        effectLabels(beat).filterNot { (config.mergeLetRing && it == "let ring") ||
+            (config.showStandardNotation && it in listOf("N.H","A.H","T.H","P.H","S.H")) }.takeIf { it.isNotEmpty() }?.let { labels ->
             val right = labels.maxOf {
                 when (it) {
                     ">" -> 6.5f
                     "<" -> 7.5f
                     "~" -> 20.5f // the 18-unit wave rounds up to complete four-unit segments
-                    else -> fonts.measure(it,TGTextRole.Text).width-1
+                    else -> fonts.measure(if(it=="let ring") "L.R" else it,TGTextRole.Text).width
                 }
             }
-            effects += TGHorizontalInk(beat.start,-1f,maxOf(0f,right),2f)
+            effects += TGHorizontalInk(beat.start,0f,maxOf(0f,right),2f)
         }
         if (beat.pickStroke != TGStrokeDirection.None) picking += TGHorizontalInk(beat.start,-4f,4f)
     }
-    val lanes = listOf(score,tab,chords,text,effects,picking).filter { it.isNotEmpty() }
+    val lanes = (listOf(score,tab,chords,text,effects,picking)+atomicCaptions).filter { it.isNotEmpty() }
     // Also protects an attack that becomes the first beat of a later page fragment.
     val leading = ((lanes.maxOfOrNull { lane -> -lane.minOf { it.left } } ?: 0f)-config.firstNoteSpacing).coerceAtLeast(0f)
     return TGMeasureInk(lanes,leading,continuationRight)

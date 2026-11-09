@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Verify the 16 compared native UI/layout sources against pinned TuxGuitar 2.1.1.
+"""Verify the pinned native UI/layout/font/annotation sources against pinned TuxGuitar 2.1.1.
 
 They are byte-identical to this repository's Java sources, which are directly
-executed by NativeLayoutParityTest. This is not a whole-application parity claim.
+executed by NativeLayoutParityTest and NativeAnnotationPaintTest. This is not a whole-application parity claim.
 Uses the already-authenticated GitHub CLI; never handles or stores credentials.
 """
 import base64

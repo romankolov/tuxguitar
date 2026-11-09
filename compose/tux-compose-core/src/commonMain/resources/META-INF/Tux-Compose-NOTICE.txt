@@ -1,0 +1,6 @@
+Tux Compose core: LGPL-2.1-or-later, except TGAlphaEffectLayout.kt (MPL-2.0).
+That file adapts alphaTab 1.9.0 LineRangedGlyph and EffectSystemPlacement,
+copyright Daniel Kuschny and alphaTab contributors. The MPL text is included
+in licenses/alphaTab-MPL-2.0.txt. Corresponding source and notices:
+https://github.com/romankolov/tuxguitar/tree/arena/285632fe-tuxguitar/compose
+See compose/NOTICE.md and compose/docs/UPSTREAM-COMPARISON.md.

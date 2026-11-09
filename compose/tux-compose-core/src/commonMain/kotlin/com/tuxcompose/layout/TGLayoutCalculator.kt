@@ -238,7 +238,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 }
                 var measures = place()
                 val naturalRight = measures.last().bounds.right
-                val annotationRight = if (fitPage) viewportWidth-rightMargin else maxOf(naturalRight,viewportWidth-rightMargin)
+                val annotationRight = if (fitPage) viewportWidth else maxOf(naturalRight,viewportWidth)
                 val runs = ringIndices[ti].intersecting(measures.first().startTick,measures.last().endTick)
                 val annotations = planAnnotations(measures,runs,padding,annotationRight,config,fonts)
                 val headerHeight=if(config.avoidAnnotationCollisions && measures.any {it.paintTempo || it.paintTripletFeel})
@@ -255,7 +255,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                     if(annotations==null) measures=place()
                     measures=measures.map {it.copy(headerBaseline=top+lanes.position(TGTrackLane.Buffer)+headerHeight-4.5f)}
                 }
-                val placedAnnotations = annotations?.placed(measures.first().textTop,measures.first().effectsTop,top+lanes.position(TGTrackLane.Marker),top+lanes.position(TGTrackLane.Chord)).orEmpty()
+                val placedAnnotations = annotations?.placed(measures.first().textTop,measures.first().effectsTop,top+lanes.position(TGTrackLane.Marker),top+lanes.position(TGTrackLane.Chord),lanes.size(TGTrackLane.Effects)).orEmpty()
                 val inkRight = placedAnnotations.maxOfOrNull { it.bounds.right } ?: naturalRight
                 val left = maxOf(naturalRight,inkRight)
                 val right = if (fitPage) minOf(left,viewportWidth) else left
@@ -671,7 +671,8 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             area, beats, bounds.top + lanes.position(TGTrackLane.Effects), bounds.top + lanes.position(TGTrackLane.Bend),
             bounds.top + lanes.position(TGTrackLane.Text), bounds.top + lanes.position(TGTrackLane.Chord), bounds.top + lanes.position(TGTrackLane.RepeatEnding), bounds.top + lanes.position(TGTrackLane.Tuplet1), percussion=track.percussion,headerX=bounds.left+measurePadding,pickStrokeTop=bounds.top+lanes.position(TGTrackLane.PickStroke),compact=compact,
             paintTripletFeel=metric.paintTripletFeel,previousTripletFeel=if (metric.paintTripletFeel) track.measures.getOrNull(index-1)?.header?.tripletFeel ?: 0 else 0,
-            notationTop=bounds.top+lanes.position(TGTrackLane.Chord)+lanes.size(TGTrackLane.Chord))
+            notationTop=bounds.top+lanes.position(TGTrackLane.Chord)+lanes.size(TGTrackLane.Chord),
+            markerBaseline=bounds.top+lanes.position(TGTrackLane.Marker))
     }
 
     private data class Group(val id: Int, val beats: List<Int>, val positions: List<List<Int>>, val up: Boolean)
@@ -737,11 +738,13 @@ internal fun effectLabels(beat: TGBeat): List<String> {
     return buildList {
         if (effects.any { it.accented }) add(">")
         if (effects.any { it.heavyAccented }) add("^")
-        if (effects.any { it.harmonic > 1 }) add("A.H.")
+        effects.map { it.harmonic }.filter { it in 1..5 }.distinct().sorted().forEach { type ->
+            add(listOf("N.H","A.H","T.H","P.H","S.H")[type-1])
+        }
         if (effects.any { it.tapping }) add("T")
         if (effects.any { it.slapping }) add("S")
         if (effects.any { it.popping }) add("P")
-        if (effects.any { it.palmMute }) add("P.M.")
+        if (effects.any { it.palmMute }) add("P.M")
         if (effects.any { it.letRing }) add("let ring")
         if (effects.any { it.vibrato }) add("~")
         if (effects.any { it.trill != null }) add("tr")

@@ -82,6 +82,26 @@
       "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/util/TGMusicKeyUtils.java",
       "sha256": "f56f73aacffc2dcd26a47e91e5a980b04fd199b39d00646fe004160b4d40fa73",
       "same_as_reference_checkout": true
+    },
+    {
+      "path": "android/TuxGuitar-android/src/app/tuxguitar/android/graphics/TGPainterImpl.java",
+      "sha256": "3e2fd8b6e7e3f3372bb2a420a1cfcc782eff9a9bc91b84a9dd2cacec1c63e88d",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGTextImpl.java",
+      "sha256": "f657b5f88ccab08393bfad1c590656915aaddda788eb716c93b01187de8b3e42",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGBeatSpacing.java",
+      "sha256": "90a7890272d5ba675234b6cfc4f5a1d24701701de89137cf45474fc7dacdbbcd",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/effects/TGEffectHarmonic.java",
+      "sha256": "166426515904907c21f29c2e5a5e56808a4e890c6b68401bfcaa55fd2f998625",
+      "same_as_reference_checkout": true
     }
   ]
 }

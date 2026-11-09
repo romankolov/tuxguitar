@@ -10,8 +10,8 @@ android {
         applicationId = "com.tuxcompose.sample"
         minSdk = 24
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.0.0"
+        versionCode = 11
+        versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -44,6 +44,7 @@ android {
 }
 val demoAssets by tasks.registering(Sync::class) {
     from("../../docs/LICENSE") { into("licenses"); rename { "TuxGuitar-LGPL.txt" } }
+    from("../licenses/alphaTab-MPL-2.0.txt") { into("licenses"); rename { "alphaTab-MPL-2.0.txt" } }
     from("../NOTICE.md") { into("licenses"); rename { "Tux-Compose-NOTICE.md" } }
     into(layout.buildDirectory.dir("generated/demo-assets"))
 }

@@ -30,7 +30,10 @@ class AnnotationTest {
                 assertTrue(a.labelBounds.left >= a.clipBounds.left-.01f)
                 assertTrue(a.labelBounds.right <= a.clipBounds.right+.01f)
                 assertTrue(a.bounds.height.isFinite())
-                a.lineFrom?.let { assertTrue(it.x >= a.labelBounds.right+2.99f || it.y >= a.labelBounds.bottom+3f) }
+                a.lineFrom?.let {
+                    assertEquals(a.labelBounds.right+a.dashGap/2f,it.x,.001f)
+                    assertEquals(a.labelBounds.center.y,it.y,.001f)
+                }
             }
             row.annotations.forEachIndexed { i,a -> row.annotations.drop(i+1).forEach { b ->
                 assertFalse(a.bounds.overlaps(b.bounds),"Annotations collide: ${a.lines} and ${b.lines}")
@@ -45,7 +48,8 @@ class AnnotationTest {
         assertEquals(2400L,a.endTick)
         assertTrue(a.endCap)
         val b=page.staves[0].measures[0].beats[2]
-        assertEquals(b.endX-2f,a.lineTo!!.x,.001f)
+        assertEquals(b.x,a.lineTo!!.x,.001f)
+        assertEquals(page.staves[0].measures[0].beats.first().x,a.labelBounds.center.x,.001f)
         assertTrue(page.staves[0].measures[0].plannedAnnotations)
         assertClear(page)
     }
@@ -53,7 +57,7 @@ class AnnotationTest {
         val page=layout(song(bar(other=true)),360f)
         val labels=page.staves.flatMap { it.annotations }.flatMap { it.lines }
         assertTrue(labels.any { it.contains("let ring") })
-        assertTrue(labels.any { it=="P.M." })
+        assertTrue(labels.any { it=="P.M" })
         assertTrue(labels.any { it=="T" })
         assertTrue(labels.joinToString(" ").contains("after the ringing passage"))
         assertTrue(page.staves.flatMap { it.annotations }.any { it.kind==TGAnnotationKind.Vibrato })
@@ -67,37 +71,37 @@ class AnnotationTest {
         assertEquals(listOf(1920L,3360L,4800L),page.rings().map { it.endTick })
         assertClear(page)
     }
-    @Test fun consecutiveBarsShareOneRunButRepeatAndEndingBoundariesStopIt() {
+    @Test fun consecutiveFlaggedBeatsRemainLinkedAcrossRepeatAndEndingBoundariesLikeAlphaTab() {
         assertEquals(1,layout(song(bar(),bar(1))).rings().size)
         val first=bar().copy(header=TGMeasureHeader(repeatClose=1))
-        assertEquals(2,layout(song(first,bar(1))).rings().size)
+        assertEquals(1,layout(song(first,bar(1))).rings().size)
         val ending=bar(1).copy(header=TGMeasureHeader(repeatAlternative=1))
-        assertEquals(2,layout(song(bar(),ending)).rings().size)
+        assertEquals(1,layout(song(bar(),ending)).rings().size)
     }
-    @Test fun oversizedMeasuresContinueWithRowLocalLinesAndOneCapAtTheRealEnd() {
+    @Test fun oversizedMeasuresRestartPlainLabelsAndCapEachDrawableRowLikeAlphaTab() {
         val source=bar(count=64)
         val page=layout(song(source,bar(1,flags=emptySet())),400f)
         val spans=page.rings()
         assertTrue(spans.size>2)
         assertFalse(spans.first().continuesFromPrevious)
         assertTrue(spans.drop(1).all { it.continuesFromPrevious })
-        assertTrue(spans.dropLast(1).all { it.continuesToNext && !it.endCap })
+        assertTrue(spans.dropLast(1).all { it.continuesToNext && (it.endCap==(it.lineFrom!=null)) })
         assertFalse(spans.last().continuesToNext)
-        assertTrue(spans.last().endCap)
-        assertTrue(spans.drop(1).all { it.lines==listOf("(let ring)") })
+        assertEquals(spans.last().lineFrom!=null,spans.last().endCap)
+        assertTrue(spans.drop(1).all { it.lines==listOf("let ring") })
         assertEquals(400f,page.width,0f)
         assertTrue(page.staves.flatMap { it.measures }.all { it.contentScale==1f })
         assertClear(page)
     }
-    @Test fun sustainedVoiceSurvivesOtherVoiceReattacksAndTiedContinuations() {
+    @Test fun explicitlyFlaggedTiedContinuationsSurviveOtherVoiceReattacks() {
         val source=bar(flags=emptySet())
         val beats=source.beats.mapIndexed { i,b -> b.copy(voices=(listOf(TGVoice(1,listOf(TGNote(7,2))))+
             if (i==0) listOf(TGVoice(0,listOf(TGNote(5,1,effects=TGNoteEffects(letRing=true))),duration=TGDuration(2)))
-            else if (i==4) listOf(TGVoice(0,listOf(TGNote(5,1,tied=true)),duration=TGDuration(2))) else emptyList()).toPersistentList()) }
+            else if (i==4) listOf(TGVoice(0,listOf(TGNote(5,1,tied=true,effects=TGNoteEffects(letRing=true))),duration=TGDuration(2))) else emptyList()).toPersistentList()) }
         val runs=letRingRuns(TGTrack(1,"Voices",tuning,listOf(source.copy(beats=beats.toPersistentList()))))
         assertEquals(listOf(960L to 4800L),runs.map { it.start to it.end })
     }
-    @Test fun overlappingMarkedVoicesShareOneDisplaySpan() {
+    @Test fun overlappingVoicesKeepTheirOwnEffectBandsInsteadOfInventingAUnion() {
         val source=bar(flags=emptySet())
         val beats=source.beats.mapIndexed { i,b -> b.copy(voices=listOf(when (i) {
             0 -> TGVoice(0,listOf(TGNote(5,1,effects=TGNoteEffects(letRing=true))),duration=TGDuration(2))
@@ -105,11 +109,13 @@ class AnnotationTest {
             else -> TGVoice(2,listOf(TGNote(9,3)))
         }).toPersistentList()) }
         val page=layout(song(source.copy(beats=beats.toPersistentList())))
-        assertEquals(1,page.rings().size)
-        assertEquals(3840L,page.rings().single().endTick)
+        assertEquals(2,page.rings().size)
+        assertEquals(listOf(0,1),page.rings().map {it.voiceIndex})
+        assertEquals(listOf(2880L,3840L),page.rings().map {it.endTick})
+        assertTrue(page.rings().all {it.lineFrom==null && !it.endCap})
         assertClear(page)
     }
-    @Test fun gapsSplitRunsAndInactiveVoicePlaceholdersDoNotCancelAHeldNote() {
+    @Test fun flaggedVoiceNeighboursLinkAndInactivePlaceholdersDoNotCancelAHeldNote() {
         val marked=TGNote(5,1,effects=TGNoteEffects(letRing=true))
         val held=TGMeasure(1,TGMeasureHeader(),listOf(
             TGBeat(960,TGDuration(2),listOf(TGVoice(notes=listOf(marked)))),
@@ -117,7 +123,8 @@ class AnnotationTest {
         ),960)
         assertEquals(listOf(960L to 2880L),letRingRuns(TGTrack(1,"Held",tuning,listOf(held))).map { it.start to it.end })
         val gap=held.copy(beats=listOf(960L,1920L).map { TGBeat(it,TGDuration(8),listOf(TGVoice(notes=listOf(marked)))) }.toPersistentList())
-        assertEquals(2,letRingRuns(TGTrack(1,"Gap",tuning,listOf(gap))).size)
+        val grouped=letRingRuns(TGTrack(1,"Gap",tuning,listOf(gap))).single()
+        assertEquals(960L,grouped.start);assertEquals(1920L,grouped.last)
     }
     @Test fun separateTracksNeverAcquireEachOthersLetRingSpans() {
         val data=TGSong(tracks=listOf(TGTrack(1,"Ring",tuning,listOf(bar())),TGTrack(2,"Dry",tuning,listOf(bar(flags=emptySet())))))
@@ -180,5 +187,26 @@ class AnnotationTest {
             assertTrue(page.staves.flatMap { it.measures }.all { it.contentScale==1f })
             page.staves.flatMap { it.annotations }.forEach { assertTrue(it.bounds.width.isFinite()) }
         }
+    }
+    @Test fun singletonAndTooShortGroupedSpansRemainLabelOnlyLikeAlphaTab() {
+        for(flags in listOf(setOf(0),setOf(0,1))) {
+            val page=layout(song(bar(flags=flags)))
+            val a=page.rings().single()
+            assertEquals(page.staves.first().measures.first().beats.first().x,a.labelBounds.center.x,.001f)
+            assertNull(a.lineFrom);assertNull(a.lineTo);assertFalse(a.endCap)
+            assertEquals(listOf("let ring"),a.lines)
+        }
+    }
+    @Test fun disablingGroupedLetRingRetainsEveryNativeLRLabel() {
+        val page=layout(song(bar(flags=setOf(0,1,2))),config=base.copy(mergeLetRing=false))
+        assertTrue(page.rings().isEmpty())
+        assertEquals(3,page.staves.flatMap {it.annotations}.count {it.lines==listOf("L.R")})
+        assertClear(page)
+    }
+    @Test fun unmarkedTieDoesNotInventAnInheritedEffectFlag() {
+        val source=bar(flags=setOf(0))
+        val beats=source.beats.mapIndexed {i,b->if(i==1) b.copy(voices=listOf(TGVoice(notes=listOf(TGNote(5,1,tied=true)))).toPersistentList()) else b}
+        val run=letRingRuns(TGTrack(1,"Flags",tuning,listOf(source.copy(beats=beats.toPersistentList())))).single()
+        assertEquals(960L,run.last);assertEquals(1440L,run.end)
     }
 }

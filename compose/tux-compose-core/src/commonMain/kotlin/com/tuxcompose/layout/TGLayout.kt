@@ -68,7 +68,17 @@ data class TGMeasureLayout(
     val headerBaseline: Float? = null,
     /** Start of musical lanes, after marker/prose/tempo/repeat/chord metadata. */
     val notationTop: Float = bounds.top,
+    /** Native marker baseline, separate from the staff and the row origin. */
+    val markerBaseline: Float = bounds.top,
 ) {
+    /** TGMeasureImpl.paintDivisions; Android UIPainter.getFMBaseLine() is zero. */
+    fun barlineTop(config: TGLayoutConfig): Float? = staffTop ?: tabTop?.let {
+        it-if(tabBottom==tabTop) config.stringSpacing else 0f
+    }
+    fun measureNumberBaseline(config: TGLayoutConfig): Offset? = barlineTop(config)?.let {Offset(bounds.left+1f,it-2f)}
+    fun repeatCountBaseline(config: TGLayoutConfig, textWidth: Float): Offset? = barlineTop(config)?.let {
+        Offset(bounds.right-textWidth-4f,it-2f)
+    }
     val isFirstFragment: Boolean get() = startTick == measure.start
     val isLastFragment: Boolean get() = endTick == measure.end
 }

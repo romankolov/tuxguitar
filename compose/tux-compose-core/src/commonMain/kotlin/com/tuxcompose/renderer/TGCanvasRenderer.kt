@@ -55,7 +55,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         barlines(layout)
         header(layout)
         layout.beats.forEach { beat ->
-            if (!layout.plannedAnnotations && !beat.isContinuation) beat.beat.text?.let { label(it, beat.x, layout.textTop, TGTextRole.Text, colors.beatText) }
+            if (!layout.plannedAnnotations && !beat.isContinuation) beat.beat.text?.let { labelAtBaseline(it,Offset(beat.x,layout.textTop),TGTextRole.Text,colors.beatText) }
             if (!beat.isContinuation) beat.beat.chord?.let { chord(layout, beat, it) }
             (if (layout.plannedAnnotations || beat.isContinuation) emptyList() else effectLabels(beat.beat)).forEachIndexed { i, effect ->
                 val y = layout.effectsTop + i * config.effectSpacing
@@ -63,7 +63,13 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
                     ">" -> { line(beat.x, y + 1, beat.x + 6, y + 3, colors.noteHead); line(beat.x + 6, y + 3, beat.x, y + 5, colors.noteHead) }
                     "~" -> vibrato(beat.x, y + 3, minOf(beat.bounds.width, 18f))
                     "<" -> { line(beat.x + 7, y + 1, beat.x, y + 3, colors.noteHead); line(beat.x, y + 3, beat.x + 7, y + 5, colors.noteHead) }
-                    else -> label(effect, beat.x - 1, y - 1, TGTextRole.Text, colors.beatText)
+                    else -> {
+                        if(!config.showStandardNotation || effect !in listOf("N.H","A.H","T.H","P.H","S.H")) {
+                            val value=if(effect=="let ring") "L.R" else effect
+                            val baseline=y+2f+.8f*text.layout(value,TGTextRole.Text).firstBaseline
+                            labelAtBaseline(value,Offset(beat.x,baseline),TGTextRole.Text,colors.beatText)
+                        }
+                    }
                 }
             }
             beat.voices.forEach { voice ->
@@ -128,8 +134,8 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     }
 
     private fun DrawScope.barlines(m: TGMeasureLayout) {
-        val top = m.staffTop ?: m.tabTop ?: return
-        val bottom = m.tabBottom ?: (top + 4 * config.staffSpacing)
+        val top = m.barlineTop(config) ?: return
+        val bottom = m.tabBottom?.let {if(m.tabTop==it) it+config.stringSpacing else it} ?: (top + 4 * config.staffSpacing)
         if (m.isFirstFragment) line(m.bounds.left,top,m.bounds.left,bottom,colors.staffLines)
         if (m.isLastFragment) line(m.bounds.right,top,m.bounds.right,bottom,colors.staffLines)
         if (m.isFirstFragment && m.measure.header.repeatOpen) {
@@ -141,7 +147,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             line(m.bounds.right - 2, top, m.bounds.right - 2, bottom, colors.noteHead, 3f)
             line(m.bounds.right - 7, top, m.bounds.right - 7, bottom, colors.noteHead)
             repeatDots(m, m.bounds.right - 11)
-            if (m.measure.header.repeatClose > 1) label("×${m.measure.header.repeatClose + 1}", m.bounds.right - 20, m.bounds.top, TGTextRole.Text, colors.beatText)
+            val repetitions="x${m.measure.header.repeatClose}"
+            m.repeatCountBaseline(config,text.measure(repetitions,TGTextRole.Text).width)?.let {
+                labelAtBaseline(repetitions,it,TGTextRole.Text,colors.beatText)
+            }
         }
     }
     private fun DrawScope.repeatDots(m: TGMeasureLayout, x: Float) {
@@ -153,8 +162,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     private fun DrawScope.header(m: TGMeasureLayout) {
         val x = m.headerX
         val top = m.staffTop
-        if (config.showMeasureNumbers && m.isFirstFragment) label(m.measure.number.toString(), m.bounds.left + 2, m.bounds.top, TGTextRole.Measure, colors.measureNumber)
-        m.measure.header.marker?.takeIf { m.isFirstFragment && (!m.plannedAnnotations || !config.avoidAnnotationCollisions) }?.let { label(it, x, m.bounds.top + 10, TGTextRole.Chord, colors.beatText) }
+        if (config.showMeasureNumbers && m.isFirstFragment) m.measureNumberBaseline(config)?.let {
+            labelAtBaseline(m.measure.number.toString(),it,TGTextRole.Measure,colors.measureNumber)
+        }
+        m.measure.header.marker?.takeIf { m.isFirstFragment && (!m.plannedAnnotations || !config.avoidAnnotationCollisions) }?.let { labelAtBaseline(it,Offset(m.beatAreaLeft,m.markerBaseline),TGTextRole.Text,colors.beatText) }
         if (m.paintClef && top != null) {
             val glyph = if (m.percussion) TGClefPainter.NEUTRAL else when (m.measure.clef) {
                 TGClef.Treble -> TGClefPainter.TREBLE
@@ -475,7 +486,11 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             when (a.kind) {
                 TGAnnotationKind.Accent -> {
                     val x=a.labelBounds.left; val y=a.labelBounds.top
-                    line(x,y+1,x+6,y+3,colors.noteHead); line(x+6,y+3,x,y+5,colors.noteHead)
+                    line(x,y+2,x+6,y+4.5f,colors.noteHead); line(x+6,y+4.5f,x,y+7,colors.noteHead)
+                }
+                TGAnnotationKind.HeavyAccent -> {
+                    val x=a.labelBounds.left; val y=a.labelBounds.top
+                    line(x,y+5,x+3,y+1,colors.noteHead); line(x+3,y+1,x+6,y+5,colors.noteHead)
                 }
                 TGAnnotationKind.FadeIn -> {
                     val x=a.labelBounds.left; val y=a.labelBounds.top
@@ -493,11 +508,13 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
                 // Limit dash work to the visible interval, retaining the original dash phase.
                 // Explicit segments also work on API-24 hardware Canvas, where
                 // drawLine's dash PathEffect is ignored. Never scan offscreen dashes.
-                forEachLetRingDash(from.x,to.x,viewport.left-1,viewport.right+1) { left,right ->
-                    line(left,from.y,right,to.y,colors.beatText,.8f)
+                forEachLetRingDash(from.x,to.x,viewport.left-1,viewport.right+1,a.dashSize,a.dashGap) { left,right ->
+                    // LineRangedGlyph uses filled rectangles, with a butt edge at
+                    // the note anchor; no stroke-centred cap or platform dash effect.
+                    drawRect(colors.beatText,Offset(left,from.y-a.lineThickness/2f),Size(right-left,a.lineThickness))
                 }
                 if (a.endCap && to.x >= viewport.left-1 && to.x <= viewport.right+1)
-                    line(to.x,to.y-3,to.x,to.y+3,colors.beatText,.8f)
+                    drawRect(colors.beatText,Offset(to.x,to.y-a.capSize/2f),Size(a.lineThickness,a.capSize))
             }
         }
     }
@@ -518,6 +535,11 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     private fun DrawScope.digits(value: Int, x: Float, y: Float, size: Float) {
         var dx = x
         value.toString().forEach { c -> val glyph = TGNumberPainter.digit(c.digitToInt()); glyph(glyph,dx,y,size); dx+=(glyph.width+.1f)*size }
+    }
+    /** Android UIPainter.drawString takes a BASELINE, Compose drawText a TOP. */
+    private fun DrawScope.labelAtBaseline(value: String, baseline: Offset, role: TGTextRole, color: Color) {
+        val result=text.layout(value,role)
+        drawText(result,color=color,topLeft=Offset(baseline.x,baseline.y-result.firstBaseline))
     }
     private fun DrawScope.label(value: String, x: Float, y: Float, role: TGTextRole, color: Color, centered: Boolean = false) {
         val result = text.layout(value,role)

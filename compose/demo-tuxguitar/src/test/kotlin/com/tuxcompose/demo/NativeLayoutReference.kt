@@ -15,8 +15,9 @@ import java.lang.reflect.Proxy
  * A headless ORIGINAL Java layout, not a second implementation of its equations.
  * updateSong, loadStyles, calculateWidth, updateComponents, paintSong, getTempLines,
  * track-lane registration, paintLine and getBeatSpacing all run unmodified.
- * Only paintMeasure's raster work is skipped, AFTER the original paintLine has set
- * positions/widths/track spacing. Fonts/colors are inert resources, never layout mocks.
+ * By default paintMeasure's raster work is skipped, AFTER the original paintLine has set
+ * positions/widths/track spacing. paintStrings separately executes its original annotation
+ * painters to test actual drawString calls, not just layout lanes. Fonts/colors are inert resources.
  */
 internal class NativeLayoutReference(input: NativeSong, val config: TGLayoutConfig, physicalWidth: Float,
     val scale: Float = 1f, selectedTrack: Int = 0, completeRests: Boolean = true) {
@@ -101,6 +102,35 @@ internal class NativeLayoutReference(input: NativeSong, val config: TGLayoutConf
                 (track.getMeasure(i) as TGMeasureImpl).update(layout)
             }
         }
+    }
+
+    data class PaintedString(val value: String, val x: Float, val baseline: Float)
+
+    /** Execute ORIGINAL annotation painters, recording drawString's baseline coordinates. */
+    fun paintStrings(measure: TGMeasureImpl, method: String): List<PaintedString> {
+        require(method in setOf("paintDivisions","paintMarker","paintTexts"))
+        val result=mutableListOf<PaintedString>()
+        val recorder=Proxy.newProxyInstance(UIPainter::class.java.classLoader,arrayOf(UIPainter::class.java)) { _,m,args ->
+            val values=args.orEmpty()
+            when(m.name) {
+                "drawString" -> {result+=PaintedString(values[0] as String,values[1] as Float,values[2] as Float);null}
+                "getFMWidth" -> TGFontMetrics.Approximate.measure(values[0] as String,TGTextRole.Text).width*scale
+                "getFMBaseLine" -> 0f // Actual Android TGPainterImpl, verified in the pinned manifest.
+                "getFMTopLine" -> 8f*scale
+                else -> when(m.returnType) {
+                    java.lang.Boolean.TYPE -> false
+                    java.lang.Float.TYPE -> 0f
+                    java.lang.Double.TYPE -> 0.0
+                    java.lang.Integer.TYPE -> 0
+                    java.lang.Long.TYPE -> 0L
+                    else -> null
+                }
+            }
+        } as UIPainter
+        TGMeasureImpl::class.java.getDeclaredMethod(method,TGLayout::class.java,UIPainter::class.java,
+            java.lang.Float.TYPE,java.lang.Float.TYPE).apply {isAccessible=true}
+            .invoke(measure,layout,recorder,measure.posX,measure.posY)
+        return result
     }
 
     companion object {

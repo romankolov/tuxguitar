@@ -46,4 +46,4 @@ result=subprocess.check_output(['node',str(bundle)])
 expected=HERE/'alpha-1.9.0.tsv'
 if args.update:expected.write_bytes(result)
 else:assert expected.read_bytes()==result,'Upstream oracle fixture changed; do not silently update comparison tolerances'
-print(f'::notice title=alphaTab source oracles::Pinned {SHA}; {len(result.splitlines())-1} skyline/spring/accidental-column records verified')
+print(f'::notice title=alphaTab source oracles::Pinned {SHA}; {len(result.splitlines())-1} skyline/spring/accidental-column/ranged-paint/grouping/effect-placement records verified')

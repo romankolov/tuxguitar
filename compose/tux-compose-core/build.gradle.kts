@@ -34,8 +34,11 @@ publishing {
         pom {
             name.set("Tux Compose Core")
             description.set("Model-to-Canvas Compose notation. No parsers or playback.")
-            url.set("https://github.com/romankolov/tuxguitar/tree/master/compose")
-            licenses { license { name.set("LGPL-2.1-or-later"); url.set("https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html") } }
+            url.set("https://github.com/romankolov/tuxguitar/tree/arena/285632fe-tuxguitar/compose")
+            licenses {
+                license { name.set("LGPL-2.1-or-later"); url.set("https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html") }
+                license { name.set("MPL-2.0 (TGAlphaEffectLayout.kt)"); url.set("https://www.mozilla.org/MPL/2.0/") }
+            }
         }
     }
 }

@@ -20,7 +20,7 @@ try:
     assert 'Tux Compose Evaluation Release' in cert, 'Unexpected release signer'
     badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
     assert 'application-debuggable' not in badging, 'Release is debuggable'
-    assert "versionName='1.0.0'" in badging and "versionCode='10'" in badging, 'Unexpected app version'
+    assert "versionName='1.0.1'" in badging and "versionCode='11'" in badging, 'Unexpected app version'
     mapping = root / 'sample-android/build/outputs/mapping/release/mapping.txt'
     assert mapping.is_file() and mapping.stat().st_size > 1000, 'R8 optimization/mapping missing'
     # DEX names must actually be rewritten, rather than merely producing a keep-all mapping.
@@ -29,7 +29,7 @@ try:
     fingerprints = re.findall(r'certificate SHA-256 digest:\s*([0-9a-fA-F]{64})', cert)
     assert len(fingerprints) == 1, 'Expected one release signing certificate SHA-256'
     fingerprint = fingerprints[0].lower()
-    summary = dict(apk_sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), version='1.0.0', version_code=10,
+    summary = dict(apk_sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), version='1.0.1', version_code=11,
                    source_sha=os.environ.get('GITHUB_SHA'), debuggable=False, r8=True, signer_sha256=fingerprint, signing='ephemeral evaluation release')
     (root / 'build').mkdir(exist_ok=True)
     (root / 'build/release-verification.json').write_text(json.dumps(summary, indent=2)+'\n')

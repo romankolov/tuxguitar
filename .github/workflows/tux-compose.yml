@@ -37,6 +37,8 @@ jobs:
           npm ci --no-audit --no-fund --prefix tools/upstream
           python3 tools/upstream/check.py
           python3 tools/upstream/check_tuxguitar.py
+      - name: Install host screenshot test dependency
+        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0
       - name: Verify upstream glyphs, dependency boundary and screenshot harness
         run: |
           python3 tools/verify.py
@@ -149,9 +151,15 @@ jobs:
       - name: Preview dense full-size reflow
         if: always()
         run: python3 compose/tools/report_screenshots.py studio-release-dense
+      - name: Preview corrected annotation placement
+        if: always()
+        run: TUX_PREVIEW_MAX_CHUNKS=3 python3 compose/tools/report_screenshots.py annotation-origins-Mixed-1.0
+      - name: Preview grouped effects and row continuations
+        if: always()
+        run: TUX_PREVIEW_MAX_CHUNKS=3 python3 compose/tools/report_screenshots.py annotations-Mixed-1.0
       - name: Preview chord engraving pixel regression
         if: always()
-        run: python3 compose/tools/report_screenshots.py engraving-Mixed-TuxGuitar-1.0
+        run: TUX_PREVIEW_MAX_CHUNKS=3 python3 compose/tools/report_screenshots.py engraving-Mixed-TuxGuitar-1.0
       - name: Upload device reports and screenshots
         if: always()
         uses: actions/upload-artifact@v7
@@ -167,7 +175,7 @@ jobs:
           retention-days: 14
 
   preview-apk:
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/285632fe-tuxguitar')
+    if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish]'))) && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/285632fe-tuxguitar')
     needs: [build, device-test]
     runs-on: ubuntu-22.04
     permissions:

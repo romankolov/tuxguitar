@@ -11,12 +11,14 @@ import base64
 import hashlib
 from io import BytesIO
 import json
+import os
 from pathlib import Path
 import sys
 from PIL import Image
 
 CHUNK_SIZE = 3500
-MAX_CHUNKS = 4
+MAX_CHUNKS = int(os.environ.get("TUX_PREVIEW_MAX_CHUNKS", "4"))
+assert 1 <= MAX_CHUNKS <= 4
 
 
 def preview_chunks(path, name):

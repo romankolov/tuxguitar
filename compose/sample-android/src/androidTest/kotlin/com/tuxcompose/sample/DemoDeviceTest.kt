@@ -4,6 +4,7 @@ package com.tuxcompose.sample
 import androidx.compose.ui.test.*
 import androidx.compose.ui.graphics.asAndroidBitmap
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import java.io.File
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -117,12 +118,9 @@ class DemoDeviceTest {
         compose.onNodeWithTag("settings-close").performClick()
     }
     private fun screenshot(name: String) {
-        val context=InstrumentationRegistry.getInstrumentation().targetContext
-        val folder=File(context.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
         compose.waitForIdle()
-        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap ->
-            File(folder,"$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
-        }
+        requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+            .asImageBitmap().saveScoreCapture(name)
     }
     @Test fun decoderAndLayoutRunOnAndroid() {
         val decoded=TuxGuitarImporter.read(ByteArrayInputStream(DemoSongFactory.guitarPro()),"study.gp5")

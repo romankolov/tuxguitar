@@ -47,11 +47,7 @@ class AnnotationsDeviceTest {
                 text=if (ring && i==5) "play gently through this passage" else if (ring && mi==1 && i==0) "after ringing" else null)
         },start)
     })))
-    private fun save(image: ImageBitmap, name: String) {
-        val context=InstrumentationRegistry.getInstrumentation().targetContext
-        val folder=File(context.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
-        File(folder,"$name.png").outputStream().use { image.asAndroidBitmap().compress(Bitmap.CompressFormat.PNG,100,it) }
-    }
+    private fun save(image: ImageBitmap, name: String) = image.saveScoreCapture(name)
     private fun magenta(c: Color)=c.red>.7f && c.blue>.7f && c.green<.4f
 
     @Test fun capsuleIsAnInsetHollowStrokeAtNormalAndZoomedDensity() {
@@ -128,7 +124,12 @@ class AnnotationsDeviceTest {
             val rings=layout.staves.flatMap { it.annotations }.filter { it.kind==TGAnnotationKind.LetRing }
             assertTrue(rings.size>1)
             assertEquals(1,rings.count { !it.continuesFromPrevious })
-            assertEquals(1,rings.count { it.endCap })
+            assertEquals(rings.count {it.lineFrom!=null},rings.count {it.endCap})
+            assertTrue(rings.all {it.lines==listOf("let ring")})
+            rings.forEach {a->
+                assertEquals(8f,a.dashSize,.001f)
+                a.lineFrom?.let {assertEquals(a.labelBounds.center.y,it.y,.001f)}
+            }
             // Greedy packing can put the following ordinary bar on a separate, unplanned
             // row. In that case its text must still render through the legacy measure pass.
             val afterRow=layout.staves.single { row -> row.measures.any { m -> m.beats.any { it.beat.text=="after ringing" } } }
@@ -170,6 +171,62 @@ class AnnotationsDeviceTest {
             val by=((textBounds.bottom-state.scrollY)*factor).toInt().coerceIn(ty,afterPixels.height-1)
             assertTrue("$mode zoom=$zoom: following text must paint in both planned and untouched rows",
                 (lx..rx).any { x -> (ty..by).any { y -> magenta(afterPixels[x,y]) } })
+        }
+    }
+    @Test fun measureNumbersPaintAtNativeStaffBaselinesNotAtTheRowOrMarkerOrigin() {
+        val data=TGSong(tracks=listOf(TGTrack(1,"Origins",listOf(64,59,55,50,45,40),List(3) {mi->
+            val start=960L+mi*3840L
+            TGMeasure(101+mi,TGMeasureHeader(marker=if(mi==0) "A · annotation origins" else null,repeatClose=if(mi==2) 3 else 0),List(8) {bi->
+                TGBeat(start+bi*480L,TGDuration(8),listOf(TGVoice(notes=listOf(TGNote(5,1,
+                    effects=TGNoteEffects(letRing=bi<6,palmMute=bi==2,tapping=bi==3,heavyAccented=bi==5))))),
+                    text=if(bi==1) "at this note" else null)
+            },start)
+        })))
+        val state=TablatureState(data,960)
+        val style=mutableStateOf(TGLayoutStyles.Mixed)
+        var page: TGSongLayout?=null;var factor=1f
+        val palette=TGColorPalette.Paper.copy(measureNumber=Color.Blue,beatText=Color.Magenta)
+        compose.setContent {
+            factor=LocalDensity.current.density*state.zoomScale
+            Box(Modifier.size(360.dp,360.dp)) {
+                TablatureView(state,Modifier.fillMaxSize().testTag("annotation-origins"),
+                    TGLayoutConfig(style=style.value,colors=palette),TGCursorConfig(visible=false,follow=false),onLayout={page=it})
+            }
+        }
+        fun blue(c: Color)=c.blue>.65f && c.red<.35f && c.green<.4f
+        for(mode in TGLayoutStyles.entries) for(zoom in listOf(1f,1.5f)) {
+            compose.runOnIdle {style.value=mode;state.setZoom(zoom);state.scrollTo(y=0f)}
+            compose.waitForIdle()
+            val layout=page!!;val config=TGLayoutConfig(style=mode)
+            val pixels=compose.onNodeWithTag("annotation-origins").captureScoreImage()
+                .also {it.saveScoreCapture("annotation-origins-$mode-$zoom")}.toPixelMap()
+            val anchors=layout.staves.flatMap {it.measures}.filter {it.isFirstFragment}
+                .mapNotNull {m->m.measureNumberBaseline(config)?.let {m to it}}
+            val regions=anchors.map {(m,a)->
+                assertEquals((m.staffTop ?: m.tabTop!!)-2f,a.y,.001f)
+                Rect((a.x-1f)*factor,(a.y-18f)*factor,(a.x+24f)*factor,(a.y+1f)*factor)
+            }
+            var blueCount=0
+            for(y in 0 until pixels.height) for(x in 0 until pixels.width) if(blue(pixels[x,y])) {
+                blueCount++
+                assertTrue("$mode/$zoom: measure number escaped its NATIVE baseline region at $x,$y",
+                    regions.any {x.toFloat()>=it.left && x.toFloat()<=it.right && y.toFloat()>=it.top && y.toFloat()<=it.bottom})
+            }
+            assertTrue("$mode/$zoom: number pixels are missing",blueCount>0)
+            regions.filter {it.top>=0 && it.bottom<pixels.height}.forEach {r->
+                assertTrue("$mode/$zoom: a visible native number did not paint",(r.left.toInt().coerceAtLeast(0)..r.right.toInt().coerceAtMost(pixels.width-1)).any {x->
+                    (r.top.toInt()..r.bottom.toInt()).any {y->blue(pixels[x,y])}
+                })
+            }
+            val marker=layout.staves.flatMap {it.annotations}.single {it.band==TGAnnotationBand.Marker}
+            val owner=layout.staves.flatMap {it.measures}.first()
+            assertEquals(owner.beatAreaLeft,marker.labelBounds.left,.001f)
+            layout.staves.flatMap {it.annotations}.filter {it.kind==TGAnnotationKind.LetRing}.forEach {a->
+                val first=layout.staves.flatMap {it.measures}.flatMap {it.beats}
+                    .first {it.startTick>=a.sourceTick && it.startTick<a.endTick && it.bounds.top==layout.staves.first {row->a.bounds.top>=row.bounds.top && a.bounds.bottom<=row.bounds.bottom}.bounds.top}
+                assertEquals(first.x,a.labelBounds.center.x,.001f)
+                a.lineFrom?.let {assertEquals(a.labelBounds.center.y,it.y,.001f)}
+            }
         }
     }
 }

@@ -45,13 +45,12 @@ class ScoreEngravingDeviceTest {
                     TGCursorConfig(visible=false,follow=false),onLayout={page=it})
             }
         }
-        val folder=File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null),"screenshots").apply {mkdirs()}
         for(s in listOf(TGLayoutStyles.Score,TGLayoutStyles.Mixed)) for(m in TGSpacingMode.entries) for(z in listOf(1f,1.5f)) {
             compose.runOnIdle {style.value=s;mode.value=m;state.setZoom(z);state.scrollTo(y=0f)}
             compose.waitForIdle()
             val p=page!!;assertEquals(360f/z,p.width,.1f);assertEquals(0f,state.maxScrollX,.01f)
             val image=compose.onNodeWithTag("engraving").captureScoreImage()
-            File(folder,"engraving-$s-$m-$z.png").outputStream().use {image.asAndroidBitmap().compress(Bitmap.CompressFormat.PNG,100,it)}
+            image.saveScoreCapture("engraving-$s-$m-$z")
             val pixels=image.toPixelMap()
             val row=p.staves.first();val first=row.measures.first().beats.first()
             val notes=first.voices.single().notes

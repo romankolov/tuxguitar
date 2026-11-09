@@ -83,35 +83,79 @@ not compare alphaTab's SMuFL glyph metrics or optical kerning. The skyline oracl
 positive outward heights over half-open X intervals, not a whole orchestral-page skyline.
 No performance win is claimed without a controlled benchmark.
 
-## License boundary
+## Licence boundary after the annotation correction
 
 TuxGuitar-derived shipping code and native vectors remain **LGPL-2.1-or-later**.
-alphaTab is **MPL-2.0**; its reviewed source is executed unmodified only in the excluded
-test cache. The new shipping helpers independently implement standard engraving,
-interval and spring mathematics; no alphaTab implementation file, font, parser,
-audio code, Wasm or bundle is incorporated into the AAR/APK. See [NOTICE](../NOTICE.md).
-If future work copies an implementation file, retain its MPL notices and meet MPL
-corresponding-source requirements rather than relabel it LGPL.
+Unlike 1.0.0, **1.0.1 deliberately adapts upstream implementation code**:
+`TGAlphaEffectLayout.kt` ports alphaTab's `LineRangedGlyph` paint geometry and
+`EffectSystemPlacement` priority/chain-placement kernel. That file remains
+**MPL-2.0**, with original attribution, pin, full licence and public corresponding
+source. The POM lists both licences; see [NOTICE](../NOTICE.md).
+No alphaTab parser, playback engine, font or JavaScript runtime is incorporated.
+The other independently implemented helpers keep their existing LGPL notices.
 
-## Explicit limits of this 1.0 library
+## Annotation correction: source behaviour, not another placement scheme
 
-- Not a full music editor or an all-score engraving engine. No global optimal-page
-  breaking, cross-staff beaming, arbitrary microtonal/double-accidental notation,
-  SMuFL text/font replacement or exhaustive effect-painter parity.
-- Chord seconds, compatible unisons and secondary-voice offsets are deterministic;
-  dense three-plus-head-column clusters are not an optical-engraving parity promise.
-  The conservative envelopes favor clearance over minimum possible white space.
-- Tie-origin suppression is deliberately conservative at the first onset of a new
-  bar. A changed clef/spelling, unresolved tie or temporal gap prints a sign rather
-  than guessing. This does not invent tie origins missing from the decoded model.
-- A single indivisible custom glyph/header larger than the entire parent cannot be
-  made to fit without violating fixed-size notation. Wrapping does not promise the
-  impossible; use a viable width or smaller explicit typography.
-- The existing import-format/effect, GP5 export, synth, accessibility and hardware
-  limits in [PORTING](PORTING.md), [SYNTH](SYNTH.md) and [UI](UI.md) still apply.
-- Emulator/automated checks and reviewed captures do not prove physical-device,
-  auditory, accessibility or universal defect-free behavior.
+The initial 1.0.0 helper comparisons did **not** exercise annotation paint origins.
+The old native parity harness skipped raster painting, and the 2,584 alphaTab
+records covered skyline, springs and accidental columns only. Those results did
+not establish measure-number or let-ring parity.
 
-The demonstrated advantages are **Compose-native isolation**, fixed-size parent-width
-reflow with retained model identity, and the targeted tested engraving improvements
-above. Neither upstream is declared inferior as a whole.
+1. **Numbers and repeat counts — TuxGuitar.** `TGMeasureImpl.paintDivisions`
+   places the number at `barLeft + scale`, baseline `barlineTop + FMBaseLine -
+   2*scale`. Android `TGPainterImpl.getFMBaseLine()` returns zero; `drawString`
+   passes a baseline directly to `Canvas.drawText`. Compose therefore subtracts
+   the actual `TextLayoutResult.firstBaseline`, not an estimated font height.
+   The count is native `xN`, right-aligned four units before the closing barline,
+   at that same baseline. A one-string TAB's barline extends one string-space
+   above/below the string. Neither label belongs at the row's top/marker origin.
+2. **Markers and prose — TuxGuitar anchors.** Markers start at
+   `barLeft + headerLeftSpacing + firstNoteSpacing` (`beatAreaLeft`), not the clef's
+   `headerX`. Beat prose remains attached to its beat's X. The existing fixed-parent
+   emergency word wrapping in separate native metadata lanes is retained; it is
+   an adaptation, not a claim of native full-page text parity. Captions are no
+   longer pushed horizontally back from the last beat to make their box fit.
+3. **Let-ring — alphaTab grouped glyphs.** `EffectBand` links consecutive flagged
+   beats **per voice**. `LetRingEffectInfo.canExpand` is true across repeats and
+   endings; voices are not unioned by duration. `GroupedEffectGlyph` only joins
+   painting within one system. A new system restarts a plain centred label; no
+   invented parenthesised continuation. The line ends **on the last marked note**,
+   not at its beat end. Singletons and groups too short to fit a line are label-only;
+   no line is moved below the words. Each drawable row segment has the upstream
+   cap. The text remains the user's requested `let ring` spelling, passed to the
+   same parameterised glyph instead of alphaTab's default `LetRing` string.
+4. **Effect stacking — alphaTab.** The port uses category/order/voice/bar priority
+   and two-phase query/commit for linked chains. A voice/effect/bar band shares a
+   baseline; a span occupies its full painted interval. The existing TuxGuitar
+   lane order supplies the musical clearance, with bottom alignment when that
+   lane is taller. No new left-to-right effect-label shelf rules are introduced.
+5. **Atomic labels at row edges.** Existing ink envelopes may reserve insufficient
+   boundary whitespace for centred labels with larger custom fonts, instead of
+   moving the label off its note. Normal native fonts retain their rhythmic grid.
+   Truly indivisible content wider than the entire parent is still clipped; no
+   font/staff scaling is used to conceal that physical limit.
+6. **Other native annotations.** Disabling grouping retains `L.R` on every marked
+   attack instead of silently dropping it. Palm mute uses native `P.M`; TAB harmonic
+   labels keep the actual `N.H`, `A.H`, `T.H`, `P.H`, `S.H` type, while score/mixed
+   do not duplicate the harmonic caption. Heavy accents use the native vector,
+   not a font caret. This is targeted annotation correction, not complete editor
+   or all-effects pixel parity.
+
+### New executable evidence
+
+- Original Java `paintDivisions`, `paintMarker` and `paintTexts` execute with a
+  recording `UIPainter`; **288 number and 36 repeat-count calls** cover all three
+  styles, page/horizontal layout, one/six strings and three physical scales.
+- Original alphaTab classes produce **360 ranged-glyph paint records**, **256
+  grouped-effect flag patterns** and **128 effect-placement systems**. These are
+  added to the previous 2,584 records: **3,328** in total, not invented expectations.
+- Native source pinning now includes the Android font-baseline backend, beat/text
+  painters and harmonic labels: **20** byte-identical reference files.
+- Android tests check real hardware number pixels near their staff baselines,
+  centred ranged labels, dash gaps/caps, reflow, zoom and following prose.
+- Debug captures are preserved before target-app cleanup; a fail-closed manifest
+  requires all **32** annotation/engraving/cursor scenes per API. A green layout
+  test without the actual images is no longer accepted as visual evidence.
+
+Release qualification is recorded separately; these descriptions specify the
+checks and do not assert that an unfinished candidate has passed them.

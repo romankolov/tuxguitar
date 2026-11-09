@@ -2,6 +2,8 @@
 package com.tuxcompose
 
 import androidx.compose.ui.geometry.Rect
+import com.tuxcompose.model.*
+import com.tuxcompose.renderer.forEachLetRingDash
 import com.tuxcompose.layout.*
 import java.io.File
 import kotlin.test.*
@@ -40,5 +42,63 @@ class AlphaTabOracleTest {
             count++
         }
         assertEquals(128,count)
+    }
+    @Test fun rangedLabelDashAndCapGeometryMatches360ActualAlphaTabPaintCalls() {
+        val number=Regex("[-+]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][-+]?[0-9]+)?")
+        fun values(value: String)=number.findAll(value).map {it.value.toFloat()}.toList()
+        var count=0
+        records().filter {it[0]=="ranged"}.forEach {r->
+            val end=if(r[4]=="null" || r[5]=="0") null else r[4].toFloat()
+            val geometry=alphaRangedGeometry(20f,0f,TGTextSize(r[1].toFloat(),r[2].toFloat()),end,r[3].toFloat())
+            val text=values(r[6])
+            assertEquals(text[0],geometry.label.left,.0001f)
+            assertEquals(text[1],geometry.label.center.y,.0001f)
+            val rectangles=mutableListOf<Float>()
+            if(geometry.from!=null && geometry.to!=null) {
+                forEachLetRingDash(geometry.from.x,geometry.to.x,-1000f,1000f,geometry.dashSize,geometry.dashGap) {a,b->
+                    rectangles+=listOf(a,geometry.from.y-geometry.thickness/2f,b-a,geometry.thickness)
+                }
+                val cap=geometry.cap!!
+                rectangles+=listOf(cap.left,cap.top,geometry.thickness,geometry.dashSize)
+            }
+            val expected=values(r[7]);assertEquals(expected.size,rectangles.size,"paint $count rectangle count")
+            expected.indices.forEach {assertEquals(expected[it],rectangles[it],.0001f,"paint $count coordinate $it")}
+            count++
+        }
+        assertEquals(360,count)
+    }
+    @Test fun effectBandPriorityAndLinkedChainPlacementMatches128ActualAlphaTabSystems() {
+        var count=0
+        records().filter {it[0]=="effect-placement"}.forEach {r->
+            val bands=r[1].split('|').map {s->
+                val p=s.split(':')
+                TGAlphaEffectBand(p[0],p[1].toInt(),p[2].toInt(),p[3].toInt(),p[4].toInt(),p[5].toFloat(),
+                    p[6].split(';').map {range->val v=range.split(',');v[0].toFloat() to v[1].toFloat()},p[7]=="1")
+            }
+            val actual=alphaPlaceEffectBands(bands,0f,256f)
+            assertEquals(r[2].toFloat(),actual.height,.001f,"system $count height")
+            val expected=r[3].split(',').map {it.toFloat()}
+            expected.indices.forEach {assertEquals(expected[it],actual.tops[it],.001f,"system $count band $it")}
+            count++
+        }
+        assertEquals(128,count)
+    }
+    @Test fun letRingGroupingMatchesAll256ActualAlphaTabEffectBandFlagPatterns() {
+        var count=0
+        records().filter {it[0]=="let-ring-groups"}.forEach {r->
+            val mask=r[1].toInt()
+            val track=TGTrack(1,"Flags",listOf(64),List(2) {mi->
+                TGMeasure(mi+1,TGMeasureHeader(repeatClose=if(mi==0) 3 else 0,repeatAlternative=mi),List(4) {bi->
+                    val ordinal=mi*4+bi
+                    TGBeat(960L+ordinal*960L,TGDuration(4),listOf(TGVoice(notes=listOf(TGNote(5,1,
+                        effects=TGNoteEffects(letRing=mask and (1 shl ordinal)!=0))))))
+                },960L+mi*3840L)
+            })
+            val actual=letRingRuns(track).map {((it.start-960L)/960L).toInt() to ((it.last-960L)/960L).toInt()}
+            val expected=if(r[2]=="-") emptyList() else r[2].split(';').map {v->val p=v.split(',');p[0].toInt() to p[1].toInt()}
+            assertEquals(expected,actual,"mask $mask: repeat and ending flags do not break a linked alphaTab effect")
+            count++
+        }
+        assertEquals(256,count)
     }
 }

@@ -56,10 +56,11 @@ data class TGLayoutConfig(
     val respectSystemFontScale: Boolean = false,
     /** Set by TablatureView: density × zoom × scale, for upstream pixel rounding only. */
     val renderScale: Float = 1f,
-    /** Merge let-ring runs and collision-pack captions on their rows without widening rhythm. */
+    /** alphaTab GroupedOnBeat let-ring chains, scoped to a voice. False retains native L.R labels. */
     val mergeLetRing: Boolean = true,
-    /** Measured lanes and chord/accidental engraving plus minimal local clearance for glyph conflicts.
-     * Captions never widen rhythm. False restores the unprotected native comparison geometry. */
+    /** Measured native lanes, upstream effect-band placement and chord/accidental engraving.
+     * Larger atomic captions may reserve missing boundary whitespace, never move off their notes.
+     * False restores the unprotected native comparison geometry. */
     val avoidAnnotationCollisions: Boolean = true,
     /** Power-law duration doubling ratio in Spring mode; native mode is unchanged. */
     val springSpacingRatio: Float = 1.5f,

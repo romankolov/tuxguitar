@@ -3,6 +3,7 @@ package com.tuxcompose.sample
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
@@ -32,10 +33,8 @@ class StudioAccessibilityDeviceTest {
             compose.onNodeWithTag(tag).assertIsDisplayed().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         }
         compose.onNodeWithTag("score-canvas").assertHeightIsAtLeast(140.dp).assertWidthIsAtLeast(250.dp)
-        val folder=File(context.getExternalFilesDir(null),"screenshots").apply { mkdirs() }
-        InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap ->
-            File(folder,"studio-large-text.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
-        }
+        requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+            .asImageBitmap().saveScoreCapture("studio-large-text")
         compose.onNodeWithTag("settings").performClick()
         compose.onNodeWithTag("settings-Cursor").performClick()
         compose.onNodeWithTag("smooth-follow").performScrollTo().assertIsDisplayed()

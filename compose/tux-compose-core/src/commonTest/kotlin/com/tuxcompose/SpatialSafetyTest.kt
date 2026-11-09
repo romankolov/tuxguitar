@@ -64,11 +64,14 @@ class SpatialSafetyTest {
             clear(page,width)
         }
     }
-    @Test fun markersHaveTheirOwnMeasuredBandBelowMeasureNumbers() {
+    @Test fun markersKeepTheirNativeFirstNoteAnchorAndNumbersStayAtTheStaff() {
         val page=TGLayoutCalculator().calculate(source(),240f)
         val marker=page.staves.flatMap { it.annotations }.single { it.band==TGAnnotationBand.Marker }
         val row=page.staves.first()
-        assertTrue(marker.labelBounds.top>=row.bounds.top+TGFontMetrics.Approximate.measure("0",TGTextRole.Measure).height+2f)
+        val measure=row.measures.first()
+        assertEquals(measure.beatAreaLeft,marker.labelBounds.left,.001f)
+        assertEquals(measure.staffTop!!-2f,measure.measureNumberBaseline(TGLayoutConfig())!!.y,.001f)
+        assertTrue(marker.bounds.bottom<measure.measureNumberBaseline(TGLayoutConfig())!!.y)
         assertTrue(marker.lines.size>1)
         assertEquals("A section marker with enough words to wrap safely on a narrow parent",marker.lines.joinToString(" "))
     }

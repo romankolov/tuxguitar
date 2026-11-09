@@ -6,6 +6,8 @@ import android.os.Build
 import android.view.ViewTreeObserver
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import java.io.File
 import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.captureToImage
@@ -58,4 +60,22 @@ fun SemanticsNodeInteraction.captureScoreImage(): ImageBitmap {
     val cropped=Bitmap.createBitmap(display,left,top,right-left,bottom-top)
     if(cropped!==display) display.recycle()
     return cropped.asImageBitmap()
+}
+
+/**
+ * Preserve real hardware captures BEFORE UTP uninstalls the debug target. App-owned
+ * external files can disappear during connectedAndroidTest cleanup, before adb pull.
+ * UiAutomation copies the already-captured PNG into a shell-owned QA directory;
+ * this neither redraws the UI nor requires storage permission in the shipped app.
+ */
+fun ImageBitmap.saveScoreCapture(name: String) {
+    require(name.matches(Regex("[A-Za-z0-9_.-]+")))
+    val instrumentation=InstrumentationRegistry.getInstrumentation()
+    val folder=File(instrumentation.targetContext.getExternalFilesDir(null),"screenshots").apply {check(mkdirs() || isDirectory)}
+    val source=File(folder,"$name.png")
+    source.outputStream().use {check(asAndroidBitmap().compress(Bitmap.CompressFormat.PNG,100,it))}
+    val command="mkdir -p /sdcard/Download/tux-compose-qa && cp '${source.absolutePath}' '/sdcard/Download/tux-compose-qa/$name.png' && echo TUX_CAPTURE_OK"
+    val descriptor=instrumentation.uiAutomation.executeShellCommand(command)
+    val result=android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().use {it.readText()}
+    check(result.trim()=="TUX_CAPTURE_OK") {"Could not preserve hardware capture $name: $result"}
 }
