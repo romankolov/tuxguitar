@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) Daniel Kuschny and alphaTab contributors.
 // Kotlin adaptation of alphaTab 1.9.0, commit 9f1aa10460df1b326123d28a2222f7b20d081e61:
-// rendering/glyphs/LineRangedGlyph.ts and rendering/EffectSystemPlacement.ts.
+// rendering/glyphs/LineRangedGlyph.ts, rendering/EffectSystemPlacement.ts,
+// and overflow/content-origin accounting in rendering/staves/RenderStaff.ts.
 // This Source Code Form is subject to the terms of the Mozilla Public License,
 // v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain
 // one at https://mozilla.org/MPL/2.0/.

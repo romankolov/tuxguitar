@@ -1,19 +1,28 @@
-# Tux Compose 1.0.1 (correction candidate)
+# Tux Compose 1.0.1
 
 **Immutable score → shared layout → Compose Canvas.** A standalone rendering library and an Android showcase built alongside (not inside) the legacy TuxGuitar applications.
 
 The library has **no decoder, file access, playback clock, MIDI, synthesizer, audio dependency, Android View, SWT or AWT**. The showcase intentionally has these integrations, in separate modules.
 
-**1.0.1 correction candidate:** measure-number/repeat baselines now follow the native
-paint calls; let-ring geometry/grouping and effect placement follow alphaTab's actual
-implementation. See [the correction and pending qualification](docs/RELEASE-1.0.1.md).
-Publication is held until CI and actual image review complete. The link below is the
-previous, already-published 1.0.0, not this candidate.
+**Downloads:** [1.0.1 evaluation release APK / core AAR / checksums](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-v1.0.1).
+See [the annotation corrections, source comparison, visual qualification and signing warning](docs/RELEASE-1.0.1.md).
+The previous 1.0.0 tag/assets remain immutable.
 
-**Downloads:** [1.0.0 release APK / AAR / checksums](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-v1.0.0).
-See [release changes, test evidence and signing warning](docs/RELEASE-1.0.0.md).
+## 1.0.1 annotation correction
 
-## 1.0.0 highlights
+- TuxGuitar's actual number/repeat/marker/prose baselines and native offline paths.
+- alphaTab's grouped let-ring geometry, per-voice flags, Score/TAB effect priority,
+  linked placement and staff-overflow accounting—no invented continuation captions.
+- Source-driven singleton/short-span behaviour; no duration-end interpolation or
+  automatic tie inheritance. Disabling grouping retains native L.R labels.
+- Real-display baseline/dash/cap/cross-row-text regressions; all 32 required detailed
+  PNG scenes preserved per API before app cleanup. No synthetic redraws.
+- Qualification: 216 JVM tests, 17 host tests, 1,728 layouts, 36 instrumented + 5
+  exact-release cases on each API, 64 detailed + 20 release previews reviewed.
+  [The release notes](docs/RELEASE-1.0.1.md) pin that evidence and its limits.
+
+## Retained 1.0.0 features (original qualification)
+
 
 - **Native TuxGuitar spacing remains the default.** The compared 16 Java UI/layout
   sources are byte-identical to upstream **2.1.1**. Fixed-size parent-width wrapping,
@@ -45,7 +54,7 @@ specific tested behaviors are the intended advantages.
 | `demo-synth` | FluidSynth 2.6.2 JNI + pinned GeneralUser GS 2.0.3 bank | Android, **demo only** |
 | `sample-android` | Compose screen, Storage Access Framework picker, transport, soundfonts and optional hardware MIDI output | Android 7.0+ |
 
-**Status:** 1.0 model-to-Canvas library; not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping, merged let-ring spans and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
+**Status:** 1.x model-to-Canvas library; not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping, merged let-ring spans and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
 
 `TablatureView(onLayout = { ... }, drawOverlay = { layout -> ... })` exposes cached
 layout geometry and a custom Canvas overlay. Overlay coordinates are logical song units;

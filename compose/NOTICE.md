@@ -42,7 +42,8 @@ under **Mozilla Public License 2.0**, pinned to
 [`9f1aa10460df1b326123d28a2222f7b20d081e61`](https://github.com/CoderLine/alphaTab/tree/9f1aa10460df1b326123d28a2222f7b20d081e61).
 
 **`tux-compose-core/.../layout/TGAlphaEffectLayout.kt` is a Kotlin adaptation of
-`rendering/glyphs/LineRangedGlyph.ts` and `rendering/EffectSystemPlacement.ts`.**
+`rendering/glyphs/LineRangedGlyph.ts`, `rendering/EffectSystemPlacement.ts`,
+and the overflow/content-origin kernel in `rendering/staves/RenderStaff.ts`.**
 It retains **MPL-2.0**, its copyright/source notices and the corresponding-source
 availability in this public repository. It is not relicensed as LGPL. The full
 upstream license is in [`licenses/alphaTab-MPL-2.0.txt`](licenses/alphaTab-MPL-2.0.txt),
@@ -54,7 +55,7 @@ The other engraving/skyline/spring helpers remain independently implemented LGPL
 files. The unmodified alphaTab reference source and esbuild bundle are test-only,
 checksum-verified in an ignored cache: no alphaTab parser, font, audio engine,
 JavaScript bundle or runtime dependency is shipped. The expanded harness executes
-original painting, grouping and effect-placement classes as well as the earlier
+original painting, grouping, effect-placement, registry and staff-overflow classes as well as the earlier
 three numerical helpers. **esbuild 0.28.2 (MIT)** and Node remain tooling only.
 
 The **20** native Java UI/layout/font/effect files compared with **TuxGuitar 2.1.1**

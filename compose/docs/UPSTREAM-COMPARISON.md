@@ -182,5 +182,5 @@ not establish measure-number or let-ring parity.
   requires all **32** annotation/engraving/cursor scenes per API. A green layout
   test without the actual images is no longer accepted as visual evidence.
 
-Release qualification is recorded separately; these descriptions specify the
-checks and do not assert that an unfinished candidate has passed them.
+Release qualification, exact run and inspected-scene counts are recorded in
+[RELEASE-1.0.1](RELEASE-1.0.1.md). The source-helper scope limits above still apply.
