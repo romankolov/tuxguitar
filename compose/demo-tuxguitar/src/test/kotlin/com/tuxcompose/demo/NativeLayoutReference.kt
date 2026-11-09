@@ -133,6 +133,27 @@ internal class NativeLayoutReference(input: NativeSong, val config: TGLayoutConf
         return result
     }
 
+    /** Record the ORIGINAL native vector path; keep draw-flush separate from path closure. */
+    fun paintOfflinePath(note: app.tuxguitar.graphics.control.TGNoteImpl,method: String): List<Pair<String,List<Float>>> {
+        require(method in setOf("paintAccentuated","paintHeavyAccentuated","paintFadeIn","paintVibrato","paintTrill"))
+        val calls=mutableListOf<Pair<String,List<Float>>>()
+        val recorder=Proxy.newProxyInstance(UIPainter::class.java.classLoader,arrayOf(UIPainter::class.java)) {_,m,args->
+            val values=args.orEmpty()
+            when(m.name) {
+                "moveTo","lineTo","cubicTo","closePath"->{calls+=m.name to values.map {(it as Number).toFloat()};null}
+                "getFMWidth"->TGFontMetrics.Approximate.measure(values[0] as String,TGTextRole.Text).width*scale
+                "getFMTopLine"->.8f*TGFontMetrics.Approximate.firstBaseline("Tr",TGTextRole.Text)*scale
+                else->when(m.returnType) {
+                    java.lang.Boolean.TYPE->false;java.lang.Float.TYPE->0f;java.lang.Double.TYPE->0.0
+                    java.lang.Integer.TYPE->0;java.lang.Long.TYPE->0L;else->null
+                }
+            }
+        } as UIPainter
+        app.tuxguitar.graphics.control.TGNoteImpl::class.java.getDeclaredMethod(method,TGLayout::class.java,UIPainter::class.java,
+            java.lang.Float.TYPE,java.lang.Float.TYPE).apply {isAccessible=true}.invoke(note,layout,recorder,0f,0f)
+        return calls
+    }
+
     companion object {
         private val painter = Proxy.newProxyInstance(UIPainter::class.java.classLoader,arrayOf(UIPainter::class.java)) { _,method,_ ->
             when (method.returnType) {

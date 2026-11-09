@@ -70,6 +70,11 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                 }
                 val q = local.maxOf { it.quarter }
                 val effects = local.maxOf { it.effect }
+                if(config.multiTrack && config.avoidAnnotationCollisions) local=local.mapIndexed {ti,metric->
+                    val m=measures[ti];val track=tracks[ti]
+                    metric.copy(ink=measureInk(track,m,config,fonts,compact,track.measures.getOrNull(index-1),
+                        voiceGroups(track,m).mapValues {it.value.up},q+(effects-metric.effect)/(m.header.timeSignature.ticks/960f)))
+                }
                 val rhythms = local.map { metric ->
                     if (compact) metric.beatWidths.sum().takeIf { it > 0f } ?: (metric.quarter*metric.quarters)
                     else (if (config.multiTrack) q else metric.quarter)*metric.quarters+(if (config.multiTrack) effects else metric.effect)
@@ -249,6 +254,13 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                     lanes.register(TGTrackLane.Marker,annotations.markerHeight)
                     lanes.register(TGTrackLane.Text,annotations.textHeight)
                     lanes.register(TGTrackLane.Effects,annotations.effectHeight)
+                    val minInk=annotations.annotations.filter {it.band!=TGAnnotationBand.Effects}.minOfOrNull {a->
+                        a.bounds.top+lanes.position(when(a.band) {
+                            TGAnnotationBand.Marker->TGTrackLane.Marker;TGAnnotationBand.Text->TGTrackLane.Text
+                            else->TGTrackLane.Chord
+                        })
+                    } ?: 0f
+                    if(minInk<0f) lanes.register(TGTrackLane.Top,lanes.size(TGTrackLane.Top)-minInk)
                     measures = place().map { it.copy(plannedAnnotations=true) }
                 }
                 if(headerHeight>0f) {
@@ -654,7 +666,12 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
                     }.distinct()
                 } else emptyList()
                 TGVoiceLayout(v,duration,notes,up,stemX,origin+localStart,origin+endY,g.id,sourceTick=b.start,
-                    silenceY=silences[bi to v.index]?.let { origin+it.y },hiddenSilence=silences[bi to v.index]?.hidden ?: false,augmentationDots=dots)
+                    silenceY=silences[bi to v.index]?.let { origin+it.y },hiddenSilence=silences[bi to v.index]?.hidden ?: false,augmentationDots=dots,
+                    effectWidth=if(compact) durationWidth(duration) else {
+                        val q=(if(config.multiTrack) col.quarter else metric.quarter)+
+                            (if(config.nativeSpacing && config.multiTrack) (col.effect-metric.effect)/(m.header.timeSignature.ticks/960f) else 0f)
+                        duration.ticks.toFloat()/960f*q+(v.notes.maxOfOrNull {(it.effects.bend?.movements()?.size ?: 0)*10f} ?: 0f)
+                    })
             }
             val chordBounds = b.chord?.takeIf { config.chordEnabled }?.let { chord ->
                 val y = bounds.top+lanes.position(TGTrackLane.Chord)
@@ -677,7 +694,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             bounds.top + lanes.position(TGTrackLane.Text), bounds.top + lanes.position(TGTrackLane.Chord), bounds.top + lanes.position(TGTrackLane.RepeatEnding), bounds.top + lanes.position(TGTrackLane.Tuplet1), percussion=track.percussion,headerX=bounds.left+measurePadding,pickStrokeTop=bounds.top+lanes.position(TGTrackLane.PickStroke),compact=compact,
             paintTripletFeel=metric.paintTripletFeel,previousTripletFeel=if (metric.paintTripletFeel) track.measures.getOrNull(index-1)?.header?.tripletFeel ?: 0 else 0,
             notationTop=bounds.top+lanes.position(TGTrackLane.Chord)+lanes.size(TGTrackLane.Chord),
-            markerBaseline=bounds.top+lanes.position(TGTrackLane.Marker))
+            markerBaseline=bounds.top+lanes.position(TGTrackLane.Marker),effectLaneHeight=lanes.size(TGTrackLane.Effects))
     }
 
     private data class Group(val id: Int, val beats: List<Int>, val positions: List<List<Int>>, val up: Boolean)
@@ -752,7 +769,7 @@ internal fun effectLabels(beat: TGBeat): List<String> {
         if (effects.any { it.palmMute }) add("P.M")
         if (effects.any { it.letRing }) add("let ring")
         if (effects.any { it.vibrato }) add("~")
-        if (effects.any { it.trill != null }) add("tr")
+        if (effects.any { it.trill != null }) add("Tr")
         if (effects.any { it.fadeIn }) add("<")
     }
 }

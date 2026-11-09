@@ -3327,3 +3327,55 @@ effect-placement	e0:0:20:0:0:14:75,91;78,81:0|e0:0:20:0:1:11:32,42;63,100:1|e0:0
 effect-placement	e0:0:20:0:0:19:48,78;95,136:0|e0:0:20:0:1:8:121,145;112,155:1|e0:0:20:0:2:21:70,88;45,90:1|e1:1:19:0:3:10:159,203;50,65:0|e1:1:19:0:4:11:168,174;91,108:1|e1:1:19:0:5:8:49,65;52,55:1|e2:2:18:1:6:17:142,184;157,178:0|e2:2:18:1:7:10:175,195;62,85:1	64	40,51,38,23,22,25,0,7
 effect-placement	e0:0:20:0:0:19:172,191;119,161:0|e0:0:20:0:1:16:121,126;68,104:1|e0:0:20:0:2:25:150,189;125,139:1|e1:1:19:0:3:10:3,44;42,50:0|e1:1:19:0:4:15:176,187;87,105:1|e1:1:19:0:5:24:69,114;160,204:1|e2:2:18:1:6:13:26,73;5,27:0|e2:2:18:1:7:6:111,128;162,210:1|e2:2:18:1:8:23:112,147;135,145:1	87	63,66,57,42,37,28,10,17,0
 effect-placement	e0:0:20:0:0:18:171,174;46,72:0|e0:0:20:0:1:23:56,61;79,83:1|e0:0:20:0:2:8:169,176;80,126:1|e1:1:19:0:3:13:26,67;33,73:0|e1:1:19:0:4:22:19,46;74,92:1|e1:1:19:0:5:19:20,49;167,211:1|e2:2:18:1:6:8:173,188;108,130:0|e2:2:18:1:7:17:2,19;33,49:1|e2:2:18:1:8:22:99,118;174,216:1|e3:3:17:1:9:11:36,73;91,111:0	98	75,70,85,52,43,46,30,21,16,0
+effect-order	score	-	EffectCapo	0	0
+effect-order	score	-	EffectFermata	0	1
+effect-order	score	-	EffectLetRing	1	2
+effect-order	score	-	EffectNoteOrnament	0	3
+effect-order	score	-	EffectRasgueado	1	4
+effect-order	score	-	EffectWahPedal	1	5
+effect-order	score	-	EffectWhammyBar	1	6
+effect-order	score	-	EffectWhammyBar.simpledip	1	7
+effect-order	score	Tr	EffectTrill	1	8
+effect-order	score	-	ottavia-above	1	9
+effect-order	score	-	EffectTap	0	10
+effect-order	score	T	EffectTap	0	11
+effect-order	score	-	EffectWideBeatVibrato	1	12
+effect-order	score	-	EffectSlightBeatVibrato	1	13
+effect-order	score	-	EffectWideNoteVibrato	1	14
+effect-order	score	~	EffectSlightNoteVibrato	1	15
+effect-order	score	<	EffectFadeIn	1	16
+effect-order	score	let ring	EffectLetRing	1	17
+effect-order	score	-	EffectPickStroke	0	18
+effect-order	score	-	EffectPickSlide	0	19
+effect-order	score	-	EffectGolpe.Finger	0	20
+effect-order	score	-	EffectSlideText	0	21
+effect-order	score	-	EffectHammerOnPullOffText	0	22
+effect-order	score	-	EffectGolpe.Thumb	0	23
+effect-order	score	-	EffectCrescendo	1	24
+effect-order	score	-	EffectDynamics	0	25
+effect-order	score	-	EffectSustainPedal	1	26
+effect-order	tab	-	EffectLyrics	3	0
+effect-order	tab	-	EffectWhammyBarLine	1	1
+effect-order	tab	Tr	EffectTrill	1	2
+effect-order	tab	-	EffectWideBeatVibrato	1	3
+effect-order	tab	-	EffectSlightBeatVibrato	1	4
+effect-order	tab	-	EffectWideNoteVibrato	1	5
+effect-order	tab	~	EffectSlightNoteVibrato	1	6
+effect-order	tab	T	EffectTap	0	7
+effect-order	tab	<	EffectFadeIn	1	8
+effect-order	tab	N.H	harmonics-natural	0	9
+effect-order	tab	A.H	harmonics-artificial	0	10
+effect-order	tab	P.H	harmonics-pinch	0	11
+effect-order	tab	T.H	harmonics-tap	0	12
+effect-order	tab	S.H	harmonics-semi	0	13
+effect-order	tab	-	harmonics-feedback	0	14
+effect-order	tab	let ring	EffectLetRing	1	15
+effect-order	tab	-	EffectFingering	0	16
+effect-order	tab	P.M	EffectPalmMute	1	17
+effect-order	tab	-	EffectPickStroke	0	18
+effect-order	tab	-	EffectPickSlide	0	19
+effect-order	tab	-	EffectTap	0	20
+effect-order	tab	-	EffectGolpe.Finger	0	21
+effect-order	tab	-	EffectSlideText	0	22
+effect-order	tab	-	EffectHammerOnPullOffText	0	23
+effect-order	tab	-	EffectGolpe.Thumb	0	24

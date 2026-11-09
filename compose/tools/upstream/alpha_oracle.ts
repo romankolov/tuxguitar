@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Test harness only. Imports UNMODIFIED, checksum-pinned alphaTab MPL-2.0 sources.
 // Neither the reference sources nor their bundle are distributed with the library.
+import {Environment} from '@coderline/alphatab/Environment';
+import {ScoreBarRendererFactory} from '@coderline/alphatab/rendering/ScoreBarRendererFactory';
+import {TabBarRendererFactory} from '@coderline/alphatab/rendering/TabBarRendererFactory';
 import {Skyline} from '@coderline/alphatab/rendering/skyline/Skyline';
 import {SkylineScratch} from '@coderline/alphatab/rendering/skyline/SkylineScratch';
 import {BarLayoutingInfo} from '@coderline/alphatab/rendering/staves/BarLayoutingInfo';
 import {EffectBand} from '@coderline/alphatab/rendering/EffectBand';
+import {trillEffectInfo} from '@coderline/alphatab/rendering/effects/TrillEffectInfo';
+import {tapEffectInfo} from '@coderline/alphatab/rendering/effects/TapEffectInfo';
+import {fadeEffectInfo} from '@coderline/alphatab/rendering/effects/FadeEffectInfo';
+import {palmMuteEffectInfo} from '@coderline/alphatab/rendering/effects/PalmMuteEffectInfo';
 import {letRingEffectInfo} from '@coderline/alphatab/rendering/effects/LetRingEffectInfo';
 import {LineRangedGlyph} from '@coderline/alphatab/rendering/glyphs/LineRangedGlyph';
 import {EffectSystemPlacement} from '@coderline/alphatab/rendering/EffectSystemPlacement';
@@ -131,5 +138,16 @@ for(let run=0;run<128;run++) {
     const height=Math.max(...bands.map(b=>b.placedMagnitude+b.height));
     const tops=bands.map(b=>height-b.placedMagnitude-b.height);
     lines.push(['effect-placement',inputs.map(b=>[b.effectId,b.category,b.order,b.voice,b.renderer,b.height,b.ranges.map(r=>r.join(',')).join(';'),b.linkedToPrevious?1:0].join(':')).join('|'),height,tops.join(',')].join('\t'));
+}
+const nativeLabel=new Map<any,string>([[trillEffectInfo,'Tr'],[tapEffectInfo,'T'],[fadeEffectInfo,'<'],
+    [palmMuteEffectInfo,'P.M'],[letRingEffectInfo,'let ring']]);
+const nativeHarmonics:any={'harmonics-natural':'N.H','harmonics-artificial':'A.H','harmonics-pinch':'P.H','harmonics-tap':'T.H','harmonics-semi':'S.H'};
+for(const profile of ['score','tab']) {
+    const factory=Environment.defaultRenderers.find(f=>profile==='score' ? f instanceof ScoreBarRendererFactory : f instanceof TabBarRendererFactory)!;
+    factory.effectBands.forEach((b,i)=> {
+        const label=nativeLabel.get(b.effect)??nativeHarmonics[b.effect.effectId]??
+            (b.effect.effectId==='EffectSlightNoteVibrato' ? '~':'-');
+        lines.push(['effect-order',profile,label,b.effect.effectId,b.effect.placementCategory,b.order??i].join('\t'));
+    });
 }
 console.log(lines.join('\n'));

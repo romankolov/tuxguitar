@@ -67,16 +67,16 @@ class SpatialSafetyTest {
             val page=TGLayoutCalculator(cfg,fonts).calculate(source(chords=true),240f)
             clear(page,240f)
             var checked=0
-            page.staves.forEach {row->row.measures.forEach {m->
-                m.annotations.filter {it.kind==TGAnnotationKind.ChordName}.forEach {a->
-                    val b=m.beats.first {it.startTick==a.tick}
+            page.staves.forEach {row->
+                row.annotations.filter {it.band==TGAnnotationBand.ChordNames}.forEach {a->
+                    val b=row.measures.flatMap {it.beats}.first {it.startTick==a.sourceTick}
                     val expected=if(mode==TGSpacingMode.TuxGuitar) b.chordBounds!!.center.x+
                         kotlin.math.floor(4f*scale+.5f)/scale else b.x
                     assertEquals(expected,a.labelBounds.center.x,.01f,"$mode / $scale")
                     assertEquals(listOf("Cmaj7(add9)/G"),a.lines)
                     checked++
                 }
-            }}
+            }
             assertEquals(12,checked)
         }
     }

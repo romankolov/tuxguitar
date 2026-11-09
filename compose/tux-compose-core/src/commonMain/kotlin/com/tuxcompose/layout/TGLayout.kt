@@ -19,7 +19,9 @@ data class TGVoiceLayout(val voice: TGVoice, val duration: TGDuration, val notes
     /** Native multi-voice rest placement; null selects the Adaptive/convenience-rest fallback. */
     val silenceY: Float? = null, val hiddenSilence: Boolean = false,
     /** Cached unique augmentation-dot rows, to the right of the whole chord. */
-    val augmentationDots: List<Offset> = emptyList())
+    val augmentationDots: List<Offset> = emptyList(),
+    /** Original TGVoiceImpl width, independent of later measure justification. */
+    val effectWidth: Float = 0f)
 @Immutable
 data class TGBeatLayout(val beat: TGBeat, val bounds: Rect, val x: Float, val voices: List<TGVoiceLayout>, val chordBounds: Rect?, val endX: Float = bounds.right,
     /** Visible interval, which may be only part of the unchanged source beat. */
@@ -70,6 +72,8 @@ data class TGMeasureLayout(
     val notationTop: Float = bounds.top,
     /** Native marker baseline, separate from the staff and the row origin. */
     val markerBaseline: Float = bounds.top,
+    /** Native offline effects bottom-align each beat within this row-level lane. */
+    val effectLaneHeight: Float = 0f,
 ) {
     /** TGMeasureImpl.paintDivisions; Android UIPainter.getFMBaseLine() is zero. */
     fun barlineTop(config: TGLayoutConfig): Float? = staffTop ?: tabTop?.let {

@@ -101,4 +101,20 @@ class AlphaTabOracleTest {
         }
         assertEquals(256,count)
     }
+    @Test fun supportedEffectPrioritiesAndCategoriesMatchTheActualScoreAndTabRegistries() {
+        var checked=0
+        val registries=records().filter {it[0]=="effect-order"}
+        assertEquals(52,registries.size)
+        registries.filter {it[2]!="-"}.forEach {r->
+            val label=r[2];val tab=r[1]=="tab"
+            assertEquals(r[4].toInt(),alphaAnnotationEffectCategory(label),"${r[1]} $label category")
+            assertEquals(r[5].toInt(),alphaAnnotationEffectOrder(label,tab),"${r[1]} $label priority")
+            if(label=="T") for(alias in listOf("S","P"))
+                assertEquals(r[5].toInt(),alphaAnnotationEffectOrder(alias,tab))
+            if(label=="let ring") assertEquals(r[5].toInt(),alphaAnnotationEffectOrder("L.R",tab))
+            checked++
+        }
+        assertEquals(16,checked)
+    }
+
 }

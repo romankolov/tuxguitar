@@ -75,13 +75,57 @@ class NativeAnnotationPaintTest {
                     assertEquals(marker.x,m.beatAreaLeft*scale,.025f)
                     val annotation=safe.staves.flatMap {it.annotations}.single {it.band==TGAnnotationBand.Marker}
                     assertEquals(marker.x,annotation.labelBounds.left*scale,.025f,"marker must not be moved to headerX")
+                    val baseline=annotation.labelBounds.top+TGFontMetrics.Approximate.firstBaseline(annotation.lines.first(),TGTextRole.Text)
+                    assertEquals(marker.baseline,baseline*scale,.025f,"marker BASELINE, not top-left")
                 }
                 val prose=ref.paintStrings(native,"paintTexts").single()
                 val beat=m.beats.single {it.beat.text==prose.value}
                 assertEquals(prose.x,beat.x*scale,.025f)
                 val annotation=safe.staves.flatMap {it.annotations}.single {it.band==TGAnnotationBand.Text && it.sourceTick==beat.startTick}
                 assertEquals(prose.x,annotation.labelBounds.left*scale,.025f,"prose must not be clamped back from its note")
+                val baseline=annotation.labelBounds.top+TGFontMetrics.Approximate.firstBaseline(annotation.lines.first(),TGTextRole.Text)
+                assertEquals(prose.baseline,baseline*scale,.025f,"prose BASELINE, not top-left")
             }
         }
     }
+    @Test fun nativeOfflineShapesAndVoiceWidthsMatchOriginalJavaPaintCalls() {
+        val methods=mapOf(TGAnnotationKind.Accent to "paintAccentuated",TGAnnotationKind.HeavyAccent to "paintHeavyAccentuated",
+            TGAnnotationKind.FadeIn to "paintFadeIn",TGAnnotationKind.Vibrato to "paintVibrato",TGAnnotationKind.Trill to "paintTrill")
+        val port=Class.forName("com.tuxcompose.layout.TGNativeOfflineEffectsKt").getDeclaredMethod("nativeOfflineEffectPaintCalls",
+            TGAnnotationKind::class.java,java.lang.Float.TYPE,java.lang.Float.TYPE)
+        var checked=0
+        for(style in TGLayoutStyles.entries) for(compact in listOf(false,true)) for(scale in listOf(1f,1.25f,2.625f)) {
+            val song=fixture()
+            val durations=listOf(8,8,4,2)
+            song.getTrack(0).measures.forEach {m->
+                var tick=m.header.start
+                m.beats.forEachIndexed {i,b->
+                    b.preciseStart=NativeDuration.toPreciseTime(tick)
+                    b.getVoice(0).duration.value=durations[i]
+                    tick+=b.getVoice(0).duration.time
+                }
+            }
+            val cfg=TGLayoutConfig(style=style,compact=compact,fitPageToWidth=false,avoidAnnotationCollisions=false,mergeLetRing=false)
+            val ref=NativeLayoutReference(song,cfg,900f*scale,scale)
+            val m=ref.actual.staves.flatMap {it.measures}.first()
+            val native=ref.song.getTrack(0).getMeasure(0) as TGMeasureImpl
+            m.beats.forEachIndexed {bi,b->
+                val voice=(native.getBeat(bi) as app.tuxguitar.graphics.control.TGBeatImpl).getVoiceImpl(0)
+                assertEquals(voice.width,b.voices.single().effectWidth*scale,.025f,"source voice width: $style/$compact/$scale/$bi")
+                val note=voice.notes.first() as app.tuxguitar.graphics.control.TGNoteImpl
+                methods.forEach {(kind,method)->
+                    val expected=ref.paintOfflinePath(note,method)
+                    @Suppress("UNCHECKED_CAST")
+                    val actual=port.invoke(null,kind,b.voices.single().effectWidth,TGFontMetrics.Approximate.measure("Tr",TGTextRole.Text).width) as List<Pair<String,List<Float>>>
+                    assertEquals(expected.map {it.first},actual.map {it.first},"$method/$style/$compact/$scale/$bi path operations")
+                    expected.zip(actual).forEach {(a,c)->a.second.zip(c.second).forEach {(x,y)->
+                        assertEquals(x,y*scale,.025f,"$method/$style/$compact/$scale/$bi vertex")
+                    }}
+                    checked++
+                }
+            }
+        }
+        assertEquals(360,checked)
+    }
+
 }

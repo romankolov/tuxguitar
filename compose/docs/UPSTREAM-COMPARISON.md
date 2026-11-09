@@ -25,7 +25,10 @@ The alphaTab codeload archive is SHA-256
 `14e575b8fb49095a043cc5e7fec6a65f836eeb3f48459768683add539a29c6dd`.
 `check.py` verifies the checksum before extracting regular source files to an ignored
 cache and bundles **unmodified upstream classes** with pinned esbuild 0.28.2. Node,
-esbuild, reference sources and bundles are **build/test tooling only**.
+esbuild, reference TypeScript and bundles are **build/test tooling only**.
+`Environment.defaultRenderers` is executed to check profile categories/orders. Its
+upstream build-generated `VersionInfo` logger is absent from the archive; a fail-on-use
+metadata seam supplies that unused import. None of the reference layout/paint code is modified.
 
 ```sh
 # From compose/; Node 22, Python 3, authenticated gh, Java 17 for Gradle.
@@ -35,10 +38,10 @@ python3 tools/upstream/check.py             # byte-compare checked reference res
 bash gradlew :tux-compose-core:desktopTest :demo-tuxguitar:test --stacktrace
 ```
 
-The checked TSV contains **3,328 records**, not 3,328 separate test methods:
+The checked TSV contains **3,380 records**, not 3,380 separate test methods:
 2,048 skyline operations, eight resets, 400 force/width cases, 128 accidental-column
 cases, 360 ranged-glyph paint cases, 256 grouped-effect flag patterns and 128
-effect-placement systems. Six JVM test methods compare the Kotlin helpers and
+effect-placement systems, plus 52 actual Score/Tab registry entries. Seven JVM test methods compare the Kotlin helpers and
 model adaptation with those actual upstream results. Additional brute-force/randomized tests exercise
 our own implementation and boundary rules. `--update` is an explicit fixture maintenance
 operation, never an automatic CI repair. The CI build runs source/fixture verification
@@ -68,7 +71,7 @@ except its Android `view/tablature/TGSongViewStyles` / `TGSongViewController` de
 | Captions, let-ring and collisions | native named vertical bands | `rendering/skyline/Skyline`, `SkylineScratch` | Independent half-open range-max skyline **inside existing bands**. Variable-height text no longer charges every reservation the tallest shelf height. Merged dashed let-ring spans remain. 2,048 actual-source operations plus 4,096 brute-force steps. |
 | Spring justification | native proportional/equal-per-bar distribution | power-law compliance, minimum rods, force inversion | Optional `Spring` mode, ratio 1.2–2, shared onsets, hard rods. Below minimum width, fragment rather than squeeze. 400 actual-source force/width cases + randomized rod invariants. |
 | Picking, strum and connectors | `TGBeatImpl` distinct pick/strum, native effect math | glyph/connection routing conventions | Preserve native direction and distinction. Existing indexed, row-local continuation connectors and effect bands remain. Not all upstream effect painters are implemented. |
-| Glyphs / fonts | 32 native vector model trees | alphaTab's Bravura/SMuFL pipeline | Retain provenance-checked native vectors, actual-size path caching and measured Compose text. No alphaTab font or glyph is copied. |
+| Glyphs / fonts | 32 native vector model trees | alphaTab's Bravura/SMuFL pipeline | Retain provenance-checked native vectors, actual-size path caching and measured Compose text. No alphaTab font or SMuFL path is copied. |
 | Cursor / interaction | native song/track/beat identities | cursor/selection separation | Preserve external musical ticks, smooth configurable glide, fixed-fret-width **hollow** capsule, indexed hit geometry and explicit manual-scroll/follow arbitration. No core playback clock. |
 | Import / synthesis / MIDI | native decoder and event engine | broad alphaTab import/player capabilities | Intentionally **not** in core. The separate Android demonstration retains TuxGuitar import, FluidSynth, GeneralUser GS, repeats and optional external MIDI. No claim of alphaTab format/player parity. |
 | UI / platforms | native reading behavior | browser-oriented rendering and interaction | Native Compose Canvas and immutable model API; Material3 Expressive is sample-only. No WebView, SWT, heavyweight View or alphaTab runtime. Android/JVM gates; optional iOS targets are not device-verified here. |
@@ -156,7 +159,7 @@ not establish measure-number or let-ring parity.
   styles, page/horizontal layout, one/six strings and three physical scales.
 - Original alphaTab classes produce **360 ranged-glyph paint records**, **256
   grouped-effect flag patterns** and **128 effect-placement systems**. These are
-  added to the previous 2,584 records: **3,328** in total, not invented expectations.
+  added to the previous 2,584 records: **3,380** in total, not invented expectations.
 - Native source pinning now includes the Android font-baseline backend, beat/text
   painters and harmonic labels: **20** byte-identical reference files.
 - Android tests check real hardware number pixels near their staff baselines,

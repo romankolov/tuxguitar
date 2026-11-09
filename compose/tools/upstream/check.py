@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Run real, pinned alphaTab helpers; check their expected results byte-for-byte.
 
-Only build/test-time sources under an excluded cache directory. No alphaTab code,
-parsers, audio or rendering backend enters any shipping module.
+Only build/test-time sources under an excluded cache directory. The reference JavaScript,
+parsers, audio and backend are test-only. The separately attributed Kotlin geometry
+adaptation in TGAlphaEffectLayout.kt is shipping MPL-2.0 code.
 """
 import argparse
 import hashlib
@@ -40,10 +41,11 @@ if not source.exists():
                 with tar.extractfile(member) as data:target.write_bytes(data.read())
 bundle=CACHE/'alpha-oracle.cjs'
 subprocess.run([str(HERE/'node_modules'/'esbuild'/'bin'/'esbuild'),str(HERE/'alpha_oracle.ts'),
-    '--bundle','--platform=node','--format=cjs',f'--alias:@coderline/alphatab={source}',
+    '--bundle','--platform=node','--target=node22','--format=cjs',f'--alias:@coderline/alphatab={source}',
+    f'--alias:@coderline/alphatab/generated/VersionInfo={HERE/"VersionInfo.ts"}',
     '--external:@coderline/alphaskia',f'--outfile={bundle}'],check=True)
 result=subprocess.check_output(['node',str(bundle)])
 expected=HERE/'alpha-1.9.0.tsv'
 if args.update:expected.write_bytes(result)
 else:assert expected.read_bytes()==result,'Upstream oracle fixture changed; do not silently update comparison tolerances'
-print(f'::notice title=alphaTab source oracles::Pinned {SHA}; {len(result.splitlines())-1} skyline/spring/accidental-column/ranged-paint/grouping/effect-placement records verified')
+print(f'::notice title=alphaTab source oracles::Pinned {SHA}; {len(result.splitlines())-1} skyline/spring/accidental-column/ranged-paint/grouping/effect-placement/profile-order records verified')

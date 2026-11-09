@@ -19,7 +19,7 @@ internal data class TGMeasureSpacing(val offsets: Map<Long,Float>, val rhythm: F
  * NOT set the spacing of every eighth note (TGMeasureImpl compares successive CHORD onsets).
  * Measure only visible ink; use the same font metrics and geometry as the Canvas painter.
  */
-internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConfig, fonts: TGFontMetrics, compact: Boolean, previous: TGMeasure? = null, directions: Map<Pair<Int,Int>,Boolean> = emptyMap()): TGMeasureInk {
+internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConfig, fonts: TGFontMetrics, compact: Boolean, previous: TGMeasure? = null, directions: Map<Pair<Int,Int>,Boolean> = emptyMap(), nativeEffectQuarter: Float? = null): TGMeasureInk {
     // Keep tracks AND lanes separate. Only their resulting onset constraints are shared.
     val score = mutableListOf<TGHorizontalInk>()
     val tab = mutableListOf<TGHorizontalInk>()
@@ -30,6 +30,7 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
     val atomicCaptions = mutableListOf<List<TGHorizontalInk>>()
     val engraving=scoreEngraving(track,measure,previous,config,directions)
     var continuationRight = 0f
+    val effectQuarter=nativeEffectQuarter ?: nativeMeasureSpacing(track,measure,config,compact).quarter
     measure.beats.forEachIndexed { bi,beat ->
         val voices = beat.voices.filterNot { it.empty }
         var scoreLeft = 0f
@@ -140,16 +141,17 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
             (config.mergeLetRing && it=="let ring") ||
                 (config.showStandardNotation && it in listOf("N.H","A.H","T.H","P.H","S.H"))
         }.forEach {label->
-            val right=when(label) {
-                ">","^"->6.5f
-                "<"->7.5f
-                "~"->20.5f
-                else->fonts.measure(if(label=="let ring") "L.R" else label,TGTextRole.Text).width
-            }
+            val kind=nativeOfflineKind(label)
+            val width=if(compact) config.durationWidths[minOf((v.duration ?: beat.duration).index,config.durationWidths.lastIndex)] else
+                (v.duration ?: beat.duration).ticks.toFloat()/960f*effectQuarter+
+                    (v.notes.maxOfOrNull {(it.effects.bend?.movements()?.size ?: 0)*10f} ?: 0f)
+            val body=kind?.let {nativeOfflineEffectBounds(it,width,if(label=="Tr") fonts.measure("Tr",TGTextRole.Text).width else 0f)}
+            val left=body?.left ?: 0f
+            val right=body?.right ?: fonts.measure(if(label=="let ring") "L.R" else label,TGTextRole.Text).width
             // EffectBand is per voice/effect, not one shared horizontal lane:
             // vibrato cannot push a following L.R attack in a different band.
             effects.getOrPut("${v.index}:$label") {mutableListOf()}
-                .add(TGHorizontalInk(beat.start,0f,maxOf(0f,right),2f))
+                .add(TGHorizontalInk(beat.start,left,maxOf(0f,right),2f))
         }}
         if (beat.pickStroke != TGStrokeDirection.None) picking += TGHorizontalInk(beat.start,-4f,4f)
     }

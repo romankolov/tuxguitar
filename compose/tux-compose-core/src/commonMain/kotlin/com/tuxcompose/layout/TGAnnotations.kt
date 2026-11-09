@@ -7,8 +7,20 @@ import androidx.compose.ui.geometry.Rect
 import com.tuxcompose.model.*
 import kotlinx.collections.immutable.persistentListOf
 
+/** Environment.defaultRenderers declaration order. Mixed owns these on TAB.
+ * Native-only marks absent from an alphaTab registry retain its default order 0. */
+internal fun alphaAnnotationEffectOrder(label: String, tablature: Boolean): Int = if(tablature) when(label) {
+    "Tr"->2;"~"->6;"T","S","P"->7;"<"->8;"N.H"->9;"A.H"->10;"P.H"->11;"T.H"->12;"S.H"->13
+    "let ring","L.R"->15;"P.M"->17;else->0
+} else when(label) {
+    "Tr"->8;"T","S","P"->11;"~"->15;"<"->16;"let ring","L.R"->17;else->0
+}
+
+internal fun alphaAnnotationEffectCategory(label: String): Int =
+    if(label in listOf("Tr","~","<","P.M","let ring","L.R")) 1 else 0
+
 /** Row-local annotation ink, cached with layout rather than rebuilt on cursor frames. */
-enum class TGAnnotationKind { Text, Accent, FadeIn, Vibrato, LetRing, HeavyAccent }
+enum class TGAnnotationKind { Text, Accent, FadeIn, Vibrato, LetRing, HeavyAccent, Trill }
 enum class TGAnnotationBand { Text, Effects, Marker, ChordNames }
 @Immutable
 data class TGAnnotationLayout(
@@ -32,6 +44,8 @@ data class TGAnnotationLayout(
     val capSize: Float = 6f,
     /** EffectBand is scoped to a voice; overlapping voices are never merged. */
     val voiceIndex: Int = 0,
+    /** Native voice width; justification moves attacks but never stretches the effect glyph. */
+    val effectWidth: Float = 0f,
 )
 
 /** Only visit visible wrapped lines, even when one imported caption is thousands of lines. */
@@ -104,7 +118,7 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
     data class Item(val kind: TGAnnotationKind, val band: TGAnnotationBand, val text: String,
         val x: Float, val source: Long, val end: Long, val renderer: Int,
         val effectId: String=text, val voice: Int=0, val category: Int=0, val order: Int=0,
-        val spanEnd: Float?=null, val incoming: Boolean=false, val outgoing: Boolean=false)
+        val spanEnd: Float?=null, val incoming: Boolean=false, val outgoing: Boolean=false, val effectWidth: Float=0f)
     val items=mutableListOf<Item>()
     val visibleBeats=measures.flatMap {m->m.beats.map {m to it}}
     val byVoice=visibleBeats.flatMap {pair->pair.second.voices.map {it.voice.index to pair}}
@@ -117,7 +131,7 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
         if(beats.isNotEmpty()) {
             val (m,first)=beats.first();val last=beats.last().second
             items+=Item(TGAnnotationKind.LetRing,TGAnnotationBand.Effects,"let ring",first.x,r.start,r.end,m.measureIndex,
-                effectId="EffectLetRing",voice=r.voice,category=1,order=15,
+                effectId="EffectLetRing",voice=r.voice,category=1,order=alphaAnnotationEffectOrder("let ring",config.showTablature),
                 spanEnd=if(beats.size>1) last.x else null,incoming=r.start<start,outgoing=r.end>end)
         }
     }
@@ -140,13 +154,11 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             effectLabels(b.beat.copy(voices=persistentListOf(v.voice))).forEach effect@{label->
                 if(label=="let ring" && config.mergeLetRing) return@effect
                 if(config.showStandardNotation && label in listOf("N.H","A.H","T.H","P.H","S.H")) return@effect
-                val kind=when(label) {">"->TGAnnotationKind.Accent;"<"->TGAnnotationKind.FadeIn;"~"->TGAnnotationKind.Vibrato;"^"->TGAnnotationKind.HeavyAccent;else->TGAnnotationKind.Text}
+                val kind=nativeOfflineKind(label) ?: TGAnnotationKind.Text
                 val value=if(label=="let ring") "L.R" else label
                 items+=Item(kind,TGAnnotationBand.Effects,value,b.x,b.startTick,b.endTick,m.measureIndex,
-                    voice=v.voice.index,category=if(label in listOf("~","tr")) 1 else 0,
-                    // Stable visual stack, not an index in this beat's sparse effects.
-                    // Environment.defaultRenderers' TAB profile (Mixed owns these on TAB).
-                    order=when(label) {"tr"->2;"~"->6;"T","S","P"->7;"<"->8;"N.H"->9;"A.H"->10;"P.H"->11;"T.H"->12;"S.H"->13;"L.R"->15;"P.M"->17;else->0})
+                    voice=v.voice.index,category=alphaAnnotationEffectCategory(label),
+                    order=alphaAnnotationEffectOrder(label,config.showTablature),effectWidth=v.effectWidth)
             }
         }
     }}
@@ -158,16 +170,27 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             val lineHeight: Float,val ranged: TGAlphaRangedGeometry?)
         val role=if(band==TGAnnotationBand.ChordNames) TGTextRole.Chord else TGTextRole.Text
         val prepared=items.filter {it.band==band}.map {item->
-            val vector=item.kind in listOf(TGAnnotationKind.Accent,TGAnnotationKind.FadeIn,TGAnnotationKind.Vibrato,TGAnnotationKind.HeavyAccent)
+            val vector=nativeOfflineKind(item.text)!=null
+            val vectorBounds=if(vector) nativeOfflineEffectBounds(item.kind,item.effectWidth,
+                if(item.kind==TGAnnotationKind.Trill) fonts.measure("Tr",TGTextRole.Text).width else 0f) else null
             val ranged=if(item.kind==TGAnnotationKind.LetRing)
                 alphaRangedGeometry(item.x,0f,fonts.measure(item.text,role),item.spanEnd,config.staffSpacing) else null
-            val atomic=band==TGAnnotationBand.Effects
+            val atomic=band==TGAnnotationBand.Effects || band==TGAnnotationBand.ChordNames
             val widthAtAnchor=(clipRight-item.x).coerceIn(.01f,available)
             val lines=when {vector->emptyList();atomic->listOf(item.text);else->wrapAnnotationText(item.text,widthAtAnchor,fonts,role)}
             val lh=if(vector) 8f else lines.maxOfOrNull {fonts.measure(it,role).height}?.coerceAtLeast(1f) ?: 1f
-            val width=if(vector) (if(item.kind==TGAnnotationKind.Vibrato) 21f else 8f) else lines.maxOfOrNull {fonts.measure(it,role).width} ?: 0f
-            val label=ranged?.label ?: Rect(item.x,0f,item.x+width,lh*maxOf(1,lines.size))
-            Pending(item,lines,label,ranged?.bounds ?: label,lh,ranged)
+            val width=if(vector) maxOf(0f,vectorBounds!!.right) else lines.maxOfOrNull {fonts.measure(it,role).width} ?: 0f
+            val labelTop=when {
+                vector || item.kind==TGAnnotationKind.LetRing->0f
+                band==TGAnnotationBand.Marker || band==TGAnnotationBand.Text->-fonts.firstBaseline(lines.firstOrNull().orEmpty(),role)
+                band==TGAnnotationBand.Effects->2f-.2f*fonts.firstBaseline(item.text,role)
+                band==TGAnnotationBand.ChordNames && config.nativeSpacing->-.2f*fonts.firstBaseline(item.text,role)
+                else->0f
+            }
+            val label=ranged?.label ?: Rect(item.x,labelTop,item.x+width,labelTop+lh*maxOf(1,lines.size))
+            val box=vectorBounds?.let {Rect(minOf(label.left,item.x+it.left),minOf(label.top,it.top),
+                maxOf(label.right,item.x+it.right),maxOf(label.bottom,it.bottom))} ?: ranged?.bounds ?: label
+            Pending(item,lines,label,box,lh,ranged)
         }
         if(prepared.isEmpty()) {heights[band]=0f;return@forEach}
         val tops=FloatArray(prepared.size)
@@ -191,23 +214,27 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             // Keep the existing fixed-parent emergency prose wrapping in native lanes.
             // Crucially this NEVER changes an upstream horizontal anchor.
             val skyline=TGSkyline(clipLeft,clipRight+.01f)
+            val baselineBias=maxOf(0f,-prepared.minOf {it.bounds.top})
             prepared.indices.sortedBy {prepared[it].label.left}.forEach {i->
                 val p=prepared[i]
                 val a=p.bounds.left.coerceIn(clipLeft,clipRight)
                 val b=maxOf(a,minOf(clipRight,p.bounds.right+2f))
-                val top=skyline.maximum(a,b)
-                skyline.reserve(a,b,top+p.bounds.height+2f)
-                tops[i]=base+top+1f-p.bounds.top
+                val occupied=skyline.maximum(a,b)
+                val top=if(occupied>0f) occupied-p.bounds.top-baselineBias else 0f
+                skyline.reserve(a,b,top+p.bounds.bottom+baselineBias+2f)
+                tops[i]=base+top
             }
             height=base+skyline.height
         }
         heights[band]=height
+        val clipTop=minOf(0f,prepared.indices.minOf {prepared[it].bounds.top+tops[it]})
+        val clipBottom=maxOf(height,prepared.indices.maxOf {prepared[it].bounds.bottom+tops[it]})
         prepared.forEachIndexed {i,p->
             val shift=Offset(0f,tops[i]);val ranged=p.ranged
             result+=TGAnnotationLayout(p.item.kind,band,p.lines,p.label.translate(shift),p.lineHeight,p.bounds.translate(shift),
-                Rect(clipLeft,0f,clipRight,height),ranged?.from?.plus(shift),ranged?.to?.plus(shift),ranged?.cap!=null,
+                Rect(clipLeft,clipTop,clipRight,clipBottom),ranged?.from?.plus(shift),ranged?.to?.plus(shift),ranged?.cap!=null,
                 p.item.incoming,p.item.outgoing,p.item.source,p.item.end,
-                ranged?.dashSize ?: 3f,ranged?.dashGap ?: 2f,ranged?.thickness ?: .8f,ranged?.dashSize ?: 6f,p.item.voice)
+                ranged?.dashSize ?: 3f,ranged?.dashGap ?: 2f,ranged?.thickness ?: .8f,ranged?.dashSize ?: 6f,p.item.voice,p.item.effectWidth)
         }
     }
     return TGAnnotationPlan(result,heights[TGAnnotationBand.Text] ?: 0f,heights[TGAnnotationBand.Effects] ?: 0f,

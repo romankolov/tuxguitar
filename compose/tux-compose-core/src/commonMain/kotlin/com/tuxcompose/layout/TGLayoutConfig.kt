@@ -121,6 +121,8 @@ data class TGColorPalette(
 /** Pure metrics allow deterministic layout tests without a platform font/canvas. */
 fun interface TGFontMetrics {
     fun measure(text: String, role: TGTextRole): TGTextSize
+    /** Override with the same cached font layout used to draw. Fallback is approximate. */
+    fun firstBaseline(text: String, role: TGTextRole): Float = measure(text,role).height*.8f
     companion object {
         val Approximate = TGFontMetrics { text, role ->
             val height = if (role == TGTextRole.Note) 10f else 9f

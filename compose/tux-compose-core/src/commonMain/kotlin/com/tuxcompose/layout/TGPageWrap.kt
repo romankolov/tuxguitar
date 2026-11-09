@@ -184,7 +184,7 @@ internal class TGMeasureFragments(private val full: TGMeasureLayout) {
             effectsTop=top(TGTrackLane.Effects),bendTop=top(TGTrackLane.Bend),textTop=top(TGTrackLane.Text),
             chordTop=top(TGTrackLane.Chord),endingTop=top(TGTrackLane.RepeatEnding),tupletTop=top(TGTrackLane.Tuplet1),
             pickStrokeTop=top(TGTrackLane.PickStroke),
-            notationTop=top(TGTrackLane.Chord)+lanes.size(TGTrackLane.Chord),markerBaseline=top(TGTrackLane.Marker),
+            notationTop=top(TGTrackLane.Chord)+lanes.size(TGTrackLane.Chord),markerBaseline=top(TGTrackLane.Marker),effectLaneHeight=lanes.size(TGTrackLane.Effects),
             contentScale=1f,startTick=slice.startTick,endTick=slice.endTick,headerX=bounds.left+padding,
         )
     }
