@@ -8,6 +8,14 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlin.test.*
 
 class AnnotationTest {
+    @Test fun existingAnnotationKindExhaustiveConsumersRemainSourceCompatible() {
+        fun legacy(kind: TGAnnotationKind): String = when(kind) {
+            TGAnnotationKind.Text->"text";TGAnnotationKind.Accent->"accent";TGAnnotationKind.FadeIn->"fade"
+            TGAnnotationKind.Vibrato->"vibrato";TGAnnotationKind.LetRing->"let ring"
+        }
+        assertEquals(5,TGAnnotationKind.entries.size)
+        TGAnnotationKind.entries.forEach {assertTrue(legacy(it).isNotBlank())}
+    }
     private val tuning=listOf(64,59,55,50,45,40)
     private val base=TGLayoutConfig(justifySystems=false)
     private fun bar(index: Int=0, count: Int=8, flags: Set<Int> =(0 until count).toSet(), other: Boolean=false): TGMeasure {

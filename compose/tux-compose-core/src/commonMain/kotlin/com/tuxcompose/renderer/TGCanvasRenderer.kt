@@ -36,7 +36,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     // the Canvas: final geometry/stroke and layout coordinates remain identical.
     private val glyphPaths = mutableMapOf<TGVectorGlyph,MutableMap<Float,Path>>()
     private data class OfflineGlyph(val path: Path,val fill: Boolean,val caption: Boolean)
-    private val offlineGlyphs=mutableMapOf<Triple<TGAnnotationKind,Float,Float>,OfflineGlyph>()
+    private val offlineGlyphs=mutableMapOf<Triple<TGOfflineEffectKind,Float,Float>,OfflineGlyph>()
 
     fun DrawScope.render(layout: TGSongLayout, viewport: Rect) {
         layout.visible(viewport).forEach { staff ->
@@ -461,8 +461,8 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         if (duration.doubleDotted) drawCircle(colors.noteHead, radius*scale, Offset(x+(if (config.nativeSpacing) 5f else 4f)*scale,y))
     }
     /** Original TGNoteImpl paths, cached at final physical size like the native vector font. */
-    private fun DrawScope.offlineEffect(kind: TGAnnotationKind,x: Float,y: Float,width: Float) {
-        val trWidth=if(kind==TGAnnotationKind.Trill) text.measure("Tr",TGTextRole.Text).width else 0f
+    private fun DrawScope.offlineEffect(kind: TGOfflineEffectKind,x: Float,y: Float,width: Float) {
+        val trWidth=if(kind==TGOfflineEffectKind.Trill) text.measure("Tr",TGTextRole.Text).width else 0f
         val glyph=offlineGlyphs.getOrPut(Triple(kind,width,trWidth)) {
             val calls=nativeOfflineEffectPaintCalls(kind,width,trWidth)
             val s=config.renderScale
@@ -473,13 +473,13 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
                 // UIPainter.closePath flushes, it does not close the contour.
                 else->Unit
             }}}
-            OfflineGlyph(path,kind==TGAnnotationKind.Vibrato || kind==TGAnnotationKind.Trill,calls.isNotEmpty())
+            OfflineGlyph(path,kind==TGOfflineEffectKind.Vibrato || kind==TGOfflineEffectKind.Trill,calls.isNotEmpty())
         }
         val s=config.renderScale
         withTransform({translate(x,y);scale(1f/s,1f/s,Offset.Zero)}) {
             drawPath(glyph.path,colors.noteHead,style=if(glyph.fill) Fill else Stroke(s))
         }
-        if(kind==TGAnnotationKind.Trill && glyph.caption)
+        if(kind==TGOfflineEffectKind.Trill && glyph.caption)
             labelAtBaseline("Tr",Offset(x,y+2f+.8f*text.firstBaseline("Tr",TGTextRole.Text)),TGTextRole.Text,colors.beatText)
     }
     private fun DrawScope.vibrato(x: Float, y: Float, width: Float) {
@@ -509,14 +509,17 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     /** Caption and continuation ink share the same measured, collision-free cached geometry. */
     fun DrawScope.renderAnnotation(a: TGAnnotationLayout, viewport: Rect = a.clipBounds) {
         clipRect(a.clipBounds.left,a.clipBounds.top,a.clipBounds.right,a.clipBounds.bottom) {
-            when (a.kind) {
-                TGAnnotationKind.Accent,TGAnnotationKind.HeavyAccent,TGAnnotationKind.FadeIn,TGAnnotationKind.Vibrato,TGAnnotationKind.Trill ->
-                    offlineEffect(a.kind,a.labelBounds.left,a.labelBounds.top,a.effectWidth)
-                else -> a.visibleLines(viewport).forEach { i ->
-                    label(a.lines[i],a.labelBounds.left,a.labelBounds.top+i*a.lineHeight,
-                        if(a.band==TGAnnotationBand.ChordNames) TGTextRole.Chord else TGTextRole.Text,
-                        if(a.band==TGAnnotationBand.ChordNames) colors.noteHead else colors.beatText)
-                }
+            val native=a.nativeEffect ?: when(a.kind) {
+                TGAnnotationKind.Accent->TGOfflineEffectKind.Accent
+                TGAnnotationKind.FadeIn->TGOfflineEffectKind.FadeIn
+                TGAnnotationKind.Vibrato->TGOfflineEffectKind.Vibrato
+                else->null
+            }
+            if(native!=null) offlineEffect(native,a.labelBounds.left,a.labelBounds.top,a.effectWidth)
+            else a.visibleLines(viewport).forEach {i->
+                label(a.lines[i],a.labelBounds.left,a.labelBounds.top+i*a.lineHeight,
+                    if(a.band==TGAnnotationBand.ChordNames) TGTextRole.Chord else TGTextRole.Text,
+                    if(a.band==TGAnnotationBand.ChordNames) colors.noteHead else colors.beatText)
             }
             val from = a.lineFrom; val to = a.lineTo
             if (from != null && to != null) {

@@ -6,8 +6,18 @@ package com.tuxcompose.layout
 import androidx.compose.ui.geometry.Rect
 import kotlin.math.floor
 
+/** Native path identity is separate from the stable annotation/culling categories. */
+enum class TGOfflineEffectKind { Accent, HeavyAccent, FadeIn, Vibrato, Trill }
+
+internal fun TGOfflineEffectKind.annotationKind(): TGAnnotationKind = when(this) {
+    TGOfflineEffectKind.Accent,TGOfflineEffectKind.HeavyAccent->TGAnnotationKind.Accent
+    TGOfflineEffectKind.FadeIn->TGAnnotationKind.FadeIn
+    TGOfflineEffectKind.Vibrato->TGAnnotationKind.Vibrato
+    TGOfflineEffectKind.Trill->TGAnnotationKind.Text
+}
+
 /** UIPainter.closePath flushes a path; it does NOT add a geometric closing segment. */
-internal fun nativeOfflineEffectPaintCalls(kind: TGAnnotationKind, voiceWidth: Float,
+internal fun nativeOfflineEffectPaintCalls(kind: TGOfflineEffectKind, voiceWidth: Float,
     trillTextWidth: Float = 0f): List<Pair<String,List<Float>>> = buildList {
     fun move(x: Float,y: Float) {add("moveTo" to listOf(x,y))}
     fun line(x: Float,y: Float) {add("lineTo" to listOf(x,y))}
@@ -15,14 +25,14 @@ internal fun nativeOfflineEffectPaintCalls(kind: TGAnnotationKind, voiceWidth: F
         add("cubicTo" to listOf(x1,y1,x2,y2,x,y))
     }
     when(kind) {
-        TGAnnotationKind.Accent->{move(0f,2f);line(6f,4.5f);move(6f,4.5f);line(0f,7f)}
-        TGAnnotationKind.HeavyAccent->{move(0f,5f);line(3f,1f);move(3f,1f);line(6f,5f)}
-        TGAnnotationKind.FadeIn->{
+        TGOfflineEffectKind.Accent->{move(0f,2f);line(6f,4.5f);move(6f,4.5f);line(0f,7f)}
+        TGOfflineEffectKind.HeavyAccent->{move(0f,5f);line(3f,1f);move(3f,1f);line(6f,5f)}
+        TGOfflineEffectKind.FadeIn->{
             move(0f,4f);cubic(0f,4f,voiceWidth,4f,voiceWidth,0f)
             move(0f,4f);cubic(0f,4f,voiceWidth,4f,voiceWidth,8f);move(voiceWidth,8f)
         }
-        TGAnnotationKind.Vibrato,TGAnnotationKind.Trill->{
-            val trill=kind==TGAnnotationKind.Trill
+        TGOfflineEffectKind.Vibrato,TGOfflineEffectKind.Trill->{
+            val trill=kind==TGOfflineEffectKind.Trill
             val start=if(trill) trillTextWidth else 0f
             val y=if(trill) 4f else 2f
             val loops=floor((voiceWidth-start-2f)/6f+.5f).toInt()
@@ -47,24 +57,23 @@ internal fun nativeOfflineEffectPaintCalls(kind: TGAnnotationKind, voiceWidth: F
                 line(x+2f,y+1f)
             }
         }
-        else->error("Not a native offline path: $kind")
     }
     if(isNotEmpty()) add("closePath" to emptyList())
 }
 
-internal fun nativeOfflineKind(label: String): TGAnnotationKind? = when(label) {
-    ">"->TGAnnotationKind.Accent
-    "^"->TGAnnotationKind.HeavyAccent
-    "<"->TGAnnotationKind.FadeIn
-    "~"->TGAnnotationKind.Vibrato
-    "Tr"->TGAnnotationKind.Trill
+internal fun nativeOfflineKind(label: String): TGOfflineEffectKind? = when(label) {
+    ">"->TGOfflineEffectKind.Accent
+    "^"->TGOfflineEffectKind.HeavyAccent
+    "<"->TGOfflineEffectKind.FadeIn
+    "~"->TGOfflineEffectKind.Vibrato
+    "Tr"->TGOfflineEffectKind.Trill
     else->null
 }
 
 /** Control-point envelope (conservative for cubics), including native outline width. */
-internal fun nativeOfflineEffectBounds(kind: TGAnnotationKind,width: Float,trillTextWidth: Float=0f): Rect {
+internal fun nativeOfflineEffectBounds(kind: TGOfflineEffectKind,width: Float,trillTextWidth: Float=0f): Rect {
     val points=nativeOfflineEffectPaintCalls(kind,width,trillTextWidth).flatMap {it.second.chunked(2)}
     if(points.isEmpty()) return Rect.Zero
     val body=Rect(points.minOf {it[0]},points.minOf {it[1]},points.maxOf {it[0]},points.maxOf {it[1]})
-    return if(kind==TGAnnotationKind.Vibrato || kind==TGAnnotationKind.Trill) body else body.inflate(.5f)
+    return if(kind==TGOfflineEffectKind.Vibrato || kind==TGOfflineEffectKind.Trill) body else body.inflate(.5f)
 }

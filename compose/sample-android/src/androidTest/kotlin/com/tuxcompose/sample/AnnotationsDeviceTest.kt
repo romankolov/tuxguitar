@@ -221,12 +221,16 @@ class AnnotationsDeviceTest {
             val marker=layout.staves.flatMap {it.annotations}.single {it.band==TGAnnotationBand.Marker}
             val owner=layout.staves.flatMap {it.measures}.first()
             assertEquals(owner.beatAreaLeft,marker.labelBounds.left,.001f)
-            layout.staves.flatMap {it.annotations}.filter {it.kind==TGAnnotationKind.LetRing}.forEach {a->
-                val first=layout.staves.flatMap {it.measures}.flatMap {it.beats}
-                    .first {it.startTick>=a.sourceTick && it.startTick<a.endTick && it.bounds.top==layout.staves.first {row->a.bounds.top>=row.bounds.top && a.bounds.bottom<=row.bounds.bottom}.bounds.top}
+            layout.staves.forEach {row->row.annotations.filter {it.kind==TGAnnotationKind.LetRing}.forEach {a->
+                // A staff's ink envelope includes marker ascenders above the
+                // native measure origin. Identify ownership, never equate those y's.
+                val first=row.measures.flatMap {it.beats}.first {b->b.voices.any {v->
+                    v.voice.index==a.voiceIndex && v.sourceTick>=a.sourceTick && v.sourceTick<a.endTick &&
+                        v.voice.notes.any {it.effects.letRing}
+                }}
                 assertEquals(first.x,a.labelBounds.center.x,.001f)
                 a.lineFrom?.let {assertEquals(a.labelBounds.center.y,it.y,.001f)}
-            }
+            }}
         }
     }
 }

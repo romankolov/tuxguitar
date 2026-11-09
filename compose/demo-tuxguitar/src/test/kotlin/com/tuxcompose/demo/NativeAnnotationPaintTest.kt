@@ -91,10 +91,10 @@ class NativeAnnotationPaintTest {
         }
     }
     @Test fun nativeOfflineShapesAndVoiceWidthsMatchOriginalJavaPaintCalls() {
-        val methods=mapOf(TGAnnotationKind.Accent to "paintAccentuated",TGAnnotationKind.HeavyAccent to "paintHeavyAccentuated",
-            TGAnnotationKind.FadeIn to "paintFadeIn",TGAnnotationKind.Vibrato to "paintVibrato",TGAnnotationKind.Trill to "paintTrill")
+        val methods=mapOf(TGOfflineEffectKind.Accent to "paintAccentuated",TGOfflineEffectKind.HeavyAccent to "paintHeavyAccentuated",
+            TGOfflineEffectKind.FadeIn to "paintFadeIn",TGOfflineEffectKind.Vibrato to "paintVibrato",TGOfflineEffectKind.Trill to "paintTrill")
         val port=Class.forName("com.tuxcompose.layout.TGNativeOfflineEffectsKt").getDeclaredMethod("nativeOfflineEffectPaintCalls",
-            TGAnnotationKind::class.java,java.lang.Float.TYPE,java.lang.Float.TYPE)
+            TGOfflineEffectKind::class.java,java.lang.Float.TYPE,java.lang.Float.TYPE)
         var checked=0
         for(style in TGLayoutStyles.entries) for(compact in listOf(false,true)) for(scale in listOf(1f,1.25f,2.625f)) {
             val song=fixture()

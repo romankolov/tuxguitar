@@ -40,3 +40,15 @@ For reproducibility, retain the release source SHA, CI run, BUILD-VERIFICATION.j
 SHA256SUMS.txt and signer digest. Uninstall a differently signed evaluation sample
 before installing a new one; this clears that app's private data. A real distributable
 update channel needs a securely retained production signing identity instead.
+
+### 1.0.1 annotation correction
+
+The original five `TGAnnotationKind` values are unchanged; exhaustive source consumers
+remain valid. Native heavy-accent/trill path identity is additional optional metadata
+(`nativeEffect`), not new values injected into that existing enum. Layout constructors
+retain defaulted additions; recompile consuming projects, as no Kotlin data-class
+constructor/copy bytecode compatibility is claimed by this correction. Custom font
+metrics can optionally override `firstBaseline`; Compose uses its actual cached result.
+The attributed `TGAlphaEffectLayout.kt` adaptation adds an MPL-2.0 file obligation;
+other core source remains LGPL-2.1-or-later. Full licences and notices are verified
+inside both the shipped AAR and sample APK.

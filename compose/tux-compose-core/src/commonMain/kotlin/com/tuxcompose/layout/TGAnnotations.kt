@@ -20,7 +20,7 @@ internal fun alphaAnnotationEffectCategory(label: String): Int =
     if(label in listOf("Tr","~","<","P.M","let ring","L.R")) 1 else 0
 
 /** Row-local annotation ink, cached with layout rather than rebuilt on cursor frames. */
-enum class TGAnnotationKind { Text, Accent, FadeIn, Vibrato, LetRing, HeavyAccent, Trill }
+enum class TGAnnotationKind { Text, Accent, FadeIn, Vibrato, LetRing }
 enum class TGAnnotationBand { Text, Effects, Marker, ChordNames }
 @Immutable
 data class TGAnnotationLayout(
@@ -45,7 +45,9 @@ data class TGAnnotationLayout(
     /** EffectBand is scoped to a voice; overlapping voices are never merged. */
     val voiceIndex: Int = 0,
     /** Native voice width; justification moves attacks but never stretches the effect glyph. */
-    val effectWidth: Float = 0f,
+    val effectWidth: Float = 20f,
+    /** Optional native path identity; keeps the existing annotation categories source-compatible. */
+    val nativeEffect: TGOfflineEffectKind? = null,
 )
 
 /** Only visit visible wrapped lines, even when one imported caption is thousands of lines. */
@@ -104,7 +106,7 @@ internal data class TGAnnotationPlan(val annotations: List<TGAnnotationLayout>, 
 /**
  * Native track bands and native marker/text/chord X anchors. Effect-band priority
  * and grouped-line geometry use the alphaTab ports in TGAlphaEffectLayout.kt.
- * Only prose/chord captions may word-wrap for the fixed-width parent; an atomic
+ * Only prose captions may word-wrap for the fixed-width parent; an atomic
  * ranged label is NEVER wrapped, clamped to a bar edge or moved off its note.
  */
 internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRingRun>,
@@ -154,7 +156,7 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             effectLabels(b.beat.copy(voices=persistentListOf(v.voice))).forEach effect@{label->
                 if(label=="let ring" && config.mergeLetRing) return@effect
                 if(config.showStandardNotation && label in listOf("N.H","A.H","T.H","P.H","S.H")) return@effect
-                val kind=nativeOfflineKind(label) ?: TGAnnotationKind.Text
+                val kind=nativeOfflineKind(label)?.annotationKind() ?: TGAnnotationKind.Text
                 val value=if(label=="let ring") "L.R" else label
                 items+=Item(kind,TGAnnotationBand.Effects,value,b.x,b.startTick,b.endTick,m.measureIndex,
                     voice=v.voice.index,category=alphaAnnotationEffectCategory(label),
@@ -170,9 +172,10 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             val lineHeight: Float,val ranged: TGAlphaRangedGeometry?)
         val role=if(band==TGAnnotationBand.ChordNames) TGTextRole.Chord else TGTextRole.Text
         val prepared=items.filter {it.band==band}.map {item->
-            val vector=nativeOfflineKind(item.text)!=null
-            val vectorBounds=if(vector) nativeOfflineEffectBounds(item.kind,item.effectWidth,
-                if(item.kind==TGAnnotationKind.Trill) fonts.measure("Tr",TGTextRole.Text).width else 0f) else null
+            val nativeKind=nativeOfflineKind(item.text)
+            val vector=nativeKind!=null
+            val vectorBounds=nativeKind?.let {nativeOfflineEffectBounds(it,item.effectWidth,
+                if(it==TGOfflineEffectKind.Trill) fonts.measure("Tr",TGTextRole.Text).width else 0f)}
             val ranged=if(item.kind==TGAnnotationKind.LetRing)
                 alphaRangedGeometry(item.x,0f,fonts.measure(item.text,role),item.spanEnd,config.staffSpacing) else null
             val atomic=band==TGAnnotationBand.Effects || band==TGAnnotationBand.ChordNames
@@ -234,7 +237,7 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             result+=TGAnnotationLayout(p.item.kind,band,p.lines,p.label.translate(shift),p.lineHeight,p.bounds.translate(shift),
                 Rect(clipLeft,clipTop,clipRight,clipBottom),ranged?.from?.plus(shift),ranged?.to?.plus(shift),ranged?.cap!=null,
                 p.item.incoming,p.item.outgoing,p.item.source,p.item.end,
-                ranged?.dashSize ?: 3f,ranged?.dashGap ?: 2f,ranged?.thickness ?: .8f,ranged?.dashSize ?: 6f,p.item.voice,p.item.effectWidth)
+                ranged?.dashSize ?: 3f,ranged?.dashGap ?: 2f,ranged?.thickness ?: .8f,ranged?.dashSize ?: 6f,p.item.voice,p.item.effectWidth,nativeOfflineKind(p.item.text))
         }
     }
     return TGAnnotationPlan(result,heights[TGAnnotationBand.Text] ?: 0f,heights[TGAnnotationBand.Effects] ?: 0f,
