@@ -27,6 +27,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Compare pinned upstream source helpers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm ci --no-audit --no-fund --prefix tools/upstream
+          python3 tools/upstream/check.py
+          python3 tools/upstream/check_tuxguitar.py
       - name: Verify upstream glyphs, dependency boundary and screenshot harness
         run: |
           python3 tools/verify.py

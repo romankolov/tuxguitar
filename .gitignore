@@ -26,3 +26,7 @@ __pycache__/
 *.jks
 *.p12
 compose/signing.properties
+
+# Pinned external sources used only by the comparison test harness.
+/compose/.cache/
+/compose/tools/upstream/node_modules/

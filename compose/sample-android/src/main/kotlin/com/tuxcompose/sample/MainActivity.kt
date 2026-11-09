@@ -166,7 +166,7 @@ fun TuxComposeDemo() {
         val layout=remember(preferences,colors) {
             TGLayoutConfig(style=preferences.mode,orientation=preferences.orientation,colors=colors,
                 multiTrack=preferences.allTracks,stringSpacing=if(preferences.wideStrings) 14f else 10f,
-                compact=preferences.compact,justifySystems=preferences.justify,
+                compact=preferences.compact,justifySystems=preferences.justify,spacingMode=preferences.spacing,
                 showChords=preferences.chordDiagrams,showChordNames=preferences.chordNames)
         }
         BoxWithConstraints(Modifier.fillMaxSize().semantics { testTagsAsResourceId=true }.testTag("studio-root")) {

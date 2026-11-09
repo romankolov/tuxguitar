@@ -58,11 +58,14 @@ data class TGLayoutConfig(
     val renderScale: Float = 1f,
     /** Merge let-ring runs and collision-pack captions on their rows without widening rhythm. */
     val mergeLetRing: Boolean = true,
-    /** Measured caption/header/connector lanes plus minimal local clearance for actual glyph conflicts.
+    /** Measured lanes and chord/accidental engraving plus minimal local clearance for glyph conflicts.
      * Captions never widen rhythm. False restores the unprotected native comparison geometry. */
     val avoidAnnotationCollisions: Boolean = true,
+    /** Power-law duration doubling ratio in Spring mode; native mode is unchanged. */
+    val springSpacingRatio: Float = 1.5f,
 ) {
     init {
+        require(springSpacingRatio.isFinite() && springSpacingRatio in 1.2f..2f)
         require(scale.isFinite() && scale in 0.1f..8f)
         require(renderScale.isFinite() && renderScale > 0f)
         require(listOf(stringSpacing, staffSpacing, noteHeadRadius).all { it.isFinite() && it > 0 })
@@ -75,8 +78,8 @@ data class TGLayoutConfig(
     val showTablature: Boolean get() = style != TGLayoutStyles.Score
 }
 
-/** Adaptive is the opt-in, font/ink-aware Compose extension shipped in v0.1.4. */
-enum class TGSpacingMode { TuxGuitar, Adaptive }
+/** Native default; optional adaptive ink balancing or power-law spring/rod justification. */
+enum class TGSpacingMode { TuxGuitar, Adaptive, Spring }
 
 enum class TGLayoutStyles { Score, Tablature, Mixed }
 enum class TGLayoutOrientation { Horizontal, Page }

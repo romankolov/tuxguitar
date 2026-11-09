@@ -68,7 +68,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             }
             beat.voices.forEach { voice ->
                 if (voice.notes.isEmpty()) rest(layout, beat, voice)
-                else voice.notes.forEach { note -> note(layout, beat, voice, note) }
+                else {
+                    voice.notes.forEach { note -> note(layout, beat, voice, note) }
+                    voice.augmentationDots.forEach {p->dots(voice.duration,p.x,p.y,config.staffSpacing/10f)}
+                }
             }
             // A beat with no voice is the public model's convenience rest.
             if (beat.voices.isEmpty()) rest(layout, beat, TGVoiceLayout(TGVoice(), beat.beat.duration, emptyList(), true, beat.x, 0f, 0f, -1))
@@ -268,11 +271,12 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
                 percussion && n.pitch == 53 -> TGNotePainter.HARMONIC
                 else -> TGNotePainter.NOTE
             }
-            glyph(glyph, b.left + if (fill) -.06f * b.height else 0f, b.top + if (fill) .06f * b.height else .1f * b.height, b.height * if (fill) .9f else .8f,
+            if(n.paintScoreHead) glyph(glyph, b.left + if (fill) -.06f * b.height else 0f, b.top + if (fill) .06f * b.height else .1f * b.height, b.height * if (fill) .9f else .8f,
                 filled = fill && glyph !== TGNotePainter.PERCUSSION_X)
             n.accidental?.let { accidental ->
                 val a = when (accidental) { TGAccidental.Sharp -> TGKeySignaturePainter.SHARP; TGAccidental.Flat -> TGKeySignaturePainter.FLAT; TGAccidental.Natural -> TGKeySignaturePainter.NATURAL }
-                glyph(a, b.left - config.staffSpacing * .75f, b.center.y, config.staffSpacing)
+                val origin=n.accidentalOrigin ?: Offset(b.left-config.staffSpacing*.75f,b.center.y)
+                glyph(a,origin.x,origin.y,config.staffSpacing)
             }
             // Ledger lines follow the glyph center, in diatonic half-line steps.
             val centerY = b.center.y
@@ -281,10 +285,11 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             while (ledger >= centerY - .1f) { line(b.left - 2, ledger, b.right + 2, ledger, colors.staffLines); ledger -= config.staffSpacing }
             ledger = staff + 5 * config.staffSpacing
             while (ledger <= centerY + .1f) { line(b.left - 2, ledger, b.right + 2, ledger, colors.staffLines); ledger += config.staffSpacing }
-            dots(voice.duration, b.left + 12f * config.staffSpacing / 8, b.center.y, config.staffSpacing / 10)
+            if(voice.augmentationDots.isEmpty()) dots(voice.duration, b.left + 12f * config.staffSpacing / 8, b.center.y, config.staffSpacing / 10)
             n.note.effects.grace?.takeUnless { voice.isContinuation }?.let { grace ->
-                glyph(if (grace.dead) TGNotePainter.PERCUSSION_X else TGNotePainter.NOTE, b.left - 9, b.top + 1, b.height * .55f)
-                line(b.left - 4, b.top - 10, b.left - 4, b.top + 4, colors.noteHead, .7f)
+                val origin=n.graceScoreOrigin ?: Offset(b.left-9,b.top+1)
+                glyph(if (grace.dead) TGNotePainter.PERCUSSION_X else TGNotePainter.NOTE, origin.x,origin.y,b.height*.55f)
+                line(origin.x+5,origin.y-11,origin.x+5,origin.y+3,colors.noteHead,.7f)
             }
             if (n.note.effects.staccato && !voice.isContinuation) drawCircle(colors.noteHead, 1.3f, Offset(b.center.x, if (voice.up) voice.stemEndY - 4 else voice.stemEndY + 4))
         }

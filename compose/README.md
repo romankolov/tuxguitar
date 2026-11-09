@@ -1,8 +1,31 @@
-# Tux Compose
+# Tux Compose 1.0.0
 
 **Immutable score → shared layout → Compose Canvas.** A standalone rendering library and an Android showcase built alongside (not inside) the legacy TuxGuitar applications.
 
 The library has **no decoder, file access, playback clock, MIDI, synthesizer, audio dependency, Android View, SWT or AWT**. The showcase intentionally has these integrations, in separate modules.
+
+## 1.0.0 highlights
+
+- **Native TuxGuitar spacing remains the default.** The compared 16 Java UI/layout
+  sources are byte-identical to upstream **2.1.1**. Fixed-size parent-width wrapping,
+  tail-fragment packing, a hollow fixed-fret-width capsule and cooperative follow remain.
+- Better-supported chord seconds/unisons, secondary-voice shifts, height-aware
+  accidental columns, conservative real-origin cross-bar ties, grace clearance and
+  chord-level dot placement. No source notes or TAB/tick anchors are displaced.
+- Interval skyline captions within the native bands; optional **Spring** spacing with
+  duration ratio 1.2–2, hard ink minimums and no squeezing. Select it in sample Display
+  settings; **TuxGuitar** remains the persisted/default choice.
+- Actual pinned **alphaTab 1.9.0** helpers generate 2,584 reference records consumed by
+  JVM tests, plus the native Java differential suite and a **1,728-configuration**
+  decoded-showcase audit. This is targeted comparison, not whole-renderer equivalence.
+- Expanded Technique Atlas chord/accidental example and real-display chord regressions
+  on both supported emulator APIs. Sample release is optimized/non-debuggable, not debug.
+
+Read [the upstream decisions and honest limits](docs/UPSTREAM-COMPARISON.md),
+[additional engraving mathematics](docs/ENGRAVING.md), and
+[1.x API/release policy](docs/API-POLICY.md). There is no blanket claim that this library
+outperforms either complete upstream application. The native Compose architecture and
+specific tested behaviors are the intended advantages.
 
 ## Modules
 
@@ -13,7 +36,7 @@ The library has **no decoder, file access, playback clock, MIDI, synthesizer, au
 | `demo-synth` | FluidSynth 2.6.2 JNI + pinned GeneralUser GS 2.0.3 bank | Android, **demo only** |
 | `sample-android` | Compose screen, Storage Access Framework picker, transport, soundfonts and optional hardware MIDI output | Android 7.0+ |
 
-**Status:** first implementation, not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping, merged let-ring spans and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
+**Status:** 1.0 model-to-Canvas library; not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping, merged let-ring spans and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
 
 `TablatureView(onLayout = { ... }, drawOverlay = { layout -> ... })` exposes cached
 layout geometry and a custom Canvas overlay. Overlay coordinates are logical song units;
@@ -57,7 +80,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.8")
+    implementation("com.tuxcompose:tux-compose-core:1.0.0")
 }
 ```
 

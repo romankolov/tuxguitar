@@ -34,3 +34,22 @@ OpenJDK GPLv2 text, Classpath-exception licensing information and assembly excep
 are retained as `Desugar-JDK-*.txt` under APK `assets/licenses/`. Applicable individual
 source files retain their original notices/exceptions. This does not change the core
 AAR's dependencies or licence. No JDK implementation source is copied into the core.
+
+## alphaTab comparison tooling (1.0.0)
+
+The implementation review uses **alphaTab 1.9.0**, copyright Daniel Kuschny and
+contributors, under **Mozilla Public License 2.0**, pinned to
+[`9f1aa10460df1b326123d28a2222f7b20d081e61`](https://github.com/CoderLine/alphaTab/tree/9f1aa10460df1b326123d28a2222f7b20d081e61).
+Its [license](https://github.com/CoderLine/alphaTab/blob/9f1aa10460df1b326123d28a2222f7b20d081e61/LICENSE)
+and notices remain with the unmodified build/test reference source. The test harness
+fetches and verifies that source into an ignored cache and executes three helpers to
+produce mathematical reference fixtures. No alphaTab source implementation, bundle,
+font, audio, parser or runtime dependency is incorporated into the shipped core/sample.
+The new LGPL helpers independently implement standard interval/engraving/spring ideas;
+see [the detailed source and licence boundary](docs/UPSTREAM-COMPARISON.md).
+Pinned **esbuild 0.28.2 (MIT)** and Node are tooling only, not runtime payloads.
+
+The 16 native Java UI/layout files compared with **TuxGuitar 2.1.1**
+(`b4feea4fe2f0155d648a37282ec57f1ecb329a35`) are byte-identical to this checkout.
+Their existing LGPL notices are unchanged; no newer external TuxGuitar implementation
+file is silently substituted. The reviewed-path/hash manifest is retained with tooling.

@@ -162,7 +162,7 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
     val heights = mutableMapOf<TGAnnotationBand,Float>()
     TGAnnotationBand.entries.forEach { band ->
         data class Pending(val item: Item, val lines: List<String>, val x: Float, val width: Float,
-            val height: Float, val lineHeight: Float, val right: Float, val lane: Int, val below: Boolean)
+            val height: Float, val lineHeight: Float, val right: Float, val top: Float, val below: Boolean)
         val role=if(band==TGAnnotationBand.ChordNames) TGTextRole.Chord else TGTextRole.Text
         val prepared = items.filter { it.band == band }.map { item ->
             val vector = item.kind in listOf(TGAnnotationKind.Accent,TGAnnotationKind.FadeIn,TGAnnotationKind.Vibrato)
@@ -175,31 +175,29 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             val spanEnd = item.spanEnd?.coerceIn(clipLeft,clipRight)
             val below = spanEnd != null && spanEnd < x+visibleWidth+5f
             val height = lh*maxOf(1,lines.size)+if (spanEnd != null) (if (below) 9f else 4f) else 0f
-            Pending(item.copy(spanEnd=spanEnd),lines,x,visibleWidth,height,lh,maxOf(x+visibleWidth,spanEnd ?: x),0,below)
+            Pending(item.copy(spanEnd=spanEnd),lines,x,visibleWidth,height,lh,maxOf(x+visibleWidth,spanEnd ?: x),0f,below)
         }.sortedWith(compareBy<Pending> { it.x }.thenBy { if (it.item.kind == TGAnnotationKind.LetRing) 0 else 1 })
-        val ends = mutableListOf<Float>()
-        val sizes = mutableListOf<Float>()
-        val packed = prepared.map { p ->
-            val i = ends.indexOfFirst { it+2f <= p.x }.takeIf { it >= 0 } ?: ends.size.also {
-                ends += Float.NEGATIVE_INFINITY; sizes += 0f
-            }
-            ends[i] = p.right
-            sizes[i] = maxOf(sizes[i],p.height+2f,if (band == TGAnnotationBand.Effects) config.effectSpacing else 0f)
-            p.copy(lane=i)
+        // Keep the native bands, but pack their variable-height ink using a
+        // skyline instead of charging every caption the tallest shelf's height.
+        // Span reservations include the dashed line and its true end cap.
+        val skyline=TGSkyline(clipLeft,clipRight+2f)
+        val packed=prepared.map {p->
+            val end=minOf(clipRight+2f,p.right+2f)
+            val y=skyline.maximum(p.x,end)
+            val size=maxOf(p.height+2f,if(band==TGAnnotationBand.Effects) config.effectSpacing else 0f)
+            skyline.reserve(p.x,end,y+size)
+            p.copy(top=y)
         }
-        val tops = FloatArray(sizes.size)
-        // Measure numbers retain their native top edge. Put marker prose below
-        // that ink instead of colliding with long/multi-digit measure numbers.
-        var h = when {
-            sizes.isEmpty() -> 0f
-            band==TGAnnotationBand.Marker && config.showMeasureNumbers -> fonts.measure("0",TGTextRole.Measure).height+2f
-            band==TGAnnotationBand.ChordNames && config.showChords -> 42f
-            else -> 0f
+        val baseline=when {
+            prepared.isEmpty()->0f
+            band==TGAnnotationBand.Marker && config.showMeasureNumbers->fonts.measure("0",TGTextRole.Measure).height+2f
+            band==TGAnnotationBand.ChordNames && config.showChords->42f
+            else->0f
         }
-        sizes.forEachIndexed { i,size -> tops[i]=h; h+=size }
+        val h=baseline+skyline.height
         heights[band] = h
         packed.forEach { p ->
-            val y = tops[p.lane]+1f
+            val y = baseline+p.top+1f
             val label = Rect(p.x,y,p.x+p.width,y+p.lineHeight*maxOf(1,p.lines.size))
             val lineY = if (p.below) label.bottom+4f else label.bottom-p.lineHeight/2f
             val lineEnd = p.item.spanEnd
@@ -208,7 +206,7 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
             val lineStart = if (p.below && lineEnd != null) p.item.x.coerceIn(clipLeft,lineEnd) else label.right+3f
             val drawLine = lineEnd != null
             result += TGAnnotationLayout(p.item.kind,band,p.lines,label,p.lineHeight,
-                Rect(p.x,tops[p.lane],p.right+if (lineEnd != null) .5f else 0f,tops[p.lane]+sizes[p.lane]),Rect(clipLeft,0f,clipRight,h),
+                Rect(p.x,baseline+p.top,p.right+if (lineEnd != null) .5f else 0f,baseline+p.top+maxOf(p.height+2f,if(band==TGAnnotationBand.Effects) config.effectSpacing else 0f)),Rect(clipLeft,0f,clipRight,h),
                 if (drawLine) Offset(lineStart,lineY) else null,if (drawLine) Offset(lineEnd!!,lineY) else null,
                 drawLine && !p.item.outgoing,p.item.incoming,p.item.outgoing,p.item.source,p.item.end)
         }

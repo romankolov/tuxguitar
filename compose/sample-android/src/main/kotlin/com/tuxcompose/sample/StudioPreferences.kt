@@ -6,6 +6,7 @@ import androidx.compose.runtime.Immutable
 import com.tuxcompose.component.CursorStyle
 import com.tuxcompose.layout.TGLayoutOrientation
 import com.tuxcompose.layout.TGLayoutStyles
+import com.tuxcompose.layout.TGSpacingMode
 
 enum class StudioThemeMode { System, Light, Dark }
 enum class SettingsPage(val label: String) { Display("Display"), Cursor("Cursor"), Sound("Sound"), Appearance("Theme") }
@@ -17,6 +18,7 @@ data class StudioPreferences(
     val dynamicColor: Boolean = false,
     val highContrast: Boolean = false,
     val mode: TGLayoutStyles = TGLayoutStyles.Mixed,
+    val spacing: TGSpacingMode = TGSpacingMode.TuxGuitar,
     val orientation: TGLayoutOrientation = TGLayoutOrientation.Page,
     val cursorStyle: CursorStyle = CursorStyle.Capsule,
     val cursorPadding: Float = 2f,
@@ -35,7 +37,7 @@ data class StudioPreferences(
 ) {
     fun save(store: SharedPreferences) {
         store.edit().apply {
-            putString("theme",theme.name); putString("mode",mode.name)
+            putString("theme",theme.name); putString("mode",mode.name);putString("spacing",spacing.name)
             putString("orientation",orientation.name); putString("cursorStyle",cursorStyle.name)
             putFloat("cursorPadding",cursorPadding)
             flags().forEach { (key,value) -> putBoolean(key,value) }
@@ -54,6 +56,7 @@ data class StudioPreferences(
             return StudioPreferences(
                 theme=choice("theme",StudioThemeMode.System,StudioThemeMode.entries.toTypedArray()),
                 mode=choice("mode",TGLayoutStyles.Mixed,TGLayoutStyles.entries.toTypedArray()),
+                spacing=choice("spacing",TGSpacingMode.TuxGuitar,TGSpacingMode.entries.toTypedArray()),
                 orientation=choice("orientation",TGLayoutOrientation.Page,TGLayoutOrientation.entries.toTypedArray()),
                 cursorStyle=choice("cursorStyle",CursorStyle.Capsule,CursorStyle.entries.toTypedArray()),
                 cursorPadding=store.getFloat("cursorPadding",2f).takeIf { it.isFinite() }?.coerceIn(0f,8f) ?: 2f,

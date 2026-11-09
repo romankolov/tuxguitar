@@ -1,9 +1,28 @@
-# 0.1.8 engraving and workspace audit
+# Engraving and workspace audit
 
 This release extends the native-based renderer; it does **not** claim perfect desktop
 engraving, complete editor parity, exhaustive accessibility or human listening approval.
 Tests are publication gates, not proof that every possible score/device is defect-free.
 The exact source revision, APK hash and signing identity accompany each published build.
+
+## 1.0 audit additions
+
+The default Atlas now includes close chromatic/diatonic chord heads and three nearby
+accidentals in bar 19. The matrix expands from the historical 1,152 to **1,728** layouts
+because Native, Adaptive and Spring are all included. The audit also checks published
+accidental envelopes against row bounds. Exact totals/failures come from each CI report,
+not from the previous release's counts below.
+
+New JVM regressions cover real/dangling/gapped ties, ambiguous unisons, compatible and
+dead-head sharing, columns and hit identity, grace origins, dot rows and rebasing;
+skyline brute-force and spring-rod invariants complement actual pinned source oracles.
+`ScoreEngravingDeviceTest` captures actual displayed chord pixels in Score/Mixed,
+all three spacing modes, at 100%/150% zoom on both emulator APIs. The existing physical
+vector-core test remains at 100%/175%; raw Java tolerances are unchanged. See
+[UPSTREAM-COMPARISON](UPSTREAM-COMPARISON.md) and [ENGRAVING](ENGRAVING.md).
+
+The sections describing the 0.1.8 capture refresh are historical baseline evidence,
+not a substitute for the current release's CI run and artifact proof.
 
 ## Fixed-width hollow cursor
 
@@ -70,12 +89,12 @@ XML, frame identity, invalid/unstable captures and failure-evidence labelling.
 chord names are measured in their own font role and interval-packed by row. Marker
 captions reserve the measure-number height plus two units before their first line.
 Chord names use their own packed sub-band, after the 42-unit fingerboard when diagrams
-are enabled; turning diagrams off really hides them in both spacing modes.
+are enabled; turning diagrams off hides them in all three spacing modes.
 
 Long text wraps by words, then Unicode code points for an indivisible long word. It is
 not ellipsized, reduced in size or promoted into a global rhythmic-width multiplier.
-Each interval lane needs `previousRight+2 <= nextLeft`; otherwise a new vertical lane
-is allocated. Full let-ring caption/dash/cap intervals participate in this packing.
+The 1.0 half-open skyline queries only overlapping X intervals and reserves each
+caption's own measured height plus clearance, rather than fixed-height shelves. Full let-ring caption/dash/cap intervals participate in this packing.
 All row bands are re-placed after their maximum reservations are known. This preserves
 source notes, ticks, bar identities, fragment attacks and fixed glyph sizes.
 

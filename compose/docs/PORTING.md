@@ -1,5 +1,15 @@
 # Porting TuxGuitar's layout to Compose
 
+## 1.0 additions and current references
+
+The historical native derivation below remains valid: the 16 reviewed Java layout/UI
+sources are byte-identical to **TuxGuitar 2.1.1**. A checksum-pinned upstream check now
+verifies that fact before CI tests. Native remains the default. The 1.0 safety layer
+adds chord/accidental/grace/tie geometry, skyline captions and opt-in Spring spacing;
+its equations, comparison scope and limitations are in [ENGRAVING](ENGRAVING.md) and
+[UPSTREAM-COMPARISON](UPSTREAM-COMPARISON.md). Disable collision protection and merged
+let-ring for unchanged raw differential geometry, not to obtain enhanced defaults.
+
 ## Reference and scope
 
 The spacing audit for **0.1.5** uses the original Java sources in this repository at

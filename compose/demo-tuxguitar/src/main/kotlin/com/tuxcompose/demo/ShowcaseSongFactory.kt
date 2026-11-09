@@ -131,6 +131,15 @@ object ShowcaseSongFactory {
                             }
                             beat.chord=f.newChord(6).apply {name="Em";firstFret=1;listOf(0,0,0,2,2,0).forEachIndexed {si,fret->addFretValue(si,fret)}}
                         }
+                        // Standard diatonic seconds with three close accidentals:
+                        // independent score-head displacement, shared TAB onset, and
+                        // height-aware accidental columns are visible in bar 19.
+                        if(ti==0 && mi==18 && bi%2==0) {
+                            voice.notes.toList().forEach {voice.removeNote(it)}
+                            listOf(2,4,6).forEachIndexed {si,fret->voice.addNote(f.newNote().apply {
+                                string=si+1;value=fret;velocity=88
+                            })}
+                        }
                         if(ti==2 && bi%2==0) voice.addNote(f.newNote().apply {string=6;value=36;velocity=90})
                     }
                     if(ti==0 && (mi==16 && bi==0 || mi==18 && bi%2==0 || mi==19 && bi%2==0)) {
@@ -146,6 +155,7 @@ object ShowcaseSongFactory {
                             mi==11 && bi==1 -> "Then let the phrase breathe"
                             mi==14 && bi==2 -> "Double-dotted quarter"
                             mi==16 && bi==0 -> "Held bass, moving melody"
+                            mi==18 && bi==0 -> "Seconds & accidental columns"
                             mi==30 && bi==24 -> "A dense bar reflows at full size"
                             else -> null
                         }

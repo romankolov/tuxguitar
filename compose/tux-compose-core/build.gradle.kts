@@ -39,3 +39,11 @@ publishing {
         }
     }
 }
+
+// Actual pinned alphaTab results are generated/verified before Gradle in CI.
+// JVM test input only: no parser, Node runtime or reference code is published.
+tasks.withType<Test>().configureEach {
+    val fixtures=rootProject.layout.projectDirectory.file("tools/upstream/alpha-1.9.0.tsv")
+    inputs.file(fixtures).withPropertyName("alphaTabOracle")
+    systemProperty("tux.compose.upstream.fixtures",fixtures.asFile.absolutePath)
+}

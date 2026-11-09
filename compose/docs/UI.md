@@ -1,9 +1,13 @@
-# Studio workspace — Material 3 Expressive (0.1.8)
+# Studio workspace — Material 3 Expressive (1.0.0)
 
 The Android sample is a **practice workspace**, not a component catalogue. The music
 gets the largest continuous surface. File actions, reading choices and transport are
 separate; secondary controls are progressively disclosed. This does not change the
 core library's immutable-model → layout → Canvas architecture.
+
+Display settings now persist **TuxGuitar / Adaptive / Spring** separately from compact
+mode. Native remains default; Spring uses the library's default 1.5 duration ratio.
+This selector does not change font size, staff size or enable horizontal page overflow.
 
 ## Documented design basis
 

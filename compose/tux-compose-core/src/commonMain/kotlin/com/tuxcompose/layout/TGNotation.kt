@@ -48,7 +48,7 @@ object TGNotation {
 /** Accidental memory is local to one measure and octave; never leaks across layout passes. */
 internal class TGAccidentals(private val key: Int) {
     private val current = mutableMapOf<Pair<Int, Int>, Int>()
-    fun next(pitch: Int, alt: Boolean): TGAccidental? {
+    fun next(pitch: Int, alt: Boolean, force: Boolean=false): TGAccidental? {
         val index = TGNotation.noteIndex(pitch, key, alt)
         val octave = TGNotation.octave(pitch, key, alt)
         val spellingKey = if (!alt) key else if (TGNotation.noteIndex(pitch, 7) != TGNotation.noteIndex(pitch, key)) 7 else 14
@@ -56,7 +56,11 @@ internal class TGAccidentals(private val key: Int) {
         val id = octave to index
         val before = current[id] ?: TGNotation.keyAlteration(index, key)
         current[id] = value
-        return if (value == before) null else when (value) { -1 -> TGAccidental.Flat; 1 -> TGAccidental.Sharp; else -> TGAccidental.Natural }
+        return if (value == before && !force) null else when (value) { -1 -> TGAccidental.Flat; 1 -> TGAccidental.Sharp; else -> TGAccidental.Natural }
+    }
+    /** 2 is an ambiguous simultaneous spelling, never a normal alteration. */
+    fun invalidate(pitch: Int,alt: Boolean) {
+        current[TGNotation.octave(pitch,key,alt) to TGNotation.noteIndex(pitch,key,alt)]=2
     }
 }
 enum class TGAccidental { Sharp, Flat, Natural }

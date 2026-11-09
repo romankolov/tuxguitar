@@ -18,7 +18,7 @@ internal data class TGMeasureSpacing(val offsets: Map<Long,Float>, val rhythm: F
  * NOT set the spacing of every eighth note (TGMeasureImpl compares successive CHORD onsets).
  * Measure only visible ink; use the same font metrics and geometry as the Canvas painter.
  */
-internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConfig, fonts: TGFontMetrics, compact: Boolean): TGMeasureInk {
+internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConfig, fonts: TGFontMetrics, compact: Boolean, previous: TGMeasure? = null, directions: Map<Pair<Int,Int>,Boolean> = emptyMap()): TGMeasureInk {
     // Keep tracks AND lanes separate. Only their resulting onset constraints are shared.
     val score = mutableListOf<TGHorizontalInk>()
     val tab = mutableListOf<TGHorizontalInk>()
@@ -26,9 +26,9 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
     val text = mutableListOf<TGHorizontalInk>()
     val effects = mutableListOf<TGHorizontalInk>()
     val picking = mutableListOf<TGHorizontalInk>()
-    val accidentals = TGAccidentals(measure.header.keySignature.value)
+    val engraving=scoreEngraving(track,measure,previous,config,directions)
     var continuationRight = 0f
-    measure.beats.forEach { beat ->
+    measure.beats.forEachIndexed { bi,beat ->
         val voices = beat.voices.filterNot { it.empty }
         var scoreLeft = 0f
         var scoreRight = 0f
@@ -46,22 +46,24 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
                 if (config.showStandardNotation) { hasScore = true; scoreRight = maxOf(scoreRight,right) }
                 else { hasTab = true; tabRight = maxOf(tabRight,right) }
             }
-            voice.notes.forEach { note ->
+            voice.notes.forEachIndexed { ni,note ->
+                val planned=engraving[bi].notes.getValue(voice.index to ni)
                 if (config.showStandardNotation) {
                     hasScore = true
                     // The filled head has a small negative bearing; ledger lines add two units.
-                    var left = -maxOf(.5f,.12f*config.noteHeadRadius)
-                    var right = 2.66f*config.noteHeadRadius
+                    var left = planned.headX-maxOf(.5f,.12f*config.noteHeadRadius)
+                    var right = planned.headX+2.66f*config.noteHeadRadius
                     val pitch = track.pitch(note)
                     val position = if (track.percussion) TGNotation.drumPosition(pitch) else
                         TGNotation.position(pitch,measure.clef,measure.header.keySignature.value,note.altEnharmonic)
-                    if (position <= -3 || position >= 9) { left = minOf(left,-2.5f); right += 2.5f }
-                    if (!track.percussion && !note.effects.dead && note.value != -1 && accidentals.next(pitch,note.altEnharmonic) != null)
-                        left = minOf(left,-config.staffSpacing*.75f-.5f)
+                    if (position <= -3 || position >= 9) { left = minOf(left,planned.headX-2.5f); right += 2.5f }
+                    if(planned.accidental!=null) left=minOf(left,planned.accidentalBounds?.left ?: (planned.headX-config.staffSpacing*.75f-.5f))
                     if (duration.dotted || duration.doubleDotted) right = maxOf(right,
-                        12f*config.staffSpacing/8 + (if (duration.doubleDotted) 4f else 0f)*config.staffSpacing/10 + 1.2f*config.staffSpacing/10)
+                        if(config.avoidAnnotationCollisions) engraving[bi].notes.filterKeys {it.first==voice.index}.values.maxOf {it.headX}+2.66f*config.noteHeadRadius+2.5f+
+                            (if(duration.doubleDotted) 5f else 0f)*config.staffSpacing/10f+1.5f*config.staffSpacing/10f
+                        else 12f*config.staffSpacing/8 + (if (duration.doubleDotted) 4f else 0f)*config.staffSpacing/10 + 1.2f*config.staffSpacing/10)
                     continuationRight = maxOf(continuationRight,right+1)
-                    if (note.effects.grace != null) left = minOf(left,-9.5f)
+                    if (note.effects.grace != null) left = minOf(left,planned.graceOrigin?.x?.minus(.5f) ?: -9.5f)
                     scoreLeft = minOf(scoreLeft,left); scoreRight = maxOf(scoreRight,right)
                 }
                 if (config.showTablature) {

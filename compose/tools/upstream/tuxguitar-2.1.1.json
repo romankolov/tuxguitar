@@ -1,0 +1,87 @@
+{
+  "repository": "helge17/tuxguitar",
+  "release": "2.1.1",
+  "commit": "b4feea4fe2f0155d648a37282ec57f1ecb329a35",
+  "files": [
+    {
+      "path": "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/TGSongViewController.java",
+      "sha256": "0e5fc72dd2bb5d407e04d7c0c41b03d0e341e7ed238ecb8620aaf71b68bc6252",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/TGSongViewStyles.java",
+      "sha256": "16ae98045ccb7b3be10b7c55c7975df2147a1c15960383b1a3250cb45a39e1db",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGBeatGroup.java",
+      "sha256": "12d34dc45fb0703110f133fd1dcf697d2152e1ccf2e230bbff055ab670b84eec",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGBeatImpl.java",
+      "sha256": "88e30567aa29c6c5ddffd363dadb88ca38bc32aa4f8827d820073057a14f11a7",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGChordImpl.java",
+      "sha256": "d5be62039c7ecbb7a548d332d7a3860108ec90591752ed3571097049c7b9df35",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGLayout.java",
+      "sha256": "f682d2637f78ab9434fd354cfa3d89e052b38a1dbc107123071d9133531098cd",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGLayoutHorizontal.java",
+      "sha256": "e8a8ffa82366bec9dfa74ae6d97243a1b3e0150272a4ba4f4decfba1b3618f07",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGLayoutVertical.java",
+      "sha256": "55147b234a5ca9ccc952bb1a31ae0b9a5300e5db699dd9cea74858c1d793c949",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGMeasureHeaderImpl.java",
+      "sha256": "4a9f33f89facd34e7dfe30f0baebd57eed2a94e1f819df2df2cfe11964d6ae39",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGMeasureImpl.java",
+      "sha256": "90c2cca276b7aee13a1b2046d47257a36a8375920dadd81c6bd0b97d3c5df6f9",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGNotation.java",
+      "sha256": "036077bdff9a13428efaa951fe04c49acec8f216b03f8f6437cae1a97c93ecb7",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGNoteImpl.java",
+      "sha256": "b61427f9fd1aa4702d90aa4e8896f77dd1a1a9bc5643b7f827ce654ea973abad",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGSpacing.java",
+      "sha256": "6ef36d350ff1cec4218158aa97a832eab6f67d704df7414694a3a8ca418ab88b",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGTrackSpacing.java",
+      "sha256": "c05e5bc196f3654116e61260c4a6828517f51192dd4d3cd6a9bf12fb73a48299",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGVoiceImpl.java",
+      "sha256": "3b62f4b6a78eec502e78508dad3ee4fa66511df608f4c4c15f5b39b15b416069",
+      "same_as_reference_checkout": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/util/TGMusicKeyUtils.java",
+      "sha256": "f56f73aacffc2dcd26a47e91e5a980b04fd199b39d00646fe004160b4d40fa73",
+      "same_as_reference_checkout": true
+    }
+  ]
+}

@@ -7,13 +7,19 @@ import androidx.compose.ui.geometry.Rect
 import com.tuxcompose.model.*
 
 @Immutable
-data class TGNoteLayout(val note: TGNote, val voiceIndex: Int, val pitch: Int, val position: Int, val scoreBounds: Rect?, val tabBounds: Rect?, val accidental: TGAccidental?)
+data class TGNoteLayout(val note: TGNote, val voiceIndex: Int, val pitch: Int, val position: Int, val scoreBounds: Rect?, val tabBounds: Rect?, val accidental: TGAccidental?,
+    /** Actual accidental ink and origin, independent of the displaced head/stem. */
+    val accidentalOrigin: Offset? = null, val accidentalBounds: Rect? = null, val graceScoreOrigin: Offset? = null,
+    /** Shared compatible unison heads paint once; all model/hit identities remain. */
+    val paintScoreHead: Boolean = true)
 @Immutable
 data class TGVoiceLayout(val voice: TGVoice, val duration: TGDuration, val notes: List<TGNoteLayout>, val up: Boolean, val stemX: Float, val stemStartY: Float, val stemEndY: Float, val beamGroup: Int,
     /** Presentation-only continuation of a sustained voice; no new model note or attack. */
     val isContinuation: Boolean = false, val sourceTick: Long = 0L,
     /** Native multi-voice rest placement; null selects the Adaptive/convenience-rest fallback. */
-    val silenceY: Float? = null, val hiddenSilence: Boolean = false)
+    val silenceY: Float? = null, val hiddenSilence: Boolean = false,
+    /** Cached unique augmentation-dot rows, to the right of the whole chord. */
+    val augmentationDots: List<Offset> = emptyList())
 @Immutable
 data class TGBeatLayout(val beat: TGBeat, val bounds: Rect, val x: Float, val voices: List<TGVoiceLayout>, val chordBounds: Rect?, val endX: Float = bounds.right,
     /** Visible interval, which may be only part of the unchanged source beat. */
@@ -136,7 +142,7 @@ class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaff
         // fret extends left of beatAreaLeft). Prefer actual ink hits before empty-space
         // seeking, otherwise a valid tap on a large custom glyph selects its neighbor.
         measure.beats.forEach { beat -> beat.voices.forEach { voice -> voice.notes.forEach { note ->
-            if (note.tabBounds?.contains(point) == true || note.scoreBounds?.contains(point) == true)
+            if (note.tabBounds?.contains(point) == true || note.scoreBounds?.contains(point) == true || note.accidentalBounds?.contains(point) == true)
                 return TGHitResult(staff.trackIndex,measure.measureIndex,beat.startTick,note.note.string,note.voiceIndex)
         } } }
         if (point.x < measure.beatAreaLeft) return null
@@ -146,7 +152,7 @@ class TGSongLayout(val width: Float, val height: Float, val staves: List<TGStaff
             if (point.y in (top - spacing / 2)..((measure.tabBottom ?: top) + spacing / 2))
                 ((point.y - top) / spacing + 1.5f).toInt().coerceIn(1, (((measure.tabBottom ?: top) - top) / spacing + 1.5f).toInt()) else null
         }
-        val note = beat.voices.flatMap { it.notes }.firstOrNull { it.tabBounds?.contains(point) == true || it.scoreBounds?.contains(point) == true }
+        val note = beat.voices.flatMap { it.notes }.firstOrNull { it.tabBounds?.contains(point) == true || it.scoreBounds?.contains(point) == true || it.accidentalBounds?.contains(point) == true }
         return TGHitResult(staff.trackIndex, measure.measureIndex, beat.startTick, note?.note?.string ?: string, note?.voiceIndex)
     }
 }

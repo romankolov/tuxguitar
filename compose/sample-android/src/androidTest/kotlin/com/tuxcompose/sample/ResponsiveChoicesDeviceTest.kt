@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.tuxcompose.component.CursorStyle
+import com.tuxcompose.layout.TGSpacingMode
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -52,6 +53,27 @@ class ResponsiveChoicesDeviceTest {
         }
         bounds.forEachIndexed {i,a->bounds.drop(i+1).forEach {b->assertFalse("Touch targets overlap",a.overlaps(b))}}
         assertTrue("Large labels should get multiple rows",bounds.map {it.top}.distinct().size>1)
+    }
+    @Test fun spacingChoiceLabelsStayWholeAtTwoHundredPercent() {
+        val selected=mutableStateOf(TGSpacingMode.TuxGuitar)
+        compose.setContent {
+            val d=LocalDensity.current.density
+            CompositionLocalProvider(LocalDensity provides Density(d,2f)) {
+                StudioTheme(StudioPreferences()) {
+                    Column(Modifier.width(288.dp).padding(16.dp)) {
+                        StudioChoices(TGSpacingMode.entries.toList(),selected.value,{it.name},{"spacing-${it.name}"}) {selected.value=it}
+                    }
+                }
+            }
+        }
+        TGSpacingMode.entries.forEach {m->
+            compose.onNodeWithTag("spacing-${m.name}").assertIsDisplayed().assertHeightIsAtLeast(48.dp).performClick().assertIsOn()
+            val results=mutableListOf<TextLayoutResult>()
+            compose.onNodeWithTag("choice-label-spacing-${m.name}",useUnmergedTree=true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) {it(results)}
+            assertEquals(1,results.size);assertFalse(results.single().hasVisualOverflow)
+            repeat(results.single().lineCount) {assertFalse(results.single().isLineEllipsized(it))}
+        }
     }
     @Test fun allSettingsHeadingsExposeHeadingSemantics() {
         compose.setContent {StudioTheme(StudioPreferences()) {SettingsHeading("Measured spacing","No hidden labels")}}

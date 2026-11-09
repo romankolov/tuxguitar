@@ -92,7 +92,7 @@ class ShowcaseAuditTest {
         assertTrue(result.score.tracks.all {it.measures.size==32})
         assertTrue(DemoSequence(result.native).events.isNotEmpty())
     }
-    @Test fun spatialMatrixAudits1152RealDecodedShowcaseLayouts() {
+    @Test fun spatialMatrixAudits1728RealDecodedShowcaseLayouts() {
         val data=read().score
         val failures=mutableListOf<String>()
         var cases=0;var rows=0;var captions=0;var fragments=0
@@ -121,7 +121,7 @@ class ShowcaseAuditTest {
                             assertNotNull(cursor,"$label cursor missing at ${b.startTick}")
                             assertEquals(b.startTick,cursor.beat.startTick)
                             b.voices.flatMap {it.notes}.forEach {n->
-                                listOfNotNull(n.tabBounds,n.scoreBounds).forEach {r->
+                                listOfNotNull(n.tabBounds,n.scoreBounds,n.accidentalBounds).forEach {r->
                                     assertTrue(listOf(r.left,r.right,r.top,r.bottom).all {it.isFinite()},label)
                                     assertTrue(r.top>=row.bounds.top-.01f && r.bottom<=row.bounds.bottom+.01f,"$label glyph outside vertical row: $r vs ${row.bounds}")
                                 }
@@ -142,7 +142,7 @@ class ShowcaseAuditTest {
         File("build/reports/showcase-layout-audit.json").apply {
             parentFile.mkdirs();writeText("{\"cases\":$cases,\"rows\":$rows,\"captions\":$captions,\"fragments\":$fragments,\"recordedFailures\":${failures.size}}\n")
         }
-        assertEquals(1152,cases)
+        assertEquals(1728,cases)
         assertTrue(failures.isEmpty(),failures.joinToString("\n"))
     }
 }

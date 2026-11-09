@@ -122,9 +122,13 @@ internal class TGMeasureFragments(private val full: TGMeasureLayout) {
                 notes = voice.notes.map { note -> note.copy(
                     scoreBounds=note.scoreBounds?.translate(Offset(dx,scoreDelta)),
                     tabBounds=note.tabBounds?.translate(Offset(dx,tabDelta)),
-                    accidental=if (continued) null else note.accidental) },
+                    accidental=if (continued) null else note.accidental,
+                    accidentalOrigin=if(continued) null else note.accidentalOrigin?.plus(Offset(dx,scoreDelta)),
+                    accidentalBounds=if(continued) null else note.accidentalBounds?.translate(Offset(dx,scoreDelta)),
+                    graceScoreOrigin=if(continued) null else note.graceScoreOrigin?.plus(Offset(dx,scoreDelta))) },
                 stemX=voice.stemX+dx,stemStartY=voice.stemStartY+stemDelta,stemEndY=voice.stemEndY+stemDelta,
                 isContinuation=continued,sourceTick=source.startTick,silenceY=voice.silenceY?.plus(stemDelta),
+                augmentationDots=voice.augmentationDots.map {it+Offset(dx,scoreDelta)},
             )
         }
         fun beatAt(source: TGBeatLayout, continued: Boolean): TGBeatLayout {

@@ -17,6 +17,7 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import com.tuxcompose.component.CursorStyle
 import com.tuxcompose.layout.TGLayoutOrientation
+import com.tuxcompose.layout.TGSpacingMode
 import kotlin.math.roundToInt
 
 /** Secondary controls live here, not in a wall of horizontally scrolling chips above the music. */
@@ -56,6 +57,8 @@ fun StudioSettings(preferences: StudioPreferences, page: SettingsPage, onPage: (
                             StudioIconButton(R.drawable.ic_zoom_in,"Zoom in","zoom-in") { onZoom(zoom/.85f) }
                         }
                         TextButton(onClick={onZoom(1f)},modifier=Modifier.testTag("zoom-reset")) { Text("Reset to 100%") }
+                        SettingsHeading("Spacing engine","Native TuxGuitar anchors, local adaptive clearance, or duration-weighted springs. Glyph sizes never shrink.")
+                        StudioChoices(TGSpacingMode.entries.toList(),preferences.spacing,{it.name},{"spacing-${it.name}"}) {onChange(preferences.copy(spacing=it))}
                         SettingsHeading("Score details")
                         SettingsSwitch("All tracks","Align every part in the same system.",preferences.allTracks,"all-tracks") { onChange(preferences.copy(allTracks=it)) }
                         val compactAvailable=!preferences.allTracks || trackCount<=1

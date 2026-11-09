@@ -9,5 +9,5 @@ plugins {
 }
 allprojects {
     group = "com.tuxcompose"
-    version = "0.1.8"
+    version = "1.0.0"
 }
