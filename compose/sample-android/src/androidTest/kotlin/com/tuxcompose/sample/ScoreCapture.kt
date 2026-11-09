@@ -74,8 +74,17 @@ fun ImageBitmap.saveScoreCapture(name: String) {
     val folder=File(instrumentation.targetContext.getExternalFilesDir(null),"screenshots").apply {check(mkdirs() || isDirectory)}
     val source=File(folder,"$name.png")
     source.outputStream().use {check(asAndroidBitmap().compress(Bitmap.CompressFormat.PNG,100,it))}
-    val command="mkdir -p /sdcard/Download/tux-compose-qa && cp '${source.absolutePath}' '/sdcard/Download/tux-compose-qa/$name.png' && echo TUX_CAPTURE_OK"
-    val descriptor=instrumentation.uiAutomation.executeShellCommand(command)
-    val result=android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().use {it.readText()}
-    check(result.trim()=="TUX_CAPTURE_OK") {"Could not preserve hardware capture $name: $result"}
+    // UiAutomation executes argv via Runtime.exec, NOT a shell expression. Never
+    // pass &&, redirects or shell quoting as though they would be interpreted.
+    fun shellBytes(command: String): ByteArray = android.os.ParcelFileDescriptor.AutoCloseInputStream(
+        instrumentation.uiAutomation.executeShellCommand(command)).use {it.readBytes()}
+    check(source.absolutePath.matches(Regex("[A-Za-z0-9_/.-]+")))
+    val destination="/sdcard/Download/tux-compose-qa/$name.png"
+    shellBytes("mkdir -p /sdcard/Download/tux-compose-qa")
+    shellBytes("cp ${source.absolutePath} $destination")
+    val preserved=shellBytes("cat $destination")
+    val original=source.readBytes()
+    check(preserved.contentEquals(original)) {
+        "Could not preserve hardware capture $name: copied ${preserved.size}/${original.size} bytes"
+    }
 }
