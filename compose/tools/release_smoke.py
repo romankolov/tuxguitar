@@ -23,9 +23,9 @@ suite = ET.Element('testsuite', name='ReleaseApkSmoke')
 captures = {}
 
 
-def adb(*args, check=True):
+def adb(*args, check=True, timeout=60):
     return subprocess.run(['adb', *args], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          timeout=60, check=check).stdout
+                          timeout=timeout, check=check).stdout
 
 
 def tree():
@@ -237,6 +237,26 @@ def adaptive_windows():
 
 
 
+def install_verified_release(apk, proof):
+    assert hashlib.sha256(apk.read_bytes()).hexdigest()==proof['apk_sha256'], 'Release artifact changed after verification'
+    adb('uninstall', 'com.tuxcompose.sample.test', check=False)
+    adb('uninstall', 'com.tuxcompose.sample', check=False)
+    started=time.monotonic()
+    # A 95 MB APK on the API-24 emulator exceeded the old generic 60-second
+    # command budget. Give this ONE install a bounded three minutes; no retry,
+    # suppressed error or relaxed smoke assertion. UI/capture budgets stay unchanged.
+    output=adb('install',str(apk),timeout=180)
+    assert b'Success' in output.splitlines(), f'Installer did not confirm success: {output!r}'
+    info=adb('shell','dumpsys','package','com.tuxcompose.sample').decode(errors='replace')
+    assert re.search(r'\bversionName='+re.escape(proof['version'])+r'(?:\s|$)',info), 'Installed release version name differs'
+    assert re.search(r'\bversionCode='+str(proof['version_code'])+r'\b',info), 'Installed release version code differs'
+    installed=dict(apk_sha256=proof['apk_sha256'],version=proof['version'],version_code=proof['version_code'],
+                   installed=True,install_deadline_seconds=180,elapsed_seconds=round(time.monotonic()-started,3))
+    (report/'release-installation.json').write_text(json.dumps(installed,indent=2)+'\n')
+    # Do not label a verified INPUT artifact as installed before installation succeeds.
+    print('::notice title=Exact release APK installed::'+proof['apk_sha256'])
+
+
 def main():
     failed = False
     try:
@@ -245,11 +265,7 @@ def main():
         proofs=list((root / 'verified-artifacts').rglob('release-verification.json'))
         assert len(proofs)==1, 'Missing build-job release verification'
         proof=json.loads(proofs[0].read_text())
-        assert hashlib.sha256(apks[0].read_bytes()).hexdigest()==proof['apk_sha256'], 'Release artifact changed after verification'
-        print('::notice title=Exact release APK installed::'+proof['apk_sha256'])
-        adb('uninstall', 'com.tuxcompose.sample.test', check=False)
-        adb('uninstall', 'com.tuxcompose.sample', check=False)
-        adb('install', str(apks[0]))
+        install_verified_release(apks[0],proof)
         for name, action in [('release_launch_import_navigation', launch_and_controls),
                              ('release_fluidsynth_playback', playback),
                              ('release_lossless_showcase_and_sections', showcase_sections),

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 package com.tuxcompose
 
-import androidx.compose.ui.geometry.Rect
 import com.tuxcompose.layout.*
 import com.tuxcompose.model.*
 import kotlin.test.*
@@ -120,6 +119,25 @@ class ScoreEngravingTest {
         val m=page(bar(listOf(n(61,1,effects=TGNoteEffects(grace=TGGraceEffect(2))),n(63,2),n(66,3)))).staves.single().measures.single()
         val all=notes(m);val origin=all.first().graceScoreOrigin!!
         assertTrue(origin.x+6f<all.mapNotNull {it.accidentalBounds}.minOf {it.left})
+    }
+    @Test fun aHeldUnisonRepaintsItsHeadAfterTheOriginalSharedOwnerHasEnded() {
+        val b=TGBeat(960,TGDuration(1),listOf(
+            TGVoice(0,listOf(n(60,1)),duration=TGDuration(2),stem=TGStemDirection.Up),
+            TGVoice(1,listOf(n(60,2)),duration=TGDuration(1),stem=TGStemDirection.Down)))
+        val m=page(TGMeasure(1,TGMeasureHeader(),listOf(b),960),cfg=config.copy(style=TGLayoutStyles.Score)).staves.single().measures.single()
+        assertFalse(m.beats.single().voices[1].notes.single().paintScoreHead)
+        val lanes=TGSpacing(TGLayoutStyles.Score).apply {register(TGTrackLane.Top,m.staffTop!!-m.bounds.top)}
+        val header=TGFragmentHeader(m.beatAreaLeft-m.bounds.left-15f,m.clefWidth,m.keyWidth,m.previousKey,m.paintClef,m.paintKey,m.paintTime,m.paintTempo)
+        val part=TGMeasureFragments(m).part(TGPageFragment(2880,4320,20f,60f),m.bounds,header,15f,0f,lanes)
+        val held=part.beats.single().voices.single()
+        assertEquals(1,held.voice.index);assertTrue(held.isContinuation)
+        assertTrue(held.notes.single().paintScoreHead)
+        assertSame(b.voices[1].notes.single(),held.notes.single().note)
+    }
+    @Test fun highGraceStemsStayBelowCaptionMetadataInMixedNativeMode() {
+        val b=TGBeat(960,TGDuration(),listOf(TGVoice(notes=listOf(n(66,1,effects=TGNoteEffects(grace=TGGraceEffect(2))),n(63,2),n(61,3)),stem=TGStemDirection.Down)),text="Before the phrase")
+        val m=page(TGMeasure(1,TGMeasureHeader(marker="A section"),listOf(b),960)).staves.single().measures.single()
+        assertTrue(notes(m).first().graceScoreOrigin!!.y-11.5f>=m.notationTop-.01f)
     }
     @Test fun rawNativeModeRetainsOriginalHeadAndAccidentalCoordinates() {
         val m=page(bar(listOf(n(61,1),n(63,2),n(66,3))),cfg=config.copy(avoidAnnotationCollisions=false)).staves.single().measures.single()

@@ -95,6 +95,7 @@ internal fun wrapPageMeasure(
  * text or picking lane, moving the staff without changing any glyph's size.
  */
 internal class TGMeasureFragments(private val full: TGMeasureLayout) {
+    private val hasSharedHeads=full.beats.any {b->b.voices.any {v->v.notes.any {!it.paintScoreHead}}}
     private val voices = full.beats.flatMap { beat -> beat.voices.map { beat to it } }
         .groupBy { it.second.voice.index }
 
@@ -163,11 +164,23 @@ internal class TGMeasureFragments(private val full: TGMeasureLayout) {
             }
             beats[0] = first.copy(voices=(first.voices+continuing).sortedBy { it.voice.index })
         }
+        // The original shared-head owner may have ended before this fragment.
+        // Re-elect an owner among VISIBLE voices, using the fragment fill state.
+        // Raw native geometry (which never suppresses heads) is left untouched.
+        val visibleBeats=if(!hasSharedHeads) beats else beats.map {b->
+            data class Head(val bounds: Rect,val pitch: Int,val filled: Boolean,val harmonic: Int,val dead: Boolean)
+            val seen=mutableSetOf<Head>()
+            b.copy(voices=b.voices.sortedBy {it.voice.index}.map {v->v.copy(notes=v.notes.map {n->
+                val r=n.scoreBounds
+                if(r==null) n else n.copy(paintScoreHead=seen.add(Head(r,n.pitch,v.duration.value>=4,
+                    n.note.effects.harmonic,n.note.effects.dead || n.note.value==-1)))
+            })})
+        }
         return full.copy(
             bounds=bounds,staffTop=score,tabTop=tab,tabBottom=full.tabBottom?.plus(tabDelta),
             paintClef=header.paintClef,paintKey=header.paintKey,paintTime=header.paintTime,paintTempo=header.paintTempo,
             paintTripletFeel=full.paintTripletFeel && slice.startTick == full.measure.start,
-            previousKey=header.previousKey,clefWidth=header.clef,keyWidth=header.key,beatAreaLeft=area,beats=beats,
+            previousKey=header.previousKey,clefWidth=header.clef,keyWidth=header.key,beatAreaLeft=area,beats=visibleBeats,
             effectsTop=top(TGTrackLane.Effects),bendTop=top(TGTrackLane.Bend),textTop=top(TGTrackLane.Text),
             chordTop=top(TGTrackLane.Chord),endingTop=top(TGTrackLane.RepeatEnding),tupletTop=top(TGTrackLane.Tuplet1),
             pickStrokeTop=top(TGTrackLane.PickStroke),

@@ -35,7 +35,9 @@ headX = x0 + c*a*(up ? +1 : -1) + voiceShift
 
 Compatibility requires equal pitch, diatonic position, fill state, harmonic state and
 dead-head state. Compatible equal-location heads paint once; their model and hit
-identities, TAB frets and stems remain independent. Secondary-voice conflict tests
+identities, TAB frets and stems remain independent. Fragment extraction re-elects the
+visible owner: a longer held unison cannot disappear when its original shared owner
+has already ended. Secondary-voice conflict tests
 use adjacent diatonic positions and overlapping horizontal head boxes. A conflict
 moves the whole secondary chord far enough right to clear previous heads by two
 units. Its stem and beam endpoint interpolation receive the same shift. TAB and
@@ -78,7 +80,8 @@ pitches cannot borrow an unrelated earlier accidental.
 
 Horizontal envelopes enter the existing forward longest-path clearance pass. Native
 rhythmic offsets are lower bounds, not replaced with uniform wide padding. Native
-vertical row reservations also include accidental top/bottom envelopes. Absolute
+vertical row reservations use the same plan, including accidental envelopes and
+actual grace-stem/glyph height, so high graces cannot enter preceding metadata. Absolute
 `accidentalBounds` participate in hit testing before nearest-onset empty-space seeking.
 Continued fragments clear accidental/grace origins so they do not reattack visually.
 
@@ -134,8 +137,11 @@ Double for force/weights, Float only for final Canvas widths.
 A target below rod total returns the minima: it does not introduce negative spacing,
 compress a glyph, shrink typography, change tick order or loop forever. The fixed-size
 page wrapper fragments the exceptional overwide measure and retains continuations.
-Native per-bar equal slack allocation is retained between bars; this is not alphaTab's
-complete global/overlay spacing model. The **normalization difference** from alphaTab
+Native per-bar equal slack allocation is retained between bars. Already-cut overwide
+fragments retain their cached rod-safe grid and spread additional local slack
+monotonically; they are not independently reoptimized spring networks. Spring mode
+does not use native compact spacing. This is not alphaTab's complete global/overlay
+spacing model. The **normalization difference** from alphaTab
 and exact oracle scope are documented in UPSTREAM-COMPARISON.
 
 ## Public configuration and identities

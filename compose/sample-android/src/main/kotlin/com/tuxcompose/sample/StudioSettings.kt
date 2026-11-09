@@ -61,8 +61,12 @@ fun StudioSettings(preferences: StudioPreferences, page: SettingsPage, onPage: (
                         StudioChoices(TGSpacingMode.entries.toList(),preferences.spacing,{it.name},{"spacing-${it.name}"}) {onChange(preferences.copy(spacing=it))}
                         SettingsHeading("Score details")
                         SettingsSwitch("All tracks","Align every part in the same system.",preferences.allTracks,"all-tracks") { onChange(preferences.copy(allTracks=it)) }
-                        val compactAvailable=!preferences.allTracks || trackCount<=1
-                        SettingsSwitch("Compact spacing",if (compactAvailable) "Use TuxGuitar’s native compact rhythm spacing." else "Native compact mode is unavailable when multiple tracks are shown.",
+                        val compactAvailable=preferences.spacing!=TGSpacingMode.Spring && (!preferences.allTracks || trackCount<=1)
+                        SettingsSwitch("Compact spacing",when {
+                            preferences.spacing==TGSpacingMode.Spring -> "Spring uses duration weights and hard glyph minimums instead."
+                            compactAvailable -> "Use TuxGuitar’s native compact rhythm spacing."
+                            else -> "Native compact mode is unavailable when multiple tracks are shown."
+                        },
                             preferences.compact&&compactAvailable,"compact-spacing",compactAvailable) { onChange(preferences.copy(compact=it)) }
                         SettingsSwitch("Fill rows","Distribute spare space across complete systems.",preferences.justify,"justify-rows") { onChange(preferences.copy(justify=it)) }
                         SettingsSwitch("Roomier strings","Increase tablature string spacing from 10 to 14 units.",preferences.wideStrings,"string-spacing") { onChange(preferences.copy(wideStrings=it)) }

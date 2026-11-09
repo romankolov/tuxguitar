@@ -68,6 +68,7 @@ class ScoreEngravingDeviceTest {
                 assertTrue("$s $m zoom=$z: expected displayed accidental ink inside $r",ink>2)
             }
             notes.forEachIndexed {i,a->notes.drop(i+1).forEach {b->assertFalse(a.accidentalBounds!!.overlaps(b.accidentalBounds!!))}}
+            assertTrue(notes.first().graceScoreOrigin!!.y-11.5f>=row.measures.first().notationTop-.01f)
             assertTrue(notes.first().graceScoreOrigin!!.x+6f<notes.mapNotNull {it.accidentalBounds}.minOf {it.left})
             assertTrue(first.voices.single().augmentationDots.all {it.x>notes.maxOf {n->n.scoreBounds!!.right}})
         }

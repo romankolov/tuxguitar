@@ -8,6 +8,8 @@ core library's immutable-model → layout → Canvas architecture.
 Display settings now persist **TuxGuitar / Adaptive / Spring** separately from compact
 mode. Native remains default; Spring uses the library's default 1.5 duration ratio.
 This selector does not change font size, staff size or enable horizontal page overflow.
+The compact switch is disabled for Spring (which uses its own duration weights/minimums)
+and for native multiple-track view; its saved preference is retained for returning to Native.
 
 ## Documented design basis
 

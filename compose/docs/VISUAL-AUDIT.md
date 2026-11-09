@@ -21,6 +21,14 @@ all three spacing modes, at 100%/150% zoom on both emulator APIs. The existing p
 vector-core test remains at 100%/175%; raw Java tolerances are unchanged. See
 [UPSTREAM-COMPARISON](UPSTREAM-COMPARISON.md) and [ENGRAVING](ENGRAVING.md).
 
+An initial 1.0 candidate passed all 199 JVM checks and 35 debug device checks on API
+24, but its exact-release installation exceeded the harness's generic 60-second adb
+budget. That run is not publication evidence. The single install now has a separate
+bounded 180-second deadline (no retries); ordinary UI/capture deadlines and all five
+release cases are unchanged. Installation is labelled successful only after adb Success
+and installed version confirmation, with JSON proof. Four new host tests cover the
+budget, negative result, wrong version and unmodified timeout propagation.
+
 The sections describing the 0.1.8 capture refresh are historical baseline evidence,
 not a substitute for the current release's CI run and artifact proof.
 

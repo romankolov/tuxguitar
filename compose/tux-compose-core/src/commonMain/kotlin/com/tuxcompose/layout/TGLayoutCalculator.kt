@@ -24,7 +24,7 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         if (config.multiTrack) validateAlignment(tracks)
         val count = tracks.maxOf { it.measures.size }
         if (count == 0) return TGSongLayout(viewportWidth,0f,emptyList())
-        val compact = config.compact && tracks.size == 1
+        val compact = config.compact && tracks.size == 1 && config.spacingMode!=TGSpacingMode.Spring
         val springReference=if(config.spacingMode==TGSpacingMode.Spring)
             tracks.asSequence().flatMap {it.measures.asSequence()}.flatMap {it.beats.asSequence()}
                 .flatMap {b->b.voices.filterNot {it.empty}.map {it.duration ?: b.duration}.ifEmpty {listOf(b.duration)}.asSequence()}
@@ -363,16 +363,21 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
             lineMinY = minOf(lineMinY,minY)
             lineMaxY = maxOf(lineMaxY,maxY)
         }
-        if(config.avoidAnnotationCollisions && config.showStandardNotation && !track.percussion) {
+        if(config.avoidAnnotationCollisions && config.showStandardNotation) {
             measures.forEach {m->
-                val memory=TGAccidentals(m.header.keySignature.value)
-                m.beats.forEach {b->b.voices.filterNot {it.empty}.forEach {v->v.notes.filterNot {it.effects.dead || it.value==-1}.forEach {n->
-                    if(memory.next(track.pitch(n),n.altEnharmonic)!=null) {
-                        val y=(notePosition(track,m,n)+1)*staffSpacing/2f
-                        lineMinY=minOf(lineMinY,y-1.25f*staffSpacing-.25f*scale)
-                        lineMaxY=maxOf(lineMaxY,y+1.12f*staffSpacing+.25f*scale)
+                val previous=track.measures.getOrNull(track.measures.binarySearchBy(m.start) {it.start}-1)
+                val plan=scoreEngraving(track,m,previous,config,voiceGroups(track,m).mapValues {it.value.up})
+                plan.flatMap {it.notes.values}.forEach {note->
+                    note.accidentalBounds?.let {r->
+                        lineMinY=minOf(lineMinY,r.top*scale);lineMaxY=maxOf(lineMaxY,r.bottom*scale)
                     }
-                }}}
+                    note.graceOrigin?.let {g->
+                        // The existing grace painter has a fixed 11-unit stem above
+                        // its origin. It must not intrude into preceding metadata.
+                        lineMinY=minOf(lineMinY,(g.y-11.5f)*scale)
+                        lineMaxY=maxOf(lineMaxY,(g.y+maxOf(3.5f,1.1f*config.noteHeadRadius+.5f))*scale)
+                    }
+                }
             }
         }
         val minY = lineMinY
