@@ -1,5 +1,11 @@
 # Engraving and workspace audit
 
+> **1.0.1 correction:** the historical let-ring endpoint, parenthesised-continuation
+> and row-top number rules below are superseded by the actual-source geometry in
+> [ENGRAVING](ENGRAVING.md#correct-native-text-baselines-and-grouped-effects) and
+> [UPSTREAM-COMPARISON](UPSTREAM-COMPARISON.md#annotation-correction-source-behaviour-not-another-placement-scheme).
+> Do not treat the older layout-only checks as annotation paint parity.
+
 This release extends the native-based renderer; it does **not** claim perfect desktop
 engraving, complete editor parity, exhaustive accessibility or human listening approval.
 Tests are publication gates, not proof that every possible score/device is defect-free.

@@ -1,5 +1,10 @@
 # Porting TuxGuitar's layout to Compose
 
+The 1.0.1 annotation correction is detailed in [UPSTREAM-COMPARISON](UPSTREAM-COMPARISON.md).
+It executes original native annotation paint calls and adapts alphaTab's grouped
+ranged glyph/effect-band placement; that one source file retains MPL-2.0. Earlier
+caption-extension descriptions here are historical, not full annotation parity.
+
 ## 1.0 additions and current references
 
 The historical native derivation below remains valid: the 16 reviewed Java layout/UI

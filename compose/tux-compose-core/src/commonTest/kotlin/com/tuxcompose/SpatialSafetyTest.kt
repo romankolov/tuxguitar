@@ -29,7 +29,8 @@ class SpatialSafetyTest {
             row.measures.forEach { assertEquals(1f,it.contentScale,0f) }
             row.annotations.forEachIndexed { i,a ->
                 assertTrue(a.bounds.top>=row.bounds.top-.01f && a.bounds.bottom<=row.bounds.bottom+.01f,"${a.band} outside its row")
-                assertTrue(a.labelBounds.left>=a.clipBounds.left-.01f && a.labelBounds.right<=a.clipBounds.right+.01f)
+                assertTrue(a.labelBounds.left>=a.clipBounds.left-.01f && a.labelBounds.right<=a.clipBounds.right+.01f,
+                    "${a.band}/${a.kind} ${a.lines} ${a.labelBounds} outside ${a.clipBounds}; width=$width row=${row.systemIndex}")
                 assertTrue(a.lines.none { it.contains('…') })
                 row.annotations.drop(i+1).forEach { b -> assertFalse(minOf(a.bounds.right,b.bounds.right)-maxOf(a.bounds.left,b.bounds.left)>.01f &&
                     minOf(a.bounds.bottom,b.bounds.bottom)-maxOf(a.bounds.top,b.bounds.top)>.01f,
@@ -47,7 +48,7 @@ class SpatialSafetyTest {
             assertTrue(page.staves.flatMap { it.measures }.all { it.plannedAnnotations })
         }
     }
-    @Test fun longChordNamesArePackedAndWrappedRatherThanCoveringTheirNeighbours() {
+    @Test fun sourceCentredChordNamesStayAtomicInsteadOfCoveringTheirNeighbours() {
         for(spacing in TGSpacingMode.entries) for(diagrams in listOf(false,true)) {
             val cfg=TGLayoutConfig(spacingMode=spacing,showChordNames=true,showChords=diagrams)
             val page=TGLayoutCalculator(cfg).calculate(source(chords=true),320f)
@@ -55,6 +56,28 @@ class SpatialSafetyTest {
             val names=page.staves.flatMap { it.annotations }.filter { it.band==TGAnnotationBand.ChordNames }
             assertEquals(12,names.size)
             assertTrue(names.all { it.lines.joinToString(" ")=="Cmaj7(add9)/G" })
+        }
+    }
+    @Test fun fractionalCaptionMinimaSurviveNativePixelRoundingAtEveryRenderScale() {
+        val fonts=TGFontMetrics { value,role ->TGFontMetrics.Approximate.measure(value,role).let {
+            TGTextSize(if(role==TGTextRole.Chord) 73.2f else it.width,it.height)
+        }}
+        for(mode in TGSpacingMode.entries) for(scale in listOf(1f,1.25f,2.625f)) {
+            val cfg=TGLayoutConfig(spacingMode=mode,showChordNames=true,showChords=false,renderScale=scale)
+            val page=TGLayoutCalculator(cfg,fonts).calculate(source(chords=true),240f)
+            clear(page,240f)
+            var checked=0
+            page.staves.forEach {row->row.measures.forEach {m->
+                m.annotations.filter {it.kind==TGAnnotationKind.ChordName}.forEach {a->
+                    val b=m.beats.first {it.startTick==a.tick}
+                    val expected=if(mode==TGSpacingMode.TuxGuitar) b.chordBounds!!.center.x+
+                        kotlin.math.floor(4f*scale+.5f)/scale else b.x
+                    assertEquals(expected,a.labelBounds.center.x,.01f,"$mode / $scale")
+                    assertEquals(listOf("Cmaj7(add9)/G"),a.lines)
+                    checked++
+                }
+            }}
+            assertEquals(12,checked)
         }
     }
     @Test fun customFontAndWidthMatrixKeepsEveryCaptionWithinItsOwnBand() {

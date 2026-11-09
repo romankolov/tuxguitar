@@ -2,6 +2,7 @@
 package com.tuxcompose.layout
 
 import com.tuxcompose.model.*
+import kotlinx.collections.immutable.persistentListOf
 import kotlin.math.abs
 
 /** Horizontal ink relative to an onset, in ONE track and ONE vertical lane. */
@@ -24,7 +25,7 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
     val tab = mutableListOf<TGHorizontalInk>()
     val chords = mutableListOf<TGHorizontalInk>()
     val text = mutableListOf<TGHorizontalInk>()
-    val effects = mutableListOf<TGHorizontalInk>()
+    val effects = linkedMapOf<String,MutableList<TGHorizontalInk>>()
     val picking = mutableListOf<TGHorizontalInk>()
     val atomicCaptions = mutableListOf<List<TGHorizontalInk>>()
     val engraving=scoreEngraving(track,measure,previous,config,directions)
@@ -135,21 +136,24 @@ internal fun measureInk(track: TGTrack, measure: TGMeasure, config: TGLayoutConf
             chords += TGHorizontalInk(beat.start,-4f,right)
         }
         if (!config.avoidAnnotationCollisions) beat.text?.let { text += TGHorizontalInk(beat.start,0f,fonts.measure(it,TGTextRole.Text).width,4f) }
-        effectLabels(beat).filterNot { (config.mergeLetRing && it == "let ring") ||
-            (config.showStandardNotation && it in listOf("N.H","A.H","T.H","P.H","S.H")) }.takeIf { it.isNotEmpty() }?.let { labels ->
-            val right = labels.maxOf {
-                when (it) {
-                    ">" -> 6.5f
-                    "<" -> 7.5f
-                    "~" -> 20.5f // the 18-unit wave rounds up to complete four-unit segments
-                    else -> fonts.measure(if(it=="let ring") "L.R" else it,TGTextRole.Text).width
-                }
+        voices.forEach {v->effectLabels(beat.copy(voices=persistentListOf(v))).filterNot {
+            (config.mergeLetRing && it=="let ring") ||
+                (config.showStandardNotation && it in listOf("N.H","A.H","T.H","P.H","S.H"))
+        }.forEach {label->
+            val right=when(label) {
+                ">","^"->6.5f
+                "<"->7.5f
+                "~"->20.5f
+                else->fonts.measure(if(label=="let ring") "L.R" else label,TGTextRole.Text).width
             }
-            effects += TGHorizontalInk(beat.start,0f,maxOf(0f,right),2f)
-        }
+            // EffectBand is per voice/effect, not one shared horizontal lane:
+            // vibrato cannot push a following L.R attack in a different band.
+            effects.getOrPut("${v.index}:$label") {mutableListOf()}
+                .add(TGHorizontalInk(beat.start,0f,maxOf(0f,right),2f))
+        }}
         if (beat.pickStroke != TGStrokeDirection.None) picking += TGHorizontalInk(beat.start,-4f,4f)
     }
-    val lanes = (listOf(score,tab,chords,text,effects,picking)+atomicCaptions).filter { it.isNotEmpty() }
+    val lanes = (listOf(score,tab,chords,text,picking)+effects.values+atomicCaptions).filter { it.isNotEmpty() }
     // Also protects an attack that becomes the first beat of a later page fragment.
     val leading = ((lanes.maxOfOrNull { lane -> -lane.minOf { it.left } } ?: 0f)-config.firstNoteSpacing).coerceAtLeast(0f)
     return TGMeasureInk(lanes,leading,continuationRight)

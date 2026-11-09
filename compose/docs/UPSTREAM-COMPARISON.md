@@ -1,4 +1,4 @@
-# 1.0.0: upstream comparison, adoption and limits
+# Upstream comparison, adoption and limits (1.0.1 correction)
 
 This is a **model-to-Compose rendering library**, not a replacement for either complete
 application. “Better” below means a specific supported behavior, not a blanket quality,
@@ -9,8 +9,8 @@ suite, editor, renderer nor arbitrary user scores have been reproduced here.
 
 | Reference | Pin | What is compared |
 |---|---|---|
-| TuxGuitar **2.1.1**, released 2026-10-23 | [`b4feea4fe2f0155d648a37282ec57f1ecb329a35`](https://github.com/helge17/tuxguitar/tree/b4feea4fe2f0155d648a37282ec57f1ecb329a35) | 16 Android UI/default and shared Java notation/layout sources; byte-identical to the Java files actually executed by our native differential tests |
-| alphaTab **1.9.0**, stable `main` | [`9f1aa10460df1b326123d28a2222f7b20d081e61`](https://github.com/CoderLine/alphaTab/tree/9f1aa10460df1b326123d28a2222f7b20d081e61) | chord-head, accidental/tie, spring/rod, skyline, collision and row-layout source review; three actual-source helper oracles |
+| TuxGuitar **2.1.1**, released 2026-10-23 | [`b4feea4fe2f0155d648a37282ec57f1ecb329a35`](https://github.com/helge17/tuxguitar/tree/b4feea4fe2f0155d648a37282ec57f1ecb329a35) | 20 Android UI/default, font-baseline and shared Java notation/layout sources; byte-identical to the Java files actually executed by our native differential tests |
+| alphaTab **1.9.0**, stable `main` | [`9f1aa10460df1b326123d28a2222f7b20d081e61`](https://github.com/CoderLine/alphaTab/tree/9f1aa10460df1b326123d28a2222f7b20d081e61) | chord-head, accidental/tie, spring/rod, skyline, collision and row-layout source review; actual-source numerical, paint, grouping and effect-placement oracles |
 
 The TuxGuitar pin, paths and individual SHA-256 hashes are in
 [`tools/upstream/tuxguitar-2.1.1.json`](../tools/upstream/tuxguitar-2.1.1.json).
@@ -18,7 +18,8 @@ The TuxGuitar pin, paths and individual SHA-256 hashes are in
 This does **not** assert that the entire fork is identical to TuxGuitar 2.1.1.
 The direct Java geometry comparison still uses its original **0.025 physical-unit**
 tolerance. Safety additions are disabled for that raw comparison; defaults are enhanced,
-not silently described as raw pixel parity.
+not silently described as raw pixel parity. The caption correction additionally
+executes original annotation painters rather than treating lane equality as paint parity.
 
 The alphaTab codeload archive is SHA-256
 `14e575b8fb49095a043cc5e7fec6a65f836eeb3f48459768683add539a29c6dd`.
@@ -34,15 +35,20 @@ python3 tools/upstream/check.py             # byte-compare checked reference res
 bash gradlew :tux-compose-core:desktopTest :demo-tuxguitar:test --stacktrace
 ```
 
-The checked TSV contains **2,584 records**, not 2,584 separate test methods:
-2,048 skyline insert/query operations, eight resets, 400 force/width cases at five
-ratios, and 128 accidental-column cases. Three JVM test methods compare the actual
-Kotlin helpers with those results. Additional brute-force/randomized tests exercise
+The checked TSV contains **3,328 records**, not 3,328 separate test methods:
+2,048 skyline operations, eight resets, 400 force/width cases, 128 accidental-column
+cases, 360 ranged-glyph paint cases, 256 grouped-effect flag patterns and 128
+effect-placement systems. Six JVM test methods compare the Kotlin helpers and
+model adaptation with those actual upstream results. Additional brute-force/randomized tests exercise
 our own implementation and boundary rules. `--update` is an explicit fixture maintenance
 operation, never an automatic CI repair. The CI build runs source/fixture verification
-before Gradle; publication also requires both Android emulator jobs.
+before Gradle; publication also requires both Android emulator jobs and an explicit `[publish]`
+commit after visual review (or an intentional manual workflow dispatch).
 
-## Source and decision map
+## Original 1.0.0 source and decision map
+
+The annotation decisions in this historical table are superseded by the 1.0.1
+correction below; they are not presented as proof of correct 1.0.0 label placement.
 
 All alphaTab paths below are under `packages/alphatab/src/` at the pin above. TuxGuitar
 paths are under `common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/`,
@@ -131,7 +137,9 @@ not establish measure-number or let-ring parity.
    lane is taller. No new left-to-right effect-label shelf rules are introduced.
 5. **Atomic labels at row edges.** Existing ink envelopes may reserve insufficient
    boundary whitespace for centred labels with larger custom fonts, instead of
-   moving the label off its note. Normal native fonts retain their rhythmic grid.
+   moving the label off its note. Normal native fonts retain their rhythmic grid. Hard minima are rounded upward,
+   never down to the nearest physical pixel; effect-spacing constraints are scoped
+   to the same voice/effect band instead of charging unrelated neighbouring effects.
    Truly indivisible content wider than the entire parent is still clipped; no
    font/staff scaling is used to conceal that physical limit.
 6. **Other native annotations.** Disabling grouping retains `L.R` on every marked

@@ -309,9 +309,14 @@ class TGLayoutCalculator(private val config: TGLayoutConfig = TGLayoutConfig(), 
         }
     }
 
-    private fun nativePrefix(metric: Metric, clef: Float, key: Float): Float = nativeRound(maxOf(
-        (if (metric.paintTempo) nativeRound(45f) else 0f)+(if (metric.paintTripletFeel) nativeRound(55f) else 0f),
-        clef+key+(if (metric.paintTime) nativeRound(10f+config.timeSignatureSpacing) else 0f)+config.firstNoteSpacing)+metric.ink.leading)
+    private fun nativePrefix(metric: Metric, clef: Float, key: Float): Float {
+        val base=nativeRound(maxOf(
+            (if (metric.paintTempo) nativeRound(45f) else 0f)+(if (metric.paintTripletFeel) nativeRound(55f) else 0f),
+            clef+key+(if (metric.paintTime) nativeRound(10f+config.timeSignatureSpacing) else 0f)+config.firstNoteSpacing))
+        // An ink minimum is a hard rod: nearest-pixel rounding must not reduce it.
+        // The unprotected native prefix/rounding is unchanged when leading is zero.
+        return base+kotlin.math.ceil(metric.ink.leading*config.renderScale)/config.renderScale
+    }
 
     /**
      * TGMeasureImpl.checkValue and TGLayoutVertical registration, using actual stem directions.

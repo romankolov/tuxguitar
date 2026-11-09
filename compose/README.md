@@ -4,6 +4,12 @@
 
 The library has **no decoder, file access, playback clock, MIDI, synthesizer, audio dependency, Android View, SWT or AWT**. The showcase intentionally has these integrations, in separate modules.
 
+**1.0.1 correction candidate:** measure-number/repeat baselines now follow the native
+paint calls; let-ring geometry/grouping and effect placement follow alphaTab's actual
+implementation. See [the correction and pending qualification](docs/RELEASE-1.0.1.md).
+Publication is held until CI and actual image review complete. The link below is the
+previous, already-published 1.0.0, not this candidate.
+
 **Downloads:** [1.0.0 release APK / AAR / checksums](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-v1.0.0).
 See [release changes, test evidence and signing warning](docs/RELEASE-1.0.0.md).
 

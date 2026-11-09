@@ -83,6 +83,9 @@ jobs:
   device-test:
     name: Android API ${{ matrix.api }}
     needs: build
+    permissions:
+      contents: read
+      checks: write
     strategy:
       fail-fast: false
       matrix:
@@ -119,6 +122,11 @@ jobs:
           disk-size: 4096M
           disable-animations: true
           script: bash compose/tools/device_test.sh
+      - name: Export every detailed hardware capture for review
+        if: always() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 compose/tools/publish_device_previews.py ${{ matrix.api }}
       # Each scene has its own step: bounded JSON chunks stay under Checks' per-step
       # annotation count and 4096-character message limits, unlike one huge base64 line.
       - name: Preview main workspace

@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import zipfile
 
 root = Path(__file__).resolve().parents[1]
 apk = root / 'sample-android/build/outputs/apk/release/sample-android-release.apk'
@@ -21,6 +22,9 @@ try:
     badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
     assert 'application-debuggable' not in badging, 'Release is debuggable'
     assert "versionName='1.0.1'" in badging and "versionCode='11'" in badging, 'Unexpected app version'
+    with zipfile.ZipFile(apk) as archive:
+        assert archive.read('assets/licenses/alphaTab-MPL-2.0.txt') == (root/'licenses/alphaTab-MPL-2.0.txt').read_bytes(), 'MPL licence missing from APK'
+        assert b'TGAlphaEffectLayout.kt' in archive.read('assets/licenses/Tux-Compose-NOTICE.md'), 'MPL adaptation attribution missing'
     mapping = root / 'sample-android/build/outputs/mapping/release/mapping.txt'
     assert mapping.is_file() and mapping.stat().st_size > 1000, 'R8 optimization/mapping missing'
     # DEX names must actually be rewritten, rather than merely producing a keep-all mapping.

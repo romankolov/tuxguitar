@@ -1,4 +1,4 @@
-# 1.0.0 engraving mathematics and geometry
+# Engraving and annotation mathematics (1.0.1)
 
 The native spacing, row/track lanes, beam and duration derivations remain in
 [PORTING](PORTING.md); caption/cursor/connection and physical-path mathematics remain
@@ -85,7 +85,7 @@ actual grace-stem/glyph height, so high graces cannot enter preceding metadata. 
 `accidentalBounds` participate in hit testing before nearest-onset empty-space seeking.
 Continued fragments clear accidental/grace origins so they do not reattack visually.
 
-## Half-open skyline caption packing
+## Half-open skyline (prose) and upstream effect bands
 
 A skyline stores a piecewise-constant nonnegative outward height `H(x)` on `[L,R)`.
 For reservation `[a,b)` with height `h`, the next outward origin is
@@ -95,7 +95,7 @@ y = max(H(x), x in [a,b))
 H(x) = max(H(x), y+h+gap), x in [a,b)
 ```
 
-Band packing includes its gap in the reservation height. Disjoint or merely touching
+For emergency prose wrapping, band packing includes its gap in the reservation height. Disjoint or merely touching
 intervals do not lift one another. A narrow tall caption lifts only overlapping later
 captions, rather than raising every caption in an entire shelf. The renderer still
 uses TuxGuitar's explicit named metadata/effect bands, not a new all-purpose staff
@@ -105,6 +105,79 @@ Boundaries/heights are flat arrays. Queries binary-search the first segment, the
 only intersecting segments; insertion splits at most two boundaries and coalesces equal
 neighbors. Query cost is `O(log n+k)`; insertion is `O(n)` because arrays may shift and
 coalesce. No unsupported logarithmic-update or whole-page speed claim is made.
+
+## Correct native text baselines and grouped effects
+
+### Numbers and repeat counts
+
+The Android native painter uses baseline coordinates, with `FMBaseLine = 0`.
+For first visible staff/barline ordinate `yS`, bar edges `xL,xR` and measured count
+width `wR`, TuxGuitar's logical-unit anchors are:
+
+```
+numberBaseline = (xL + 1, yS - 2)
+repeatBaseline = (xR - wR - 4, yS - 2)   // native text: xN
+composeTextTop = baselineY - TextLayoutResult.firstBaseline
+```
+
+For one-string TAB only, `yS = tabTop - stringSpacing`; its barline bottom is one
+string-space below the string. The row/marker top is NOT `yS`. Changing metadata
+height must move the number with its staff, not leave it floating at the row origin.
+The Java differential executes `paintDivisions`, so these expectations are recorded
+from upstream drawing calls rather than duplicated formula assertions alone.
+
+### Grouped let-ring geometry
+
+Use alphaTab's parameterised `LineRangedGlyph` with the caption `let ring`. For label
+width `W`, height `H`, first note X `x0`, last linked note X `x1`, top `y` and fixed
+staff-space `s`:
+
+```
+label = [x0-W/2, y, x0+W/2, y+H]
+dashSize = s
+dashGap = s/2
+thickness = .16*s
+lineStart = x0 + W/2 + dashGap/2
+lineCentreY = y + H/2
+cap = [x1, lineCentreY-s/2, x1+thickness, lineCentreY+s/2]
+```
+
+Only draw dashes/cap if this system has a linked group and `x1 > lineStart`.
+A singleton or short group remains label-only; never wrap/clamp the atomic label,
+move a line below it or interpolate its endpoint to a beat end. Group membership
+is per voice and consecutive decoded flags. The next system starts another plain
+centred label and independently applies these same rules, including its cap.
+An unmarked tie does not acquire a new decoded effect flag from our layout layer.
+
+Hardware dash rendering uses explicit filled rectangles. The first visible dash
+period is found by `floor((visibleLeft-lineStart)/(dashSize+dashGap))`; clipping does
+not restart the phase or scan an offscreen prefix. The fixed-size cap rectangle is
+not a stroke-centred vertical line. Source `LineRangedGlyph.paint` calls generate
+the checked label/rectangle coordinate fixtures.
+
+### Source-priority effect bands
+
+`TGAlphaEffectLayout.kt` retains MPL-2.0 and adapts `EffectSystemPlacement`.
+Sort bands by category ascending, visual-stack order descending, voice ascending,
+bar ascending. For a linked-chain group, query every occupied range against the
+same current skyline before inserting any member:
+
+```
+magnitude = max(max(H(x), x in memberRange) + 5, all members)
+H(x) = max(H(x), magnitude + memberHeight)
+rowEffectHeight = max(magnitude + memberHeight)
+memberTop = rowEffectHeight - magnitude - memberHeight
+```
+
+This two-phase query/commit keeps linked members at one ordinate instead of
+letting each continuation lift itself. Existing TuxGuitar track lanes supply
+musical clearance. When a native effects lane is taller than the effect plan,
+translate by `laneHeight-planHeight` to preserve its native bottom alignment.
+Atomic caption ink can consume the existing bar margins; missing boundary space
+is reserved by the existing ink-envelope machinery, with hard minima rounded
+upward. Different voice/effect bands do not constrain each other's rhythmic X.
+Prose's fixed-parent emergency wrapping remains a documented adaptation, not a
+claim that all of alphaTab's staff skyline, fonts and overlay rods were reproduced.
 
 ## Optional power-law springs with hard rods
 

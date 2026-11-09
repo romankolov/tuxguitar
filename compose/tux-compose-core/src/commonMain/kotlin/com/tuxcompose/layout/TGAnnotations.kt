@@ -130,7 +130,7 @@ internal fun planAnnotations(measures: List<TGMeasureLayout>, runs: List<TGLetRi
     measures.forEach {m->m.beats.filterNot {it.isContinuation}.forEach {b->
         if(config.avoidAnnotationCollisions && config.showChordNames) b.beat.chord?.let {chord->
             val width=fonts.measure(chord.name,TGTextRole.Chord).width
-            val x=if(config.nativeSpacing) b.x+kotlin.math.floor(4f*config.renderScale+.5f)/config.renderScale-width/2f else b.chordBounds?.left ?: b.x-4f
+            val x=if(config.nativeSpacing) b.x+kotlin.math.floor(4f*config.renderScale+.5f)/config.renderScale-width/2f else b.x-width/2f
             items+=Item(TGAnnotationKind.Text,TGAnnotationBand.ChordNames,chord.name,x,b.startTick,b.endTick,m.measureIndex)
         }
         b.beat.text?.takeIf {it.isNotBlank()}?.let {
