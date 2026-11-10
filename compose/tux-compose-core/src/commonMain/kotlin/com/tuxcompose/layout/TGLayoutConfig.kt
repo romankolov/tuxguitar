@@ -44,7 +44,7 @@ data class TGLayoutConfig(
     val pickStrokeSpacing: Float = 8f,
     /** Only used by Adaptive spacing; false selects its older v0.1.3 calculation. */
     val optimizeSpacing: Boolean = true,
-    /** Actual upstream measure, beat, header and track-lane algorithms, not a collision solver. */
+    /** Upstream rhythmic/greedy algorithms, with separately configurable collision protection. */
     val spacingMode: TGSpacingMode = TGSpacingMode.TuxGuitar,
     /** TGLayoutVertical's right margin, in final canvas pixels (not zoomed style units). */
     val pageRightPadding: Float = 10f,
@@ -56,8 +56,17 @@ data class TGLayoutConfig(
     val respectSystemFontScale: Boolean = false,
     /** Set by TablatureView: density × zoom × scale, for upstream pixel rounding only. */
     val renderScale: Float = 1f,
+    /** alphaTab GroupedOnBeat let-ring chains, scoped to a voice. False retains native L.R labels. */
+    val mergeLetRing: Boolean = true,
+    /** Measured native lanes, upstream effect-band placement and chord/accidental engraving.
+     * Larger atomic captions may reserve missing boundary whitespace, never move off their notes.
+     * False restores the unprotected native comparison geometry. */
+    val avoidAnnotationCollisions: Boolean = true,
+    /** Power-law duration doubling ratio in Spring mode; native mode is unchanged. */
+    val springSpacingRatio: Float = 1.5f,
 ) {
     init {
+        require(springSpacingRatio.isFinite() && springSpacingRatio in 1.2f..2f)
         require(scale.isFinite() && scale in 0.1f..8f)
         require(renderScale.isFinite() && renderScale > 0f)
         require(listOf(stringSpacing, staffSpacing, noteHeadRadius).all { it.isFinite() && it > 0 })
@@ -70,8 +79,8 @@ data class TGLayoutConfig(
     val showTablature: Boolean get() = style != TGLayoutStyles.Score
 }
 
-/** Adaptive is the opt-in, font/ink-aware Compose extension shipped in v0.1.4. */
-enum class TGSpacingMode { TuxGuitar, Adaptive }
+/** Native default; optional adaptive ink balancing or power-law spring/rod justification. */
+enum class TGSpacingMode { TuxGuitar, Adaptive, Spring }
 
 enum class TGLayoutStyles { Score, Tablature, Mixed }
 enum class TGLayoutOrientation { Horizontal, Page }
@@ -112,6 +121,8 @@ data class TGColorPalette(
 /** Pure metrics allow deterministic layout tests without a platform font/canvas. */
 fun interface TGFontMetrics {
     fun measure(text: String, role: TGTextRole): TGTextSize
+    /** Override with the same cached font layout used to draw. Fallback is approximate. */
+    fun firstBaseline(text: String, role: TGTextRole): Float = measure(text,role).height*.8f
     companion object {
         val Approximate = TGFontMetrics { text, role ->
             val height = if (role == TGTextRole.Note) 10f else 9f

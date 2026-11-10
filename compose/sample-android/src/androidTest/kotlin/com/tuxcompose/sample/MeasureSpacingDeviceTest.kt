@@ -76,7 +76,7 @@ class MeasureSpacingDeviceTest {
         val factor = compose.onNodeWithTag("spacing-viewport").fetchSemanticsNode().size.width/page.width
         val mark = row.measures[1].beats[1].stroke!!
         val sample = (mark.lines[0].from+mark.lines[0].to)/2f
-        val pixels = compose.onNodeWithTag("spacing-viewport").captureToImage().toPixelMap()
+        val pixels = compose.onNodeWithTag("spacing-viewport").captureScoreImage().toPixelMap()
         val px = (sample.x*factor).toInt(); val py = (sample.y*factor).toInt()
         assertTrue("The unscaled strum must still be painted after packing",(-3..3).any { dx -> (-3..3).any { dy ->
             val x = (px+dx).coerceIn(0,pixels.width-1); val y = (py+dy).coerceIn(0,pixels.height-1)

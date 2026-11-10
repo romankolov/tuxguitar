@@ -51,6 +51,14 @@ object DemoSongFactory {
                             string = if (ti == 0) listOf(3,2,1,2,3,2,1,2)[bi] else if (bi % 4 == 0) 4 else 3
                             value = if (ti == 0) frets[mi%4][bi] else listOf(0,0,2,2,3,3,2,0)[bi]
                             velocity = if (bi % 2 == 0) 95 else 80
+                            // A real GP let-ring phrase, including intervening effects.
+                            if (ti == 0 && mi == 2) {
+                                effect.isLetRing = true
+                                effect.isTapping = bi == 5
+                            }
+                            // Palm mute and let ring are mutually exclusive upstream; show
+                            // palm mute AFTER the phrase, not by clearing an interior flag.
+                            if (ti == 0 && mi == 3 && bi == 0) effect.isPalmMute = true
                             if (ti == 0 && mi in 4..7) {
                                 effect.isHammer = bi == 0
                                 effect.isSlide = bi == 4
@@ -80,6 +88,9 @@ object DemoSongFactory {
                             name = if (mi == 0) "Em" else "G"; firstFret = 1
                             listOf(0,0,0,2,2,0).forEachIndexed { si, fret -> addFretValue(si,fret) }
                         }
+                    }
+                    if (ti == 0 && mi == 2 && bi in listOf(2,6)) {
+                        beat.text = f.newText().apply { value = if (bi == 2) "gently" else "then softer" }
                     }
                     measure.addBeat(beat)
                 }

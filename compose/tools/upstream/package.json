@@ -1,0 +1,9 @@
+{
+  "name": "tux-compose-upstream-oracles",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Build/test-only source comparisons; never part of the core or APK runtime",
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

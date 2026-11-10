@@ -1,7 +1,7 @@
 name: Tux Compose · build, test & APK
 on:
   push:
-    branches: ["master", "arena/632dd39b-tuxguitar"]
+    branches: ["master", "arena/285632fe-tuxguitar"]
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
   pull_request:
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
@@ -27,17 +27,43 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: false
-      - name: Verify generated upstream glyphs and dependency boundary
-        run: python3 tools/verify.py
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Compare pinned upstream source helpers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm ci --no-audit --no-fund --prefix tools/upstream
+          python3 tools/upstream/check.py
+          python3 tools/upstream/check_tuxguitar.py
+      - name: Install host screenshot test dependency
+        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0
+      - name: Verify upstream glyphs, dependency boundary and screenshot harness
+        run: |
+          python3 tools/verify.py
+          python3 -m unittest discover -s tools -p 'test_*.py'
+      - name: Prepare temporary evaluation release signing
+        run: bash tools/prepare_release_signing.sh
       - name: Build library, run tests, lint demo, assemble APKs
         run: python3 tools/ci_build.py
+      - name: Discard temporary signing key
+        if: always()
+        run: |
+          if [ -n "${TUX_RELEASE_STORE_FILE:-}" ]; then rm -f "$TUX_RELEASE_STORE_FILE"; fi
+      - name: Verify shipped synth, bank, ABI dependencies and core isolation
+        run: python3 tools/verify_synth.py
+      - name: Verify non-debuggable optimized release and signing certificate
+        run: python3 tools/verify_release.py
       - name: Upload latest installable demo and library
         uses: actions/upload-artifact@v7
         with:
           name: tux-compose-apk-${{ github.run_number }}
           path: |
-            compose/sample-android/build/outputs/apk/debug/*.apk
-            compose/tux-compose-core/build/outputs/aar/*release.aar
+            compose/sample-android/build/outputs/apk/release/sample-android-release.apk
+            compose/build/release-verification.json
+            compose/build/synth-verification.json
+            compose/tux-compose-core/build/outputs/aar/*.aar
           if-no-files-found: error
           retention-days: 30
       - name: Upload diagnostics
@@ -48,11 +74,26 @@ jobs:
           path: |
             compose/build/ci.log
             compose/build/ci-summary.json
+            compose/build/synth-verification.json
+            compose/build/release-verification.json
+            compose/sample-android/build/outputs/mapping/release/**
             compose/**/build/reports/**
             compose/**/build/test-results/**
           retention-days: 14
   device-test:
+    name: Android API ${{ matrix.api }}
     needs: build
+    permissions:
+      contents: read
+      checks: write
+    # 13 job previews * 3 chunks + 6 success notices = 45, below the job's 50.
+    # The independent detailed Check has its own batched annotation budget.
+    env:
+      TUX_PREVIEW_MAX_CHUNKS: '3'
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [24, 35]
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     steps:
@@ -64,6 +105,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: tux-compose-apk-${{ github.run_number }}
+          path: compose/verified-artifacts
+      - name: Install screenshot encoder
+        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -72,18 +119,68 @@ jobs:
       - name: Run Compose interaction, decoder and audio tests on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api }}
           arch: x86_64
           profile: pixel_2
+          # The bundled bank/native APK and install sessions need headroom on API 24.
+          disk-size: 4096M
           disable-animations: true
           script: bash compose/tools/device_test.sh
+      - name: Export every detailed hardware capture for review
+        if: always() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TUX_PREVIEW_MAX_CHUNKS: '4'
+        run: python3 compose/tools/publish_device_previews.py ${{ matrix.api }}
+      # Each scene has its own step: bounded JSON chunks stay under Checks' per-step
+      # annotation count and 4096-character message limits, unlike one huge base64 line.
+      - name: Preview main workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release studio-home
+      - name: Preview dark workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-dark studio-dark
+      - name: Preview large-text workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-large-text studio-large-text
+      - name: Preview narrow large-text workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-narrow-large-text
+      - name: Preview expanded workspace
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-wide
+      - name: Preview grouped settings
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-settings studio-settings-dark
+      - name: Preview articulation and ornament sections
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-articulation
+      - name: Preview rhythm laboratory
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-rhythm
+      - name: Preview two-voice section
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-voices
+      - name: Preview dense full-size reflow
+        if: always()
+        run: python3 compose/tools/report_screenshots.py studio-release-dense
+      - name: Preview corrected annotation placement
+        if: always()
+        run: TUX_PREVIEW_MAX_CHUNKS=3 python3 compose/tools/report_screenshots.py annotation-origins-Mixed-1.0
+      - name: Preview grouped effects and row continuations
+        if: always()
+        run: TUX_PREVIEW_MAX_CHUNKS=3 python3 compose/tools/report_screenshots.py annotations-Mixed-1.0
+      - name: Preview chord engraving pixel regression
+        if: always()
+        run: TUX_PREVIEW_MAX_CHUNKS=3 python3 compose/tools/report_screenshots.py engraving-Mixed-TuxGuitar-1.0
       - name: Upload device reports and screenshots
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: tux-compose-device-${{ github.run_number }}
+          name: tux-compose-device-api${{ matrix.api }}-${{ github.run_number }}
           path: |
             compose/sample-android/build/device-*
+            compose/sample-android/build/release-smoke/**
             compose/build/ci.log
             compose/build/ci-summary.json
             compose/sample-android/build/reports/androidTests/**
@@ -91,13 +188,13 @@ jobs:
           retention-days: 14
 
   preview-apk:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/632dd39b-tuxguitar')
+    if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish]'))) && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/285632fe-tuxguitar')
     needs: [build, device-test]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: tux-compose-apk-${{ github.run_number }}
           path: verified-artifacts
@@ -106,14 +203,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          apk=$(find verified-artifacts -name '*debug.apk' -print -quit)
-          aar=$(find verified-artifacts -name '*release.aar' -print -quit)
+          apk=$(find verified-artifacts -name 'sample-android-release.apk' -print -quit)
+          aar=$(find verified-artifacts -name '*.aar' -print -quit)
           test -n "$apk" && test -n "$aar"
           mkdir release
-          cp "$apk" release/sample-android-debug.apk
+          cp "$apk" release/sample-android-release.apk
+          cp "$(find verified-artifacts -name 'release-verification.json' -print -quit)" release/BUILD-VERIFICATION.json
           cp "$aar" release/tux-compose-core-release.aar
           (cd release && sha256sum *.apk *.aar > SHA256SUMS.txt)
-          notes="Debug-signed sample APK and release library AAR. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build and emulator interaction/PCM tests passed. Evaluation build, not a Play Store release. See compose/README.md and compose/docs/PORTING.md for scope and parity limits."
+          version=$(python3 -c "import json; print(json.load(open('release/BUILD-VERIFICATION.json'))['version'])")
+          notes="Tux Compose $version: immutable decoded score to native Compose Canvas, without core parsers or playback. Native TuxGuitar spacing remains the default; includes the 1.0.1 source-backed annotation correction (native text baselines/paths and attributed MPL-2.0 alphaTab grouped effects), chord/accidental/tie/grace improvements and opt-in Spring spacing with hard glyph minimums. Pinned TuxGuitar/alphaTab comparisons and explicit limitations are documented. Optimized, R8-shrunk, non-debuggable release APK and core AAR. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Both APIs preserved all 32 required detailed hardware capture scenes. Evaluation build, not a Play Store release. Source and usage: https://github.com/$GH_REPO/tree/$GITHUB_SHA/compose. Comparison and mathematics: https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/UPSTREAM-COMPARISON.md and https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/ENGRAVING.md. This is not a blanket superiority or complete-editor parity claim."
           if gh release view tux-compose-preview >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GH_REPO/git/refs/tags/tux-compose-preview" -f sha="$GITHUB_SHA" -F force=true
             gh release edit tux-compose-preview --notes "$notes"
@@ -121,3 +220,17 @@ jobs:
             gh release create tux-compose-preview --target "$GITHUB_SHA" --prerelease --title "Tux Compose · latest verified Android demo" --notes "$notes"
           fi
           gh release upload tux-compose-preview release/* --clobber
+          if gh release view tux-compose-preview --json assets --jq '.assets[].name' | grep -qx sample-android-debug.apk; then
+            gh release delete-asset tux-compose-preview sample-android-debug.apk --yes
+          fi
+
+          # 1.x library releases get an immutable versioned tag/assets as well.
+          # The moving preview alias remains useful for subsequent branch builds.
+          if [[ "$version" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]]; then
+            version_tag="tux-compose-v$version"
+            if gh release view "$version_tag" >/dev/null 2>&1; then
+              echo "Versioned $version_tag already exists; leave its tag and assets unchanged."
+            else
+              gh release create "$version_tag" release/* --target "$GITHUB_SHA" --latest --title "Tux Compose $version · library and evaluation demo" --notes "$notes"
+            fi
+          fi

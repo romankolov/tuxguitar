@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from xml.etree import ElementTree
 
-command = sys.argv[1:] or ['./gradlew', ':tux-compose-core:desktopTest', ':tux-compose-core:assembleRelease', ':demo-tuxguitar:test', ':sample-android:lintDebug', ':sample-android:assembleDebug', ':sample-android:assembleDebugAndroidTest', '--stacktrace', '--console=plain', '--continue']
+command = sys.argv[1:] or ['./gradlew', ':tux-compose-core:desktopTest', ':tux-compose-core:assemble', ':demo-tuxguitar:test', ':sample-android:lintDebug', ':sample-android:lintRelease', ':sample-android:assembleRelease', ':sample-android:assembleDebug', ':sample-android:assembleDebugAndroidTest', '--stacktrace', '--console=plain', '--continue']
 result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 text = result.stdout
 # AGP emits its own workflow annotations. Suppress their execution while replaying the
@@ -41,13 +41,18 @@ Path('build/ci-summary.json').write_text(json.dumps(summary, indent=2))
 if reports:
     totals = {key: sum(r[key] for r in reports) for key in ('tests', 'failures', 'errors', 'skipped')}
     print('::notice title=JUnit test summary::' + json.dumps(totals) + ' — ' + '; '.join(f"{r['name']}: {r['tests']} tests" for r in reports))
+if not result.returncode:
+    for audit in sorted(Path('demo-tuxguitar/build/reports').glob('showcase-*.json')):
+        payload=json.dumps(dict(report=audit.name,results=json.loads(audit.read_text())),separators=(',',':'))
+        assert len(payload)<3500, 'Showcase audit summary exceeds Checks budget'
+        print('::notice title=Showcase audit::'+payload)
 if result.returncode:
     # GitHub annotations truncate at 4096 characters. Keep early compiler errors AND
     # the final task failures; --continue lets independent modules report together.
     lines = text.splitlines()
     selected = set()
     for index, line in enumerate(lines):
-        if line.startswith(('e:', 'error:', 'FAILURE:', '* What went wrong:', 'Execution failed', 'Could not', 'Caused by:')) or ' FAILED' in line or ': error:' in line or '::error' in line:
+        if line.startswith(('e:', 'error:', 'FAILURE:', '* Where:', '* What went wrong:', 'Execution failed', 'Could not', 'Caused by:')) or ' FAILED' in line or ': error:' in line or '::error' in line:
             selected.update(range(index, min(index + 3, len(lines))))
     filtered = '\n'.join(failures) + '\n' + '\n'.join(lines[index] for index in sorted(selected))
     details = [('Compiler and task errors', filtered[:17500]), ('Gradle log tail', text[-7000:])]

@@ -1,5 +1,20 @@
 # Porting TuxGuitar's layout to Compose
 
+The 1.0.1 annotation correction is detailed in [UPSTREAM-COMPARISON](UPSTREAM-COMPARISON.md).
+It executes original native annotation paint calls and adapts alphaTab's grouped
+ranged glyph/effect-band placement; that one source file retains MPL-2.0. Earlier
+caption-extension descriptions here are historical, not full annotation parity.
+
+## 1.0 additions and current references
+
+The historical native derivation below remains valid: the 16 reviewed Java layout/UI
+sources are byte-identical to **TuxGuitar 2.1.1**. A checksum-pinned upstream check now
+verifies that fact before CI tests. Native remains the default. The 1.0 safety layer
+adds chord/accidental/grace/tie geometry, skyline captions and opt-in Spring spacing;
+its equations, comparison scope and limitations are in [ENGRAVING](ENGRAVING.md) and
+[UPSTREAM-COMPARISON](UPSTREAM-COMPARISON.md). Disable collision protection and merged
+let-ring for unchanged raw differential geometry, not to obtain enhanced defaults.
+
 ## Reference and scope
 
 The spacing audit for **0.1.5** uses the original Java sources in this repository at
@@ -16,6 +31,12 @@ solver explicitly opt-in as `TGSpacingMode.Adaptive`.
 This is a source-level layout port, not a claim that the entire editor, platform fonts,
 antialiasing or every effect painter is pixel-identical. Oversized-measure fragmentation
 remains an explicit Compose extension to meet the fixed-parent-width/fixed-glyph contract.
+
+**0.1.8 safety layer:** the equations below describe the native base. Default measured
+caption/header/connection clearance and minimal local visible-glyph corrections are
+separate Compose enhancements. Disable `avoidAnnotationCollisions` and `mergeLetRing`
+for raw Java comparison geometry. The original differential tolerance is unchanged.
+See [the current audit and exact extension mathematics](VISUAL-AUDIT.md).
 
 ### Source map
 
@@ -292,6 +313,67 @@ source is offscreen. Indexed intervals avoid scanning an offscreen prefix. Rest 
 prevent reconnection across rests. Beams and tuplet/ending brackets continue row-locally;
 no connection is drawn diagonally through another staff or row gap.
 
+### Native annotations and alphaTab grouped effects (1.0.1 correction)
+
+`TGNoteImpl.paintOfflineEffects` draws native `L.R` separately at each flagged note;
+that is retained with `mergeLetRing=false`. The default grouped mode uses an
+attributed MPL-2.0 adaptation of alphaTab's `LineRangedGlyph` and effect-placement
+kernel, not the old invented duration-union/parenthesised-continuation scheme.
+Decoded immutable flags are not changed in either mode.
+
+Walk consecutive voice beats before fragmentation, retaining a separate explicit
+flag chain per voice. Repeats and endings do not stop a chain. Unmarked voice beats
+stop it; the layout does not add let-ring to an unmarked tie or union other voices.
+An indexed row lookup keeps only intersecting source runs. The label is centred at
+the row's first marked onset. Its line ends at the last linked **onset** visible in
+that row. Each system restarts a plain label and independently applies the upstream
+short-group rule: singleton/insufficient-length groups have no dashes or cap.
+Drawable segments have the upstream fixed-size cap, including outgoing segments.
+
+Dash size/gap/thickness are `s`, `.5s`, `.16s`, where `s` is the fixed staff-space.
+The line starts half a gap beyond the centred label's right edge, at its vertical
+midpoint. No below-text fallback, forced terminal cap or horizontal text clamp is
+added. Dashes/caps are filled rectangles; visible-prefix indexing preserves phase
+without scanning offscreen periods. [ENGRAVING](ENGRAVING.md) gives every equation.
+
+Effect placement follows source category, descending visual order, voice and bar,
+with linked bands queried before any chain member commits its skyline range.
+Native named track lanes provide musical clearance and bottom alignment. Score and
+TAB profile ordering are verified from the actual upstream renderer registries.
+Native accent/heavy-accent, fade, vibrato and trill paths use original Java painter
+vertices and the original voice width—not a different arrow or sine-like stroke.
+
+Numbers/repeat counts use the actual first staff/barline baseline, not the row top.
+Markers/prose use their native musical X and baseline; chord names use their native
+centred X and Android top-line baseline conversion. `TGFontMetrics.firstBaseline`
+is overridable, with the real Compose implementation returning its cached layout.
+A row's ink bounds may extend above its native measure origin; those are not the
+same coordinate. Enlarging culling bounds must not move native paint anchors.
+
+The existing fixed-parent emergency wrapping remains for prose only. Atomic
+chord/effect labels remain attached to their notes; the measured-ink machinery
+reserves a missing boundary minimum only after using existing margin/signature
+space. No font/staff/system scaling is introduced. Truly indivisible ink wider
+than the whole viewport still has that documented clipping limit.
+
+`TGStaffLayout.annotations` and its cached interval index feed the normal render
+pass. `renderMeasure` callers must also draw cached row `renderAnnotation` and
+`renderConnection` overlays. `plannedAnnotations` suppresses legacy duplicates.
+The original five `TGAnnotationKind` categories remain source-compatible; optional
+`nativeEffect` metadata distinguishes additional native paths. Core still has no
+parser, playback, Material or heavyweight View dependency. See [the pinned sources,
+licences and evidence limits](UPSTREAM-COMPARISON.md).
+
+### Fixed-width hollow capsule cursor (0.1.8)
+
+`CursorStyle.Capsule` is a stroke, never a fill. It uses one maximum measured `00`–`99`
+Note-font slot, not active fret/head bounds, to keep its width fixed through chords,
+voices and rests. Defaults are `capsuleWidth=6`, `capsuleInset=6`, `width=1.5`,
+`capsuleInnerPadding=2`. Tiny rows reduce stroke/inset but not width. Fractional glide,
+color/opacity/animation and cooperative follow retain the single Canvas transform.
+See [VISUAL-AUDIT.md](VISUAL-AUDIT.md#fixed-width-hollow-cursor) for full equations,
+validation rules and the actual-font/pixel regressions.
+
 ### Adaptive/custom-font safety (opt-in)
 
 `spacingMode=TGSpacingMode.Adaptive` retains 0.1.4's font/ink-aware forward solver.
@@ -332,7 +414,8 @@ The actual Java sources used by the oracle are **test/demo dependencies only**.
   frames do not recompute layout. Palette-only changes reuse geometry.
 - Three viewport-sized layers render notation, selection and cursor; no song-sized bitmap.
 - Binary searches/indexed iteration cull systems/measures; connections have balanced
-  interval indices. Initial layout is not claimed constant-time or hardware-benchmarked.
+  interval indices; row annotations use the same offscreen-source-safe indexing.
+  Initial layout is not claimed constant-time or hardware-benchmarked.
 - All 32 paths are generated losslessly from original `TGPaintModel` commands. Source
   hashes and regeneration are checked by `tools/verify.py`.
 - A bounded 512-entry text cache drives both rendered cutouts and pointer rectangles.
@@ -359,7 +442,9 @@ Android `TGSongViewStyles.java`, rather than a copied expected-width table.
 row membership, header flags/maxima, stem direction, hidden/displaced rests and vertical
 lanes. Its matrix includes score/tab/mixed, compact/noncompact, chord display modes,
 fractional scale, polyphony, multi/selected tracks, signatures, effects and real GP3/4/5
-showcase imports. `native-layout-parity.json` in CI diagnostics records matrix cases;
+showcase imports. The showcase now includes a real let-ring phrase; its native-only
+comparisons set `mergeLetRing=false`, because merged annotations intentionally differ.
+`native-layout-parity.json` in CI diagnostics records matrix cases;
 the differential tolerance is 0.025 **physical pixels**, not a bitmap-similarity claim.
 Common and Android tests separately exercise Native's default reflow, wrapping extension,
 fixed-size glyphs, actual fonts, transformed pointer hits and system-font-scale policy.
@@ -374,8 +459,9 @@ Remaining limits are explicit:
 - Core supports up to four voice slots as an extension; this Java reference has two.
 - Complex notehead/accidental displacement, arbitrary slurs and every historical
   bend/conflict/effect subvariant are not exhaustively pixel-verified. Some effects still
-  share a generic label/path. Native intentionally inherits its fixed-grid font/label
-  crowding; choose Adaptive when collision safety is preferred to those exact equations.
+  share a generic label/path. Outside the enhanced let-ring rows, Native intentionally
+  inherits its fixed-grid font/label crowding; choose Adaptive for additional ink-aware
+  horizontal clearance rather than those exact equations.
 - Platform font shaping and antialiasing differ. Geometry differentials are not a full
   native-versus-Compose screenshot comparison or a claim of identical desktop buffers.
 - Android/JVM are CI targets. Optional iOS targets have no runtime validation here.
@@ -383,5 +469,7 @@ Remaining limits are explicit:
   archive limits reduce risk; use trusted evaluation files. Hardware MIDI requires a
   device; CI verifies original MIDI events and software PCM, not human-auditioned hardware.
 
-Derived code/glyphs remain LGPL-2.1-or-later with existing notices. The demo's Gervill and
-soundfont licensing is unchanged. Keeping the decoder/player outside core is intentional.
+Derived code/glyphs remain LGPL-2.1-or-later with existing notices. The demo now uses dynamically linked FluidSynth and GeneralUser GS under their respective
+licenses; [SYNTH.md](SYNTH.md) documents versions, source, math and relinking. Original
+Gervill files remain unchanged but are not compiled into the Compose sample. Keeping the
+decoder/player outside core is intentional.

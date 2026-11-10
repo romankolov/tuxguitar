@@ -9,7 +9,9 @@ import kotlin.test.*
 
 /** Native defaults and the explicitly non-native, fixed-size page-wrapping extension. */
 class NativeSpacingTest {
-    private val base = TGLayoutConfig()
+    // Assert the raw native equations. SpatialSafetyTest separately exercises the
+    // default safety layer and proves ordinary unconstrained grids do not move.
+    private val base = TGLayoutConfig(avoidAnnotationCollisions=false)
     private val tuning = listOf(64,59,55,50,45,40)
     private fun bar(index: Int = 0, values: List<Int> = listOf(2,4,8,8), chordIndices: Set<Int> = emptySet()): TGMeasure {
         var tick = 960+index*3840L

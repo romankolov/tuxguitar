@@ -31,5 +31,6 @@ class TGComposeTextMetrics(private val measurer: TextMeasurer, private val typog
         if (cache.size > 512) cache.remove(cache.keys.first())
         return result
     }
+    override fun firstBaseline(text: String, role: TGTextRole): Float = layout(text,role).firstBaseline
     override fun measure(text: String, role: TGTextRole): TGTextSize = layout(text, role).let { TGTextSize(it.size.width.toFloat(), it.size.height.toFloat()) }
 }

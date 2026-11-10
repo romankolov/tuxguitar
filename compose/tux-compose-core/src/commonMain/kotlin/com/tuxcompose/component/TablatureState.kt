@@ -14,7 +14,7 @@ data class TGSelection(val trackIndex: Int, val anchorTick: Long, val focusTick:
     val endTick: Long get() = maxOf(anchorTick, focusTick)
 }
 
-enum class CursorStyle { Line, Block, Glow }
+enum class CursorStyle { Line, Block, Glow, Capsule }
 enum class CursorAnimation { Solid, Blink, Pulse }
 @Immutable
 data class TGCursorConfig(
@@ -35,9 +35,17 @@ data class TGCursorConfig(
     val scrollAnimationMillis: Int = 280,
     /** Idle grace after drag, wheel, fling or zoom; browsing away also waits for cursor visibility. */
     val followResumeDelayMillis: Int = 1200,
+    /** Fixed outer-width floor. The font-sized two-digit fret slot, never active note ink, determines the width. */
+    val capsuleWidth: Float = 6f,
+    /** Vertical inset inside musical row lanes, excluding leading captions/chord metadata. */
+    val capsuleInset: Float = 6f,
+    /** Horizontal padding around the fixed two-digit fret slot, in logical units. */
+    val capsuleInnerPadding: Float = 2f,
 ) {
     init {
         require(width.isFinite() && width > 0 && blockAlpha in 0f..1f && animationMillis > 0)
+        require(capsuleWidth.isFinite() && capsuleWidth > 0 && capsuleInset.isFinite() && capsuleInset >= 0)
+        require(capsuleInnerPadding.isFinite() && capsuleInnerPadding >= 0f)
         require(movementAnimationMillis >= 0 && scrollAnimationMillis >= 0 && followResumeDelayMillis >= 0)
     }
 }

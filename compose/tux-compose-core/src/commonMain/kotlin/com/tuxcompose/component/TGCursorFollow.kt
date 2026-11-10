@@ -6,9 +6,9 @@ import androidx.compose.ui.geometry.Rect
 import com.tuxcompose.layout.TGCursorLayout
 
 /** Visibility is used to rejoin after manual browsing, not to block normal system transitions. */
-internal fun cursorIntersectsViewport(cursor: TGCursorLayout?, viewport: Rect): Boolean = cursor != null &&
+internal fun cursorIntersectsViewport(cursor: TGCursorLayout?, viewport: Rect, notationOnly: Boolean = false): Boolean = cursor != null &&
     cursor.x >= viewport.left && cursor.x <= viewport.right &&
-    cursor.beat.bounds.bottom > viewport.top && cursor.beat.bounds.top < viewport.bottom
+    (if (notationOnly) cursor.capsuleBounds else cursor.bounds).let { it.bottom > viewport.top && it.top < viewport.bottom }
 
 /**
  * Test against the PLANNED viewport, not the in-flight animated scroll position. Otherwise

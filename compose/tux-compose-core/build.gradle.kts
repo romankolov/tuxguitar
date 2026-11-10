@@ -2,11 +2,15 @@ plugins {
     kotlin("multiplatform")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose")
-    id("com.android.library")
+    id("com.android.kotlin.multiplatform.library")
     `maven-publish`
 }
 kotlin {
-    androidTarget { publishLibraryVariants("release") }
+    android {
+        namespace = "com.tuxcompose.core"
+        compileSdk = 37
+        minSdk = 24
+    }
     jvm("desktop")
     if (providers.gradleProperty("enableIos").orNull == "true") {
         iosArm64()
@@ -25,22 +29,24 @@ kotlin {
         commonTest.dependencies { implementation(kotlin("test")) }
     }
 }
-android {
-    namespace = "com.tuxcompose.core"
-    compileSdk = 35
-    defaultConfig { minSdk = 24 }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-}
 publishing {
     publications.withType<MavenPublication>().configureEach {
         pom {
             name.set("Tux Compose Core")
             description.set("Model-to-Canvas Compose notation. No parsers or playback.")
-            url.set("https://github.com/romankolov/tuxguitar/tree/master/compose")
-            licenses { license { name.set("LGPL-2.1-or-later"); url.set("https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html") } }
+            url.set("https://github.com/romankolov/tuxguitar/tree/arena/285632fe-tuxguitar/compose")
+            licenses {
+                license { name.set("LGPL-2.1-or-later"); url.set("https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html") }
+                license { name.set("MPL-2.0 (TGAlphaEffectLayout.kt)"); url.set("https://www.mozilla.org/MPL/2.0/") }
+            }
         }
     }
+}
+
+// Actual pinned alphaTab results are generated/verified before Gradle in CI.
+// JVM test input only: no parser, Node runtime or reference code is published.
+tasks.withType<Test>().configureEach {
+    val fixtures=rootProject.layout.projectDirectory.file("tools/upstream/alpha-1.9.0.tsv")
+    inputs.file(fixtures).withPropertyName("alphaTabOracle")
+    systemProperty("tux.compose.upstream.fixtures",fixtures.asFile.absolutePath)
 }

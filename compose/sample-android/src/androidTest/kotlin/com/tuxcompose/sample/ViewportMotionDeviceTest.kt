@@ -204,7 +204,7 @@ class ViewportMotionDeviceTest {
 
     private fun assertMagentaNear(point: Offset, state: TablatureState, layout: TGSongLayout,
         radius: Int = 4, maxGreen: Float = .4f) {
-        val image = compose.onNodeWithTag("viewport").captureToImage()
+        val image = compose.onNodeWithTag("viewport").captureScoreImage()
         val pixels = image.toPixelMap()
         val factor = image.width/layout.width
         val px = ((point.x-state.scrollX)*factor).toInt()
@@ -219,7 +219,7 @@ class ViewportMotionDeviceTest {
     }
 
     private fun magentaCursorX(): Float {
-        val image = compose.onNodeWithTag("viewport").captureToImage()
+        val image = compose.onNodeWithTag("viewport").captureScoreImage()
         val pixels = image.toPixelMap()
         var sum = 0L
         var count = 0

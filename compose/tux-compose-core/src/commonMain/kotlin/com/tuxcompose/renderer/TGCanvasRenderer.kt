@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 package com.tuxcompose.renderer
 
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.drawText
 import com.tuxcompose.component.CursorStyle
 import com.tuxcompose.component.TGCursorConfig
 import com.tuxcompose.component.TGSelection
+import com.tuxcompose.component.capsuleCursorGeometry
 import com.tuxcompose.layout.*
 import com.tuxcompose.model.*
 import com.tuxcompose.renderer.glyphs.*
@@ -23,15 +27,26 @@ import kotlin.math.max
 /** Pure Compose vectors. Coordinates and unit glyph paths never pass through Android Canvas/View. */
 class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGComposeTextMetrics) {
     private val colors get() = config.colors
+    // Font-relative but beat-independent: voices, chords, slides, accidentals and
+    // ornaments must not make the capsule "breathe" while the cursor moves.
+    private val capsuleFretSlot by lazy { (0..99).maxOf { text.measure(it.toString().padStart(2,'0'),TGTextRole.Note).width } }
+    // Cache vector GEOMETRY, never a low-resolution bitmap. Android 7 HWUI can
+    // raster-cache a normalized 1x1 path before its Canvas scale, blurring heads
+    // and clefs. Bake physical-size vertices first and cancel the same scale on
+    // the Canvas: final geometry/stroke and layout coordinates remain identical.
+    private val glyphPaths = mutableMapOf<TGVectorGlyph,MutableMap<Float,Path>>()
+    private data class OfflineGlyph(val path: Path,val fill: Boolean,val caption: Boolean)
+    private val offlineGlyphs=mutableMapOf<Triple<TGOfflineEffectKind,Float,Float>,OfflineGlyph>()
 
     fun DrawScope.render(layout: TGSongLayout, viewport: Rect) {
         layout.visible(viewport).forEach { staff ->
             layout.visibleMeasures(staff, viewport).forEach { measure -> renderMeasure(measure) }
             layout.visibleConnections(staff,viewport).forEach { renderConnection(it) }
+            layout.visibleAnnotations(staff,viewport).forEach { renderAnnotation(it,viewport) }
         }
     }
 
-    /** One fragment's notation; render() additionally draws each staff's cached connections. */
+    /** One fragment's notation; render() additionally draws cached row connections/annotations. */
     fun DrawScope.renderMeasure(layout: TGMeasureLayout) {
         val b = layout.bounds
         layout.staffTop?.let { top -> repeat(5) { i -> line(b.left, top + i * config.staffSpacing, b.right, top + i * config.staffSpacing, colors.staffLines, .6f) } }
@@ -42,20 +57,30 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         barlines(layout)
         header(layout)
         layout.beats.forEach { beat ->
-            if (!beat.isContinuation) beat.beat.text?.let { label(it, beat.x, layout.textTop, TGTextRole.Text, colors.beatText) }
+            if (!layout.plannedAnnotations && !beat.isContinuation) beat.beat.text?.let { labelAtBaseline(it,Offset(beat.x,layout.textTop),TGTextRole.Text,colors.beatText) }
             if (!beat.isContinuation) beat.beat.chord?.let { chord(layout, beat, it) }
-            (if (beat.isContinuation) emptyList() else effectLabels(beat.beat)).forEachIndexed { i, effect ->
-                val y = layout.effectsTop + i * config.effectSpacing
-                when (effect) {
-                    ">" -> { line(beat.x, y + 1, beat.x + 6, y + 3, colors.noteHead); line(beat.x + 6, y + 3, beat.x, y + 5, colors.noteHead) }
-                    "~" -> vibrato(beat.x, y + 3, minOf(beat.bounds.width, 18f))
-                    "<" -> { line(beat.x + 7, y + 1, beat.x, y + 3, colors.noteHead); line(beat.x, y + 3, beat.x + 7, y + 5, colors.noteHead) }
-                    else -> label(effect, beat.x - 1, y - 1, TGTextRole.Text, colors.beatText)
+            val labels=(if(layout.plannedAnnotations || beat.isContinuation) emptyList() else effectLabels(beat.beat))
+                .filterNot {config.showStandardNotation && it in listOf("N.H","A.H","T.H","P.H","S.H")}
+            val ordered=labels // TGBeatSpacing declaration order, not paint-call order.
+            val categories=ordered.map {if(it in listOf("N.H","A.H","T.H","P.H","S.H")) "harmonic" else it}.distinct()
+            ordered.forEach {effect->
+                val category=if(effect in listOf("N.H","A.H","T.H","P.H","S.H")) "harmonic" else effect
+                val y=layout.effectsTop+maxOf(0f,layout.effectLaneHeight-categories.size*config.effectSpacing)+categories.indexOf(category)*config.effectSpacing
+                val kind=nativeOfflineKind(effect)
+                if(kind!=null) {
+                    val source=beat.voices.firstOrNull {v->effect in effectLabels(beat.beat.copy(voices=kotlinx.collections.immutable.persistentListOf(v.voice)))}
+                    offlineEffect(kind,beat.x,y,source?.effectWidth ?: (beat.endX-beat.x))
+                } else {
+                    val value=if(effect=="let ring") "L.R" else effect
+                    labelAtBaseline(value,Offset(beat.x,y+2f+.8f*text.firstBaseline(value,TGTextRole.Text)),TGTextRole.Text,colors.beatText)
                 }
             }
             beat.voices.forEach { voice ->
                 if (voice.notes.isEmpty()) rest(layout, beat, voice)
-                else voice.notes.forEach { note -> note(layout, beat, voice, note) }
+                else {
+                    voice.notes.forEach { note -> note(layout, beat, voice, note) }
+                    voice.augmentationDots.forEach {p->dots(voice.duration,p.x,p.y,config.staffSpacing/10f)}
+                }
             }
             // A beat with no voice is the public model's convenience rest.
             if (beat.voices.isEmpty()) rest(layout, beat, TGVoiceLayout(TGVoice(), beat.beat.duration, emptyList(), true, beat.x, 0f, 0f, -1))
@@ -92,6 +117,12 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         val base = cursor.color ?: colors.cursor
         val color = base.copy(alpha = base.alpha * opacity)
         when (cursor.style) {
+            CursorStyle.Capsule -> {
+                capsuleCursorGeometry(x,position.capsuleBounds,cursor,capsuleFretSlot)?.let { g ->
+                    drawRoundRect(color,g.pathBounds.topLeft,g.pathBounds.size,
+                        CornerRadius(g.radius,g.radius),style=Stroke(g.strokeWidth))
+                }
+            }
             CursorStyle.Line -> line(x - 3, b.top + 4, x - 3, b.bottom - 4, color, cursor.width)
             CursorStyle.Block -> drawRect(color.copy(alpha = color.alpha * cursor.blockAlpha), b.topLeft, b.size)
             CursorStyle.Glow -> {
@@ -106,8 +137,8 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     }
 
     private fun DrawScope.barlines(m: TGMeasureLayout) {
-        val top = m.staffTop ?: m.tabTop ?: return
-        val bottom = m.tabBottom ?: (top + 4 * config.staffSpacing)
+        val top = m.barlineTop(config) ?: return
+        val bottom = m.tabBottom?.let {if(m.tabTop==it) it+config.stringSpacing else it} ?: (top + 4 * config.staffSpacing)
         if (m.isFirstFragment) line(m.bounds.left,top,m.bounds.left,bottom,colors.staffLines)
         if (m.isLastFragment) line(m.bounds.right,top,m.bounds.right,bottom,colors.staffLines)
         if (m.isFirstFragment && m.measure.header.repeatOpen) {
@@ -119,7 +150,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             line(m.bounds.right - 2, top, m.bounds.right - 2, bottom, colors.noteHead, 3f)
             line(m.bounds.right - 7, top, m.bounds.right - 7, bottom, colors.noteHead)
             repeatDots(m, m.bounds.right - 11)
-            if (m.measure.header.repeatClose > 1) label("×${m.measure.header.repeatClose + 1}", m.bounds.right - 20, m.bounds.top, TGTextRole.Text, colors.beatText)
+            val repetitions="x${m.measure.header.repeatClose}"
+            m.repeatCountBaseline(config,text.measure(repetitions,TGTextRole.Text).width)?.let {
+                labelAtBaseline(repetitions,it,TGTextRole.Text,colors.beatText)
+            }
         }
     }
     private fun DrawScope.repeatDots(m: TGMeasureLayout, x: Float) {
@@ -131,8 +165,10 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     private fun DrawScope.header(m: TGMeasureLayout) {
         val x = m.headerX
         val top = m.staffTop
-        if (config.showMeasureNumbers && m.isFirstFragment) label(m.measure.number.toString(), m.bounds.left + 2, m.bounds.top, TGTextRole.Measure, colors.measureNumber)
-        m.measure.header.marker?.takeIf { m.isFirstFragment }?.let { label(it, x, m.bounds.top + 10, TGTextRole.Chord, colors.beatText) }
+        if (config.showMeasureNumbers && m.isFirstFragment) m.measureNumberBaseline(config)?.let {
+            labelAtBaseline(m.measure.number.toString(),it,TGTextRole.Measure,colors.measureNumber)
+        }
+        m.measure.header.marker?.takeIf { m.isFirstFragment && (!m.plannedAnnotations || !config.avoidAnnotationCollisions) }?.let { labelAtBaseline(it,Offset(m.beatAreaLeft,m.markerBaseline),TGTextRole.Text,colors.beatText) }
         if (m.paintClef && top != null) {
             val glyph = if (m.percussion) TGClefPainter.NEUTRAL else when (m.measure.clef) {
                 TGClef.Treble -> TGClefPainter.TREBLE
@@ -157,7 +193,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         if (m.paintTripletFeel && m.isFirstFragment) tripletFeel(m)
         if (m.paintTempo && config.nativeSpacing) tempo(m)
         if (m.paintTempo && !config.nativeSpacing) {
-            val y = (top ?: m.tabTop ?: m.bounds.top + 24) - maxOf(config.staffSpacing, config.stringSpacing) - 19
+            val y = m.headerBaseline?.minus(24f) ?: ((top ?: m.tabTop ?: m.bounds.top + 24) - maxOf(config.staffSpacing, config.stringSpacing) - 19)
             glyph(TGNotePainter.NOTE, x, y + 12, 4f)
             line(x + 4.5f, y, x + 4.5f, y + 14, colors.noteHead)
             label("= ${m.measure.header.tempo}", x + 9, y + 6, TGTextRole.Text, colors.beatText)
@@ -170,8 +206,8 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         val mark = m.measure.header.tempoMark ?: TGTempoMark(m.measure.header.tempo)
         val x = m.headerX
         val lineSpacing = maxOf(config.staffSpacing,config.stringSpacing)
-        val baseline = (m.staffTop ?: m.tabTop ?: m.bounds.top)-lineSpacing*
-            (if (m.staffTop == null && m.tabTop == m.tabBottom) 2 else 1)
+        val baseline = m.headerBaseline ?: ((m.staffTop ?: m.tabTop ?: m.bounds.top)-lineSpacing*
+            (if (m.staffTop == null && m.tabTop == m.tabBottom) 2 else 1))
         val pixel = 1f/config.renderScale
         val height = rounded(17.5f)
         val width = rounded(6.65f)
@@ -189,7 +225,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
     private fun DrawScope.tripletFeel(m: TGMeasureLayout) {
         fun rounded(v: Float) = kotlin.math.floor(v*config.renderScale+.5f)/config.renderScale
         val x = m.headerX+if (m.paintTempo) rounded(45f) else 0f
-        val baseline = (m.staffTop ?: m.tabTop ?: m.bounds.top)-maxOf(config.staffSpacing,config.stringSpacing)
+        val baseline = m.headerBaseline ?: ((m.staffTop ?: m.tabTop ?: m.bounds.top)-maxOf(config.staffSpacing,config.stringSpacing))
         val equal = " = "
         val equalWidth = text.measure(equal,TGTextRole.Text).width
         label(equal,x+16f,baseline-3.75f-text.measure(equal,TGTextRole.Text).height,TGTextRole.Text,colors.beatText)
@@ -249,11 +285,12 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
                 percussion && n.pitch == 53 -> TGNotePainter.HARMONIC
                 else -> TGNotePainter.NOTE
             }
-            glyph(glyph, b.left + if (fill) -.06f * b.height else 0f, b.top + if (fill) .06f * b.height else .1f * b.height, b.height * if (fill) .9f else .8f,
+            if(n.paintScoreHead) glyph(glyph, b.left + if (fill) -.06f * b.height else 0f, b.top + if (fill) .06f * b.height else .1f * b.height, b.height * if (fill) .9f else .8f,
                 filled = fill && glyph !== TGNotePainter.PERCUSSION_X)
             n.accidental?.let { accidental ->
                 val a = when (accidental) { TGAccidental.Sharp -> TGKeySignaturePainter.SHARP; TGAccidental.Flat -> TGKeySignaturePainter.FLAT; TGAccidental.Natural -> TGKeySignaturePainter.NATURAL }
-                glyph(a, b.left - config.staffSpacing * .75f, b.center.y, config.staffSpacing)
+                val origin=n.accidentalOrigin ?: Offset(b.left-config.staffSpacing*.75f,b.center.y)
+                glyph(a,origin.x,origin.y,config.staffSpacing)
             }
             // Ledger lines follow the glyph center, in diatonic half-line steps.
             val centerY = b.center.y
@@ -262,10 +299,11 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             while (ledger >= centerY - .1f) { line(b.left - 2, ledger, b.right + 2, ledger, colors.staffLines); ledger -= config.staffSpacing }
             ledger = staff + 5 * config.staffSpacing
             while (ledger <= centerY + .1f) { line(b.left - 2, ledger, b.right + 2, ledger, colors.staffLines); ledger += config.staffSpacing }
-            dots(voice.duration, b.left + 12f * config.staffSpacing / 8, b.center.y, config.staffSpacing / 10)
+            if(voice.augmentationDots.isEmpty()) dots(voice.duration, b.left + 12f * config.staffSpacing / 8, b.center.y, config.staffSpacing / 10)
             n.note.effects.grace?.takeUnless { voice.isContinuation }?.let { grace ->
-                glyph(if (grace.dead) TGNotePainter.PERCUSSION_X else TGNotePainter.NOTE, b.left - 9, b.top + 1, b.height * .55f)
-                line(b.left - 4, b.top - 10, b.left - 4, b.top + 4, colors.noteHead, .7f)
+                val origin=n.graceScoreOrigin ?: Offset(b.left-9,b.top+1)
+                glyph(if (grace.dead) TGNotePainter.PERCUSSION_X else TGNotePainter.NOTE, origin.x,origin.y,b.height*.55f)
+                line(origin.x+5,origin.y-11,origin.x+5,origin.y+3,colors.noteHead,.7f)
             }
             if (n.note.effects.staccato && !voice.isContinuation) drawCircle(colors.noteHead, 1.3f, Offset(b.center.x, if (voice.up) voice.stemEndY - 4 else voice.stemEndY + 4))
         }
@@ -371,12 +409,16 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
                     }
                 }
             }
-            if (config.showChordNames) label(chord.name,bounds.center.x+4f-text.measure(chord.name,TGTextRole.Chord).width/2,
-                bounds.top+(if (config.showChords) 42f else 0f),TGTextRole.Chord,colors.noteHead)
+            if (config.showChordNames && (!m.plannedAnnotations || !config.avoidAnnotationCollisions))
+                labelAtBaseline(chord.name,Offset(bounds.center.x+4f-text.measure(chord.name,TGTextRole.Chord).width/2,
+                    bounds.top+(if(config.showChords) 42f else 0f)+.8f*text.firstBaseline(chord.name,TGTextRole.Chord)),TGTextRole.Chord,colors.noteHead)
             return
         }
-        label(chord.name, bounds.left, bounds.top, TGTextRole.Chord, colors.noteHead)
-        val top = bounds.top + 13; val left = bounds.left + 8; val width = (chord.frets.size - 1) * 5f
+        if (config.showChordNames && (!m.plannedAnnotations || !config.avoidAnnotationCollisions))
+            label(chord.name, bounds.left, bounds.top, TGTextRole.Chord, colors.noteHead)
+        if (!config.showChords) return
+        // Planned names use their own measured lane below the diagrams.
+        val top = bounds.top + if (m.plannedAnnotations && config.avoidAnnotationCollisions) 8f else 13f; val left = bounds.left + 8; val width = (chord.frets.size - 1) * 5f
         repeat(chord.frets.size) { i -> line(left + i * 5, top, left + i * 5, top + 24, colors.staffLines, .5f) }
         repeat(5) { i -> line(left, top + i * 6, left + width, top + i * 6, colors.staffLines, if (i == 0 && chord.firstFret == 1) 1.8f else .5f) }
         chord.frets.forEachIndexed { i, fret ->
@@ -393,7 +435,8 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         val movements = effect.movements()
         var x = bounds.right + 1
         val low = bounds.center.y
-        val high = m.bendTop + 8
+        val labelHeight=text.measure("1",TGTextRole.Grace).height
+        val high = m.bendTop + if(config.avoidAnnotationCollisions) maxOf(8f,labelHeight+3f) else 8f
         if (movements.isEmpty()) {
             repeat(4) { i -> line(x + i * 5, high, x + i * 5 + 2.5f, high, colors.noteHead, .8f) }
             return
@@ -407,7 +450,7 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
             line(x+width,y1,x+width-2,y1+2*sign,colors.noteHead,.8f)
             line(x+width,y1,x+width+2,y1+2*sign,colors.noteHead,.8f)
             val amplitude = abs(movement).let { if (it % 4 == 0) (it / 4).toString() else "$it/4" }
-            label(amplitude,x+width,m.bendTop-1,TGTextRole.Grace,colors.beatText,centered=true)
+            label(amplitude,x+width,m.bendTop+(if(config.avoidAnnotationCollisions) labelHeight/2f+1f else -1f),TGTextRole.Grace,colors.beatText,centered=true)
             x += width
         }
     }
@@ -416,6 +459,28 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         val radius = if (config.nativeSpacing) 1.5f else 1.2f
         drawCircle(colors.noteHead, radius*scale, Offset(x,y))
         if (duration.doubleDotted) drawCircle(colors.noteHead, radius*scale, Offset(x+(if (config.nativeSpacing) 5f else 4f)*scale,y))
+    }
+    /** Original TGNoteImpl paths, cached at final physical size like the native vector font. */
+    private fun DrawScope.offlineEffect(kind: TGOfflineEffectKind,x: Float,y: Float,width: Float) {
+        val trWidth=if(kind==TGOfflineEffectKind.Trill) text.measure("Tr",TGTextRole.Text).width else 0f
+        val glyph=offlineGlyphs.getOrPut(Triple(kind,width,trWidth)) {
+            val calls=nativeOfflineEffectPaintCalls(kind,width,trWidth)
+            val s=config.renderScale
+            val path=Path().apply {calls.forEach {(op,v)->when(op) {
+                "moveTo"->moveTo(v[0]*s,v[1]*s)
+                "lineTo"->lineTo(v[0]*s,v[1]*s)
+                "cubicTo"->cubicTo(v[0]*s,v[1]*s,v[2]*s,v[3]*s,v[4]*s,v[5]*s)
+                // UIPainter.closePath flushes, it does not close the contour.
+                else->Unit
+            }}}
+            OfflineGlyph(path,kind==TGOfflineEffectKind.Vibrato || kind==TGOfflineEffectKind.Trill,calls.isNotEmpty())
+        }
+        val s=config.renderScale
+        withTransform({translate(x,y);scale(1f/s,1f/s,Offset.Zero)}) {
+            drawPath(glyph.path,colors.noteHead,style=if(glyph.fill) Fill else Stroke(s))
+        }
+        if(kind==TGOfflineEffectKind.Trill && glyph.caption)
+            labelAtBaseline("Tr",Offset(x,y+2f+.8f*text.firstBaseline("Tr",TGTextRole.Text)),TGTextRole.Text,colors.beatText)
     }
     private fun DrawScope.vibrato(x: Float, y: Float, width: Float) {
         val p = Path().apply {
@@ -441,15 +506,58 @@ class TGCanvasRenderer(private val config: TGLayoutConfig, private val text: TGC
         }
         connection.label?.let { label(it,(from.x+to.x)/2,minOf(from.y,to.y)-9,TGTextRole.Grace,colors.beatText,centered=true) }
     }
+    /** Caption and continuation ink share the same measured, collision-free cached geometry. */
+    fun DrawScope.renderAnnotation(a: TGAnnotationLayout, viewport: Rect = a.clipBounds) {
+        clipRect(a.clipBounds.left,a.clipBounds.top,a.clipBounds.right,a.clipBounds.bottom) {
+            val native=a.nativeEffect ?: when(a.kind) {
+                TGAnnotationKind.Accent->TGOfflineEffectKind.Accent
+                TGAnnotationKind.FadeIn->TGOfflineEffectKind.FadeIn
+                TGAnnotationKind.Vibrato->TGOfflineEffectKind.Vibrato
+                else->null
+            }
+            if(native!=null) offlineEffect(native,a.labelBounds.left,a.labelBounds.top,a.effectWidth)
+            else a.visibleLines(viewport).forEach {i->
+                label(a.lines[i],a.labelBounds.left,a.labelBounds.top+i*a.lineHeight,
+                    if(a.band==TGAnnotationBand.ChordNames) TGTextRole.Chord else TGTextRole.Text,
+                    if(a.band==TGAnnotationBand.ChordNames) colors.noteHead else colors.beatText)
+            }
+            val from = a.lineFrom; val to = a.lineTo
+            if (from != null && to != null) {
+                // Limit dash work to the visible interval, retaining the original dash phase.
+                // Explicit segments also work on API-24 hardware Canvas, where
+                // drawLine's dash PathEffect is ignored. Never scan offscreen dashes.
+                forEachLetRingDash(from.x,to.x,viewport.left-1,viewport.right+1,a.dashSize,a.dashGap) { left,right ->
+                    // LineRangedGlyph uses filled rectangles, with a butt edge at
+                    // the note anchor; no stroke-centred cap or platform dash effect.
+                    drawRect(colors.beatText,Offset(left,from.y-a.lineThickness/2f),Size(right-left,a.lineThickness))
+                }
+                if (a.endCap && to.x >= viewport.left-1 && to.x <= viewport.right+1)
+                    drawRect(colors.beatText,Offset(to.x,to.y-a.capSize/2f),Size(a.lineThickness,a.capSize))
+            }
+        }
+    }
+
     private fun DrawScope.glyph(g: TGVectorGlyph, x: Float, y: Float, size: Float, filled: Boolean = true) {
-        withTransform({ translate(x,y); scale(size,size,Offset.Zero) }) {
-            drawPath(g.path,colors.noteHead,style=if (filled) Fill else Stroke(.8f / size))
+        val factor=config.renderScale
+        val path=glyphPaths.getOrPut(g) { mutableMapOf() }.getOrPut(size) {
+            Path().apply {
+                addPath(g.path)
+                transform(Matrix().apply { scale(size*factor,size*factor) })
+            }
+        }
+        withTransform({ translate(x,y); scale(1f/factor,1f/factor,Offset.Zero) }) {
+            drawPath(path,colors.noteHead,style=if (filled) Fill else Stroke(.8f*factor))
         }
     }
     private fun digitsWidth(value: Int, size: Float): Float = value.toString().sumOf { TGNumberPainter.digit(it.digitToInt()).width.toDouble() }.toFloat() * size + (value.toString().length-1) * .1f*size
     private fun DrawScope.digits(value: Int, x: Float, y: Float, size: Float) {
         var dx = x
         value.toString().forEach { c -> val glyph = TGNumberPainter.digit(c.digitToInt()); glyph(glyph,dx,y,size); dx+=(glyph.width+.1f)*size }
+    }
+    /** Android UIPainter.drawString takes a BASELINE, Compose drawText a TOP. */
+    private fun DrawScope.labelAtBaseline(value: String, baseline: Offset, role: TGTextRole, color: Color) {
+        val result=text.layout(value,role)
+        drawText(result,color=color,topLeft=Offset(baseline.x,baseline.y-result.firstBaseline))
     }
     private fun DrawScope.label(value: String, x: Float, y: Float, role: TGTextRole, color: Color, centered: Boolean = false) {
         val result = text.layout(value,role)

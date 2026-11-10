@@ -1,32 +1,38 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 package com.tuxcompose.sample
 
 import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tuxcompose.component.*
 import com.tuxcompose.demo.*
 import com.tuxcompose.layout.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,168 +41,228 @@ import java.io.ByteArrayInputStream
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent { TuxComposeDemo() }
     }
 }
 
 @Composable
 fun TuxComposeDemo() {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val state = rememberTablatureState(initialCursorTick=960)
-    val player = remember { DemoPlayback(context,scope,state) }
-    val midi = remember { ExternalMidi(context,player.audio) }
-    var imported by remember { mutableStateOf<ImportedScore?>(null) }
-    var status by remember { mutableStateOf("Preparing Guitar Pro demo…") }
+    val context=LocalContext.current
+    val scope=rememberCoroutineScope()
+    val uriHandler=LocalUriHandler.current
+    val store=remember { context.getSharedPreferences("studio-settings",android.content.Context.MODE_PRIVATE) }
+    var preferences by remember { mutableStateOf(StudioPreferences.load(store)) }
+    LaunchedEffect(preferences) { preferences.save(store) }
+    val session: StudioSession=viewModel()
+    val state=session.state
+    val player=session.player
+    val midi=session.midi
+    var imported by session::imported
+    var status by session::status
     var error by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    var mode by remember { mutableStateOf(TGLayoutStyles.Mixed) }
-    var orientation by remember { mutableStateOf(TGLayoutOrientation.Page) }
-    var palette by remember { mutableIntStateOf(0) }
-    var cursorStyle by remember { mutableStateOf(CursorStyle.Line) }
-    var smoothCursor by remember { mutableStateOf(true) }
-    var smoothFollow by remember { mutableStateOf(true) }
-    var cursorVisible by remember { mutableStateOf(true) }
-    var followCursor by remember { mutableStateOf(true) }
-    var multiTrack by remember { mutableStateOf(false) }
-    var showChords by remember { mutableStateOf(false) }
-    var showChordNames by remember { mutableStateOf(false) }
-    var compact by remember { mutableStateOf(true) }
-    var justifyRows by remember { mutableStateOf(true) }
-    var showSettings by remember { mutableStateOf(false) }
-    var midiMenu by remember { mutableStateOf(false) }
-    var midiStatus by remember { mutableStateOf("Internal synth") }
-    var spacing by remember { mutableFloatStateOf(10f) }
-    val colors = when (palette) { 1 -> TGColorPalette.Dark; 2 -> TGColorPalette.HighContrast; else -> TGColorPalette.Paper }
-    val layout = remember(mode,orientation,colors,multiTrack,spacing,showChords,showChordNames,compact,justifyRows) {
-        TGLayoutConfig(style=mode,orientation=orientation,colors=colors,multiTrack=multiTrack,stringSpacing=spacing,
-            compact=compact,justifySystems=justifyRows,showChords=showChords,showChordNames=showChordNames)
+    var busy by remember { mutableStateOf(true) }
+    var settings by remember { mutableStateOf<SettingsPage?>(null) }
+    var trackSheet by remember { mutableStateOf(false) }
+    var sectionsSheet by remember { mutableStateOf(false) }
+    var scoreLayout by remember { mutableStateOf<TGSongLayout?>(null) }
+    var midiSheet by remember { mutableStateOf(false) }
+    var details by remember { mutableStateOf(false) }
+    var about by remember { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
+    var midiStatus by session::midiStatus
+    var soundFont by session::soundFont
+    val snackbar=remember { SnackbarHostState() }
+    LaunchedEffect(preferences.reverb,preferences.chorus) {
+        withContext(Dispatchers.IO) { player.audio.setEffects(preferences.reverb,preferences.chorus) }
     }
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycle=LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
-        val observer=LifecycleEventObserver { _,event -> if (event == Lifecycle.Event.ON_STOP) player.pause() }
+        val observer=LifecycleEventObserver { _,event -> if(event==Lifecycle.Event.ON_STOP) player.pause() }
         lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer); midi.close(); player.dispose() }
+        onDispose { lifecycle.removeObserver(observer) }
     }
-    fun install(score: ImportedScore) {
-        player.load(score); imported=score; state.song=score.score; state.selectedTrackIndex=0
-        state.clearSelection(); state.cursor.seek(score.score.tracks.first().measures.first().start); state.scrollTo(0f,0f)
-        status="${score.format} · ${score.score.tracks.size} tracks · ${score.score.tracks.first().measures.size} measures"
-        error=null
+    fun install(score: ImportedScore, resetPosition: Boolean = true) {
+        scoreLayout=null
+        player.load(score); imported=score; state.song=score.score
+        state.selectedTrackIndex=if(resetPosition) 0 else state.selectedTrackIndex.coerceIn(0,score.score.tracks.lastIndex)
+        val measures=score.score.tracks[state.selectedTrackIndex].measures
+        val tick=if(resetPosition) measures.first().start else state.cursorTick.coerceIn(measures.first().start,measures.last().end-1)
+        state.clearSelection(); state.cursor.seek(tick); player.seek(tick)
+        if(resetPosition) state.scrollTo(0f,0f)
+        status="${score.format} · ${score.score.tracks.first().measures.size} measures"; error=null
     }
     LaunchedEffect(Unit) {
-        busy=true
+        if(imported!=null) { busy=false; return@LaunchedEffect }
+        val restoredUri=session.sourceUri
+        val restoredName=session.sourceName
         try {
-            // Exercise the actual GP5 decoder on startup, not a parallel mock data path.
-            val score=withContext(Dispatchers.IO) { TuxGuitarImporter.read(ByteArrayInputStream(DemoSongFactory.guitarPro()),"greenwood.gp5") }
-            install(score)
-        } catch (e: Exception) { error=e.message; status="Demo could not load" }
+            // Retain decoded data/bank across resize; re-decode the saved URI after process death.
+            install(withContext(Dispatchers.IO) {
+                restoredUri?.let { value ->
+                    requireNotNull(context.contentResolver.openInputStream(android.net.Uri.parse(value))).use { TuxGuitarImporter.read(it,restoredName) }
+                } ?: TuxGuitarImporter.read(ByteArrayInputStream(ShowcaseSongFactory.lossless()),"technique-atlas.tg")
+            },resetPosition=false)
+        } catch(e: CancellationException) { throw e }
+        catch(e: Exception) { error=e.message ?: "The demo could not be opened"; status="Unable to load score" }
         finally { busy=false }
     }
-    val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            busy=true; player.pause()
+    fun fileName(uri: android.net.Uri, fallback: String): String =
+        context.contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { c ->
+            if(c.moveToFirst()) c.getString(0) else null
+        } ?: fallback
+    val open=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) scope.launch {
+            busy=true; error=null; player.pause()
             try {
-                val score=withContext(Dispatchers.IO) {
-                    val name=context.contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { c ->
-                        if (c.moveToFirst()) c.getString(0) else null
-                    } ?: uri.lastPathSegment ?: "score.gp5"
+                val name=withContext(Dispatchers.IO) { fileName(uri,"score.gp5") }
+                install(withContext(Dispatchers.IO) {
                     requireNotNull(context.contentResolver.openInputStream(uri)).use { TuxGuitarImporter.read(it,name) }
-                }
-                install(score)
-            } catch (e: Exception) { error=e.message ?: "Unable to decode the selected file" }
+                })
+                session.sourceName=name
+                session.sourceUri=try {
+                    context.contentResolver.takePersistableUriPermission(uri,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    uri.toString()
+                } catch(_: SecurityException) { null }
+            } catch(e: CancellationException) { throw e }
+            catch(e: Exception) { error=e.message ?: "Unable to decode this file" }
             finally { busy=false }
         }
     }
-    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        if (uri != null) scope.launch(Dispatchers.IO) {
-            runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(DemoSongFactory.guitarPro()) } }
-                .onFailure { withContext(Dispatchers.Main) { error=it.message } }
+    val openSoundFont=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) scope.launch {
+            busy=true; error=null; player.pause()
+            try {
+                soundFont=withContext(Dispatchers.IO) {
+                    requireNotNull(context.contentResolver.openInputStream(uri)).use(player.audio::loadSoundFont)
+                    fileName(uri,"Custom SoundFont")
+                }; error=null
+            } catch(e: CancellationException) { throw e }
+            catch(e: Exception) { error=e.message ?: "Unable to load this SoundFont" }
+            finally { busy=false }
         }
     }
-    MaterialTheme(colorScheme=if (palette==1) darkColorScheme(primary=Color(0xFF8FDEA6),surface=Color(0xFF17221E)) else lightColorScheme(primary=Color(0xFF176B47),surface=Color(0xFFF4F6F0))) {
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                Row(Modifier.fillMaxWidth().background(Color(0xFF17221E)).padding(horizontal=20.dp,vertical=14.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("TUX / COMPOSE",color=Color(0xFFE7F0E3),fontSize=15.sp,fontWeight=FontWeight.Bold,letterSpacing=2.sp)
-                        Text("THE CANVAS SESSIONS",color=Color(0xFF8DAF98),fontSize=9.sp,letterSpacing=1.7.sp)
+    fun resetBank() { scope.launch {
+        busy=true; error=null; player.pause()
+        try { withContext(Dispatchers.IO) { player.audio.resetSoundFont() }; soundFont="GeneralUser GS 2.0.3" }
+        catch(e: CancellationException) { throw e }
+        catch(e: Exception) { error=e.message ?: "Unable to restore the bank" }
+        finally { busy=false }
+    } }
+    val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if(uri!=null) scope.launch {
+            try {
+                withContext(Dispatchers.IO) { requireNotNull(context.contentResolver.openOutputStream(uri)).use { it.write(ShowcaseSongFactory.guitarPro()) } }
+                snackbar.showSnackbar("Bundled demo exported")
+            } catch(e: CancellationException) { throw e }
+            catch(e: Exception) { error=e.message ?: "Unable to export the bundled demo" }
+        }
+    }
+    LaunchedEffect(error,player.error) {
+        (error ?: player.error)?.let { snackbar.showSnackbar(it,withDismissAction=true,duration=SnackbarDuration.Long) }
+    }
+    StudioTheme(preferences) {
+        val colors=MaterialTheme.colorScheme.notationPalette(preferences.highContrast)
+        val layout=remember(preferences,colors) {
+            TGLayoutConfig(style=preferences.mode,orientation=preferences.orientation,colors=colors,
+                multiTrack=preferences.allTracks,stringSpacing=if(preferences.wideStrings) 14f else 10f,
+                compact=preferences.compact,justifySystems=preferences.justify,spacingMode=preferences.spacing,
+                showChords=preferences.chordDiagrams,showChordNames=preferences.chordNames)
+        }
+        BoxWithConstraints(Modifier.fillMaxSize().semantics { testTagsAsResourceId=true }.testTag("studio-root")) {
+            // Landscape phones and expanded windows get a proper side panel, not a crushed canvas.
+            val wide=maxWidth>=840.dp || (maxWidth>=640.dp && maxHeight<480.dp)
+            Scaffold(containerColor=MaterialTheme.colorScheme.surface,
+                contentWindowInsets=WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal+WindowInsetsSides.Bottom),
+                topBar={ StudioTopBar(imported?.score?.title ?: "Your practice space",status,busy,
+                    {open.launch(arrayOf("*/*"))},{more=true}) {
+                    DropdownMenu(expanded=more,onDismissRequest={more=false}) {
+                        DropdownMenuItem(text={Text("Score details")},leadingIcon={StudioIcon(R.drawable.ic_info)},
+                            onClick={more=false;details=true},modifier=Modifier.testTag("score-details"))
+                        DropdownMenuItem(text={Text("Explore score sections")},leadingIcon={StudioIcon(R.drawable.ic_graphic_eq)},
+                            onClick={more=false;sectionsSheet=true},modifier=Modifier.testTag("score-sections"))
+                        DropdownMenuItem(text={Text("Export showcase GP5")},leadingIcon={StudioIcon(R.drawable.ic_download)},
+                            onClick={more=false;export.launch("technique-atlas.gp5")})
+                        DropdownMenuItem(text={Text("Return to beginning")},leadingIcon={StudioIcon(R.drawable.ic_restart_alt)},
+                            onClick={more=false;player.stop()})
+                        HorizontalDivider()
+                        DropdownMenuItem(text={Text("About Tux Compose")},onClick={more=false;about=true})
                     }
-                    OutlinedButton(onClick={open.launch(arrayOf("*/*"))},enabled=!busy,modifier=Modifier.testTag("open-file"),colors=ButtonDefaults.outlinedButtonColors(contentColor=Color(0xFFE7F0E3))) { Text("Open file") }
-                }
-                Column(Modifier.padding(start=20.dp,end=20.dp,top=16.dp,bottom=8.dp)) {
-                    Text(imported?.score?.title ?: "Score workspace",fontSize=25.sp,fontWeight=FontWeight.SemiBold)
-                    Text(imported?.score?.artist ?: "Model → Layout → Canvas",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(5.dp))
-                    Text(status,fontSize=10.sp,color=MaterialTheme.colorScheme.primary,modifier=Modifier.testTag("import-status"))
-                }
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalAlignment=Alignment.CenterVertically) {
-                    imported?.score?.tracks?.forEachIndexed { i,track ->
-                        FilterChip(selected=state.selectedTrackIndex==i,onClick={state.selectedTrackIndex=i;state.clearSelection()},label={Text(track.name,fontSize=11.sp)},modifier=Modifier.testTag("track-$i"))
+                } },
+                bottomBar={ if(!wide) Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=16.dp,vertical=8.dp)) {
+                    StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound},Modifier.fillMaxWidth(),onSections={sectionsSheet=true})
+                } },
+                snackbarHost={ SnackbarHost(snackbar) { data -> Snackbar(data,modifier=Modifier.testTag("error")) } }) { padding ->
+                val track=state.song?.tracks?.getOrNull(state.selectedTrackIndex)
+                Row(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp).padding(bottom=if(wide) 12.dp else 0.dp),
+                    horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                    StudioScore(state,preferences,layout,track?.name ?: "Choose a track",busy,
+                        {trackSheet=true},{settings=SettingsPage.Display},{preferences=it},{player.seek(it)},
+                        Modifier.weight(1f).fillMaxHeight(),onLayout={scoreLayout=it})
+                    if(wide) Column(Modifier.width(280.dp).fillMaxHeight().verticalScroll(rememberScrollState()).testTag("wide-controls"),
+                        verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                        SettingsHeading("Practice, at your pace","Focus on the music. Your controls stay close.")
+                        StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound},onSections={sectionsSheet=true})
+                        SettingsAction("Workspace settings","Layout, playhead, sound and color.",R.drawable.ic_tune,"wide-settings") { settings=SettingsPage.Display }
                     }
-                    FilterChip(selected=followCursor&&!state.isAutoScrollSuspended,
-                        onClick={ if (!followCursor || state.isAutoScrollSuspended) { followCursor=true;state.resumeAutoScroll() } else followCursor=false },
-                        label={Text(if (state.isAutoScrollSuspended) "Resume follow" else "Follow",fontSize=11.sp)},modifier=Modifier.testTag("follow-cursor"))
-                }
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalAlignment=Alignment.CenterVertically) {
-                    TGLayoutStyles.entries.forEach { style -> FilterChip(selected=mode==style,onClick={mode=style},label={Text(style.name,fontSize=11.sp)},modifier=Modifier.testTag("mode-${style.name}")) }
-                    TextButton(onClick={orientation=if (orientation==TGLayoutOrientation.Page) TGLayoutOrientation.Horizontal else TGLayoutOrientation.Page},modifier=Modifier.testTag("orientation")) { Text(if (orientation==TGLayoutOrientation.Page) "↵ Page" else "↔ Continuous",fontSize=11.sp) }
-                    TextButton(onClick={showSettings=!showSettings},modifier=Modifier.testTag("settings")) { Text("Customize",fontSize=11.sp) }
-                }
-                if (showSettings) {
-                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
-                        TextButton(onClick={palette=(palette+1)%3},modifier=Modifier.testTag("palette")) { Text(listOf("Paper","Dark","Contrast")[palette]) }
-                        TextButton(onClick={cursorStyle=CursorStyle.entries[(cursorStyle.ordinal+1)%3]}) { Text("Cursor: ${cursorStyle.name}") }
-                        FilterChip(selected=smoothCursor,onClick={smoothCursor=!smoothCursor},label={Text("Cursor glide")},modifier=Modifier.testTag("smooth-cursor"))
-                        FilterChip(selected=smoothFollow,onClick={smoothFollow=!smoothFollow},label={Text("Smooth scroll")},modifier=Modifier.testTag("smooth-follow"))
-                        FilterChip(selected=cursorVisible,onClick={cursorVisible=!cursorVisible},label={Text("Show cursor")},modifier=Modifier.testTag("show-cursor"))
-                        FilterChip(selected=multiTrack,onClick={multiTrack=!multiTrack},label={Text("All tracks")})
-                        TextButton(onClick={spacing=if (spacing==10f) 14f else 10f}) { Text("Strings ${spacing.toInt()}") }
-                        TextButton(onClick={export.launch("greenwood-study.gp5")}) { Text("Export demo GP5") }
-                    }
-                    val compactAvailable = !multiTrack || (state.song?.tracks?.size ?: 0) <= 1
-                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                        FilterChip(selected=compact&&compactAvailable,onClick={compact=!compact},enabled=compactAvailable,label={Text("Compact")},modifier=Modifier.testTag("compact-spacing"))
-                        FilterChip(selected=justifyRows,onClick={justifyRows=!justifyRows},label={Text("Fill rows")},modifier=Modifier.testTag("justify-rows"))
-                        FilterChip(selected=showChords,onClick={showChords=!showChords},label={Text("Chord diagrams")},modifier=Modifier.testTag("show-chords"))
-                        FilterChip(selected=showChordNames,onClick={showChordNames=!showChordNames},label={Text("Chord names")},modifier=Modifier.testTag("show-chord-names"))
-                    }
-                }
-                HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    TablatureView(state,Modifier.fillMaxSize().testTag("score-canvas"),layout,TGCursorConfig(style=cursorStyle,visible=cursorVisible,follow=followCursor,smoothMovement=smoothCursor,smoothScroll=smoothFollow),onBeatClicked={tick,_ -> player.seek(tick)})
-                    if (busy) CircularProgressIndicator(Modifier.align(Alignment.Center))
-                }
-                HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
-                Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-                    TextButton(onClick={state.setZoom(state.zoomScale/.85f)},modifier=Modifier.testTag("zoom-in")) { Text("＋") }
-                    Text("${(state.zoomScale*100).toInt()}%",fontSize=11.sp)
-                    TextButton(onClick={state.setZoom(state.zoomScale*.85f)},modifier=Modifier.testTag("zoom-out")) { Text("−") }
-                    Text("Tick ${state.cursorTick}",fontSize=11.sp,modifier=Modifier.testTag("cursor-tick"))
-                    TextButton(onClick={player.pause();player.speedPercent=if (player.speedPercent==100) 75 else if (player.speedPercent==75) 125 else 100}) { Text("${player.speedPercent}%",fontSize=11.sp) }
-                }
-                Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=4.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                    OutlinedButton(onClick={player.pause();state.cursor.previousBeat();state.resumeAutoScroll();player.seek(state.cursorTick)},enabled=!busy,modifier=Modifier.testTag("previous")) { Text("‹") }
-                    Button(onClick={if (player.playing) player.pause() else player.play()},enabled=!busy&&!player.loading&&imported!=null,modifier=Modifier.weight(1f).testTag("play")) { Text(if (player.loading) "Loading audio…" else if (player.playing) "Pause" else "Play") }
-                    OutlinedButton(onClick={player.stop()},enabled=!busy,modifier=Modifier.testTag("stop")) { Text("■") }
-                    OutlinedButton(onClick={player.pause();state.cursor.nextBeat();state.resumeAutoScroll();player.seek(state.cursorTick)},enabled=!busy,modifier=Modifier.testTag("next")) { Text("›") }
-                }
-                Box {
-                    TextButton(onClick={midiMenu=true},modifier=Modifier.padding(horizontal=12.dp)) { Text("MIDI · $midiStatus",fontSize=10.sp) }
-                    DropdownMenu(expanded=midiMenu,onDismissRequest={midiMenu=false}) {
-                        DropdownMenuItem(text={Text("Internal Gervill synthesizer")},onClick={midi.close();midiStatus="Internal synth";midiMenu=false})
-                        val devices=midi.devices()
-                        if (devices.isEmpty()) DropdownMenuItem(text={Text("No MIDI devices connected")},onClick={},enabled=false)
-                        devices.forEach { device ->
-                            val name=device.properties.getString(android.media.midi.MidiDeviceInfo.PROPERTY_NAME) ?: "MIDI device ${device.id}"
-                            DropdownMenuItem(text={Text(name)},onClick={player.pause();midi.connect(device) { message -> if (message!=null) error=message else midiStatus=name };midiMenu=false})
-                        }
-                    }
-                }
-                (error ?: player.error)?.let { message ->
-                    Text(message,color=MaterialTheme.colorScheme.error,fontSize=11.sp,modifier=Modifier.padding(horizontal=16.dp,vertical=6.dp).testTag("error"))
                 }
             }
         }
+        settings?.let { page -> StudioSettings(preferences,page,{settings=it},{preferences=it},
+            state.zoomScale,{state.setZoom(it)},player.speedPercent,{player.pause();player.speedPercent=it},
+            imported?.score?.tracks?.size ?: 0,soundFont,midiStatus,busy,
+            {settings=null;openSoundFont.launch(arrayOf("*/*"))},{resetBank()},
+            {settings=null;midiSheet=true},{settings=null}) }
+        if(sectionsSheet) StudioSections(state.song,state.selectedTrackIndex,{sectionsSheet=false}) { tick ->
+            player.pause();state.clearSelection();state.cursor.seek(tick);player.seek(tick)
+            // Explicit navigation reveals the requested section even when automatic
+            // following or the cursor itself is disabled. Do not overwrite either preference.
+            scoreLayout?.beatAt(state.selectedTrackIndex,tick)?.let { beat ->
+                state.scrollTo(x=if(preferences.orientation==TGLayoutOrientation.Horizontal) (beat.x-28f).coerceAtLeast(0f) else 0f,
+                    y=if(preferences.orientation==TGLayoutOrientation.Page) (beat.bounds.top-4f).coerceAtLeast(0f) else 0f)
+            }
+            state.resumeAutoScroll();sectionsSheet=false
+        }
+        if(trackSheet) ModalBottomSheet(onDismissRequest={trackSheet=false},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
+            Column(Modifier.fillMaxWidth().semantics { testTagsAsResourceId=true }.padding(horizontal=16.dp).verticalScroll(rememberScrollState()).padding(bottom=24.dp).selectableGroup()) {
+                Text("Find your part",style=MaterialTheme.typography.headlineSmall,modifier=Modifier.padding(horizontal=8.dp))
+                Text("Choose a track to read. Audio keeps the full arrangement.",style=MaterialTheme.typography.bodyMedium,
+                    color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(8.dp))
+                imported?.score?.tracks?.forEachIndexed { index,track ->
+                    val selected=state.selectedTrackIndex==index
+                    ListItem(headlineContent={Text(track.name)},supportingContent={Text("${track.stringTuning.size} strings")},
+                        leadingContent={StudioIcon(R.drawable.ic_music_note)},trailingContent={RadioButton(selected,onClick=null)},
+                        colors=ListItemDefaults.colors(containerColor=if(selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow),
+                        modifier=Modifier.fillMaxWidth().testTag("track-$index").selectable(selected,role=Role.RadioButton) {
+                            state.selectedTrackIndex=index;state.clearSelection();trackSheet=false
+                        })
+                }
+            }
+        }
+        if(midiSheet) ModalBottomSheet(onDismissRequest={midiSheet=false}) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)) {
+                Text("MIDI output",style=MaterialTheme.typography.headlineSmall)
+                Text("Mirror standard MIDI to a connected device.",style=MaterialTheme.typography.bodyMedium)
+                TextButton(onClick={midi.close();midiStatus="Built-in FluidSynth";midiSheet=false}) { Text("Use built-in FluidSynth") }
+                val devices=midi.devices()
+                if(devices.isEmpty()) Text("No external MIDI devices connected.",modifier=Modifier.padding(vertical=24.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)
+                devices.forEach { device ->
+                    val name=device.properties.getString(android.media.midi.MidiDeviceInfo.PROPERTY_NAME) ?: "MIDI device ${device.id}"
+                    TextButton(onClick={player.pause();midi.connect(device) { message -> if(message!=null) error=message else midiStatus=name };midiSheet=false}) { Text(name) }
+                }
+            }
+        }
+        if(details) AlertDialog(onDismissRequest={details=false},icon={StudioIcon(R.drawable.ic_music_note)},
+            title={Text(imported?.score?.title ?: "Score details")},text={
+                Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Text(imported?.score?.artist.orEmpty());Text(status)
+                    Text("${imported?.score?.tracks?.size ?: 0} tracks · $soundFont")
+                    Text("Tick ${state.cursorTick}",modifier=Modifier.testTag("cursor-tick"))
+                }
+            },confirmButton={TextButton(onClick={details=false}) {Text("Done")}})
+        if(about) AlertDialog(onDismissRequest={about=false},icon={StudioIcon(R.drawable.ic_music_note)},
+            title={Text("Tux Compose 0.1.8")},text={ Text("A focused practice workspace built with Material 3 Expressive.\n\nTuxGuitar Guitar Pro import · FluidSynth 2.6.2 · GeneralUser GS 2.0.3.\n\nThis is an evaluation app. Source, usage, mathematics and third-party licensing notes are available in the project documentation; licence texts are bundled in the APK.") },
+            confirmButton={TextButton(onClick={about=false;uriHandler.openUri("https://github.com/romankolov/tuxguitar/tree/arena/285632fe-tuxguitar/compose")}) {Text("Source & licences")}},
+            dismissButton={TextButton(onClick={about=false}) {Text("Close")}})
     }
 }

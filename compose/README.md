@@ -1,8 +1,49 @@
-# Tux Compose
+# Tux Compose 1.0.1
 
 **Immutable score → shared layout → Compose Canvas.** A standalone rendering library and an Android showcase built alongside (not inside) the legacy TuxGuitar applications.
 
 The library has **no decoder, file access, playback clock, MIDI, synthesizer, audio dependency, Android View, SWT or AWT**. The showcase intentionally has these integrations, in separate modules.
+
+**Downloads:** [1.0.1 evaluation release APK / core AAR / checksums](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-v1.0.1).
+See [the annotation corrections, source comparison, visual qualification and signing warning](docs/RELEASE-1.0.1.md).
+The previous 1.0.0 tag/assets remain immutable.
+
+## 1.0.1 annotation correction
+
+- TuxGuitar's actual number/repeat/marker/prose baselines and native offline paths.
+- alphaTab's grouped let-ring geometry, per-voice flags, Score/TAB effect priority,
+  linked placement and staff-overflow accounting—no invented continuation captions.
+- Source-driven singleton/short-span behaviour; no duration-end interpolation or
+  automatic tie inheritance. Disabling grouping retains native L.R labels.
+- Real-display baseline/dash/cap/cross-row-text regressions; all 32 required detailed
+  PNG scenes preserved per API before app cleanup. No synthetic redraws.
+- Qualification: 216 JVM tests, 17 host tests, 1,728 layouts, 36 instrumented + 5
+  exact-release cases on each API, 64 detailed + 20 release previews reviewed.
+  [The release notes](docs/RELEASE-1.0.1.md) pin that evidence and its limits.
+
+## Retained 1.0.0 features (original qualification)
+
+
+- **Native TuxGuitar spacing remains the default.** The compared 16 Java UI/layout
+  sources are byte-identical to upstream **2.1.1**. Fixed-size parent-width wrapping,
+  tail-fragment packing, a hollow fixed-fret-width capsule and cooperative follow remain.
+- Better-supported chord seconds/unisons, secondary-voice shifts, height-aware
+  accidental columns, conservative real-origin cross-bar ties, grace clearance and
+  chord-level dot placement. No source notes or TAB/tick anchors are displaced.
+- Interval skyline captions within the native bands; optional **Spring** spacing with
+  duration ratio 1.2–2, hard ink minimums and no squeezing. Select it in sample Display
+  settings; **TuxGuitar** remains the persisted/default choice.
+- Actual pinned **alphaTab 1.9.0** helpers generate 2,584 reference records consumed by
+  JVM tests, plus the native Java differential suite and a **1,728-configuration**
+  decoded-showcase audit. This is targeted comparison, not whole-renderer equivalence.
+- Expanded Technique Atlas chord/accidental example and real-display chord regressions
+  on both supported emulator APIs. Sample release is optimized/non-debuggable, not debug.
+
+Read [the upstream decisions and honest limits](docs/UPSTREAM-COMPARISON.md),
+[additional engraving mathematics](docs/ENGRAVING.md), and
+[1.x API/release policy](docs/API-POLICY.md). There is no blanket claim that this library
+outperforms either complete upstream application. The native Compose architecture and
+specific tested behaviors are the intended advantages.
 
 ## Modules
 
@@ -10,10 +51,10 @@ The library has **no decoder, file access, playback clock, MIDI, synthesizer, au
 |---|---|---|
 | `tux-compose-core` | `com.tuxcompose.model`, `.layout`, `.renderer`, `.component` | Android + JVM; optional iOS targets; all implementation in `commonMain` |
 | `demo-tuxguitar` | Existing Java GP3/4/5, GPX, GP7/GP, TG and MIDI readers, immutable-model adapter, original MIDI event/repeat engine | JVM/Android, **demo only** |
-| `demo-synth` | Existing Android-compatible Gervill and Java Sound shim | Android, **demo only** |
+| `demo-synth` | FluidSynth 2.6.2 JNI + pinned GeneralUser GS 2.0.3 bank | Android, **demo only** |
 | `sample-android` | Compose screen, Storage Access Framework picker, transport, soundfonts and optional hardware MIDI output | Android 7.0+ |
 
-**Status:** first implementation, not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
+**Status:** 1.x model-to-Canvas library; not a claim of complete desktop engraving/editor parity. See [porting notes and explicit limitations](docs/PORTING.md). Native compact/noncompact spacing, headers, row packing/justification, vertical lanes, duration/spelling math, beam rules and 32 vector models are ported, with differential tests against Java. Oversized-bar wrapping, merged let-ring spans and optional adaptive clearance are documented extensions. The UI is a native Compose component, not a screenshot or a legacy View embedded in Compose.
 
 `TablatureView(onLayout = { ... }, drawOverlay = { layout -> ... })` exposes cached
 layout geometry and a custom Canvas overlay. Overlay coordinates are logical song units;
@@ -22,7 +63,9 @@ do not rebuild geometry. Overlays should draw only the visible region for large 
 
 ## Build and install
 
-Requirements: JDK 17, Android SDK 35, and network access to Gradle/Google/Maven repositories.
+Requirements: JDK 17, Android SDK 37 (compile), AGP 9.2.1 / Gradle 9.4.1 (wrapper), Python 3 for the verification tools, and build-time network access to Gradle/Google/Maven/GitHub. CI device tests use API 24 and API 35 emulators; the app targets 35 and supports API 24+. The showcase installs NDK 27.3.13750724 / CMake 3.22.1 as needed and downloads checksum-pinned synth/bank inputs; the core-only AAR needs neither.
+
+For **local development/debug instrumentation** (these are not the published APK):
 
 ```sh
 cd compose
@@ -37,9 +80,11 @@ adb install -r sample-android/build/outputs/apk/debug/sample-android-debug.apk
 ./gradlew -PenableIos=true :tux-compose-core:compileKotlinIosSimulatorArm64
 ```
 
+For a signed **release** build, configure your private signing environment as described in [UI.md](docs/UI.md#release-build-and-signing-policy), then run `./gradlew :sample-android:lintRelease :sample-android:assembleRelease`. The output is `sample-android/build/outputs/apk/release/sample-android-release.apk`; it is R8/resource-shrunk and non-debuggable. Do not reuse the Android debug key or commit a keystore/password.
+
 The separate build does not change the original Maven/Android application build. There are no dynamic dependency versions. A Gradle wrapper is included.
 
-GitHub Actions: [Tux Compose · build, test & APK](https://github.com/romankolov/tuxguitar/actions/workflows/tux-compose.yml). Successful builds upload the **debug-signed installable APK**, release AAR, unit-test/lint diagnostics and emulator reports. Download the newest successful run's `tux-compose-apk-N` artifact. A debug APK is for evaluation, not a production-signed Play Store release. After both JVM/build and device-test jobs pass, the workflow also publishes the [latest verified APK and AAR](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-preview) with SHA-256 checksums.
+GitHub Actions: [Tux Compose · build, test & APK](https://github.com/romankolov/tuxguitar/actions/workflows/tux-compose.yml). Successful builds upload the **signed, non-debuggable release APK**, release AAR, R8/variant-lint diagnostics and emulator reports. The user chose an ephemeral **evaluation release** key, separate from Android's debug key. Uninstall previous differently signed builds before installing; this is not a persistent production/Play Store signing identity. Download the newest successful run's `tux-compose-apk-N` artifact. After both JVM/build and device-test jobs pass (including black-box checks on the exact release APK), the workflow publishes the [latest verified APK and AAR](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-preview) with SHA-256 checksums.
 
 ## Consume the library
 
@@ -53,11 +98,11 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:0.1.5")
+    implementation("com.tuxcompose:tux-compose-core:1.0.1")
 }
 ```
 
-Use Kotlin 2.1.21 and Compose Multiplatform 1.8.2 (or compatible newer versions). Android minimum SDK is 24. No material theme is required by core; Material3 is used only by the sample.
+Use Kotlin 2.4.21 and Compose Multiplatform 1.12.2 (or compatible newer versions). Android consumers need compileSdk 37 / AGP 9.2+; minimum SDK is 24. No material theme is required by core; Material3 is used only by the sample.
 
 ## Complete model-only screen
 
@@ -131,8 +176,11 @@ fun ScoreScreen() {
             modifier = Modifier.weight(1f).fillMaxWidth(),
             config = config,
             cursorConfig = TGCursorConfig(
-                style = CursorStyle.Glow,
-                width = 2f,
+                style = CursorStyle.Capsule, // hollow, not a filled pill
+                width = 1.5f,               // stroke width
+                capsuleWidth = 6f,          // minimum outer width, expanded to clear note ink
+                capsuleInset = 6f,          // top/bottom margin inside the row
+                capsuleInnerPadding = 2f,   // padding around the fixed two-digit fret slot
                 highlightNotes = true,
                 animation = CursorAnimation.Pulse,
             ),
@@ -162,7 +210,7 @@ The complete Android host with real decoding and playback is [MainActivity.kt](s
 - Pinch zoom; double-tap zoom; programmatic `setZoom`, `scrollTo`, `scrollBy`.
 - Tap selects a beat/string, moves the cursor, and reports `TGHitResult`; long-press extends a range on the same track. `selection`, `selectedString`, and cursor are controlled state.
 - Arrow keys navigate beats/measures; Escape clears selection. Accessibility exposes track/tick state and next/previous/zoom actions without thousands of invisible per-note composables.
-- Cursor line/block/glow, optional blink/pulse, independent color, width, opacity, note highlighting and automatic follow.
+- Cursor line/block/glow/hollow capsule, optional blink/pulse, independent color, width, opacity, note highlighting and automatic follow.
 - Score/tab/mixed; wrapped systems or continuous horizontal flow; optional multi-track alignment, justification, repeated system signatures, compact spacing, tempo and measure numbers.
 - Paper/dark/high-contrast palettes; custom text/note font families, weight and sizes; string/staff/note/padding/effect/system metrics.
 
@@ -200,8 +248,12 @@ Actual Java layout differentials compare every onset, measure bounds, row member
 headers and vertical lanes at fractional scale, including real GP3/4/5 showcase imports.
 See [the source map, mathematics and precise scope](docs/PORTING.md).
 
-For large/custom fonts or accessibility where additional collision clearance is preferred
-rather than the original fixed grid, explicitly opt in:
+Version 0.1.8 keeps that native rhythmic/greedy base and adds a separately switchable
+visible-ink/annotation safety layer. Java differentials disable the extensions rather
+than relaxing their original tolerance; [details and regressions](docs/VISUAL-AUDIT.md).
+
+For the alternative font/ink-based rhythmic profile (rather than the native base),
+explicitly opt in:
 
 ```kotlin
 TGLayoutConfig(
@@ -220,6 +272,56 @@ track spacing, 8-unit chord font and 6-unit grace font. Native fonts ignore Andr
 multiplier unless explicitly enabled. For a previous-style visual setup, also set
 `pagePadding=12f`, `systemSpacing=20f`, `showChords=true` and your previous typography.
 No musical timing, note identity or playback/parser boundary is changed.
+
+## Hollow capsule and let-ring spans (0.1.6)
+
+The sample starts with **Capsule**; the Cursor settings offer all four styles.
+The library keeps Line as its compatibility default. Select `CursorStyle.Capsule` in
+`TGCursorConfig`: `width` is its stroke (default 1.5), `capsuleWidth` its minimum outer
+width (6), `capsuleInset` its top/bottom row margin (6), and `capsuleInnerPadding` the
+padding around a fixed two-digit fret slot (2). The renderer measures `00`–`99` once
+per font profile and uses `max(capsuleWidth, slotWidth + 2*(padding + stroke))`.
+**The width does not change with the active beat, score head, chord, rest or row height.**
+The capsule remains hollow; short rows reduce its stroke/inset, not its width. These
+are logical notation units, transformed only once by density/zoom. Smooth movement,
+opacity/blink/pulse and cooperative following are unchanged.
+See [the current geometry and audit](docs/VISUAL-AUDIT.md).
+
+`TGLayoutConfig(mergeLetRing = true)` is enabled by default. The 1.0.1 correction
+uses alphaTab's actual grouped-glyph semantics: **`let ring - - - - |`** is centred
+on the first explicitly flagged note **of that voice**, and ends on the last linked
+onset—not at a duration-interpolated endpoint. Repeat/ending boundaries do not split
+the chain. An unmarked voice beat/rest stops it; no automatic tie inheritance or
+union of different voices is added. Each row restarts the same plain label and has
+its upstream cap when a line fits. A singleton/short span is label-only: no invented
+parentheses, below-text line or compulsory cap.
+
+TuxGuitar supplies the measure-number/repeat baseline, marker/prose/chord anchors,
+native effect spelling and offline vector paths. The alphaTab effect-band priority
+and query/commit placement kernel is an attributed MPL-2.0 adaptation. Source Score
+and TAB priorities are checked independently. Metadata positions are baselines;
+a row's culling/ink envelope can extend above its native measure origin.
+
+Markers/prose retain their musical X anchors and can emergency-wrap for the fixed
+parent; atomic chord/effect labels are not moved, wrapped or shrunk to fit a shelf.
+Missing boundary ink space can consume the existing margins/signature prefix before
+any extra minimum is reserved. Default `avoidAnnotationCollisions=true` preserves
+the native rhythmic/greedy base and permits only local measured-ink clearance.
+Full coordinate mathematics and the exact scope are in [ENGRAVING](docs/ENGRAVING.md)
+and [UPSTREAM-COMPARISON](docs/UPSTREAM-COMPARISON.md).
+
+These are documented Compose enhancements, not upstream pixel parity. For the raw
+native comparison profile set **both** `avoidAnnotationCollisions=false` and
+`mergeLetRing=false`; the latter alone only restores individual `L.R` captions.
+Indivisible custom glyphs wider than the whole viewport may still be clipped to keep
+the fixed-parent/fixed-glyph contract. See [audit mathematics and scope](docs/VISUAL-AUDIT.md).
+
+`TGStaffLayout.annotations` stores row-local caption/line/cap geometry;
+`layout.visibleAnnotations(staff, viewport)` uses a cached interval index, including
+continuations whose label is offscreen. The normal `TGCanvasRenderer.render` includes
+this pass. Custom fragment renderers using `renderMeasure` must additionally render the
+staff's cached `renderAnnotation` and `renderConnection` overlays; a measure with
+`plannedAnnotations=true` deliberately omits its old repeated beat captions.
 
 ## Page fitting, cursor glide and cooperative auto-scroll
 
@@ -251,7 +353,7 @@ opt-out in that physically impossible case.
 
 `onLayout` exposes `TGMeasureLayout.startTick/endTick`, `isFirstFragment/isLastFragment`,
 `TGBeatLayout.startTick/endTick`, voice `isContinuation/sourceTick`, and each staff's cached
-`connections` and each beat's cached `stroke` / `pickStroke` line geometry for custom
+`connections` / `annotations` and each beat's cached `stroke` / `pickStroke` line geometry for custom
 overlays. `measure` still references the complete source model;
 `measureIndex` is not renumbered. `contentScale` is retained for compatibility and is always 1.
 
@@ -307,11 +409,69 @@ still/again in the visible viewport: browsing to other bars does not snap you ba
 already active it continues smoothly across systems, including bringing the next row into
 view. The sample exposes Cursor glide, Smooth scroll, Show cursor and Follow controls.
 
+## Showcase synthesizer and sound (0.1.6)
+
+The Android sample uses **FluidSynth 2.6.2 + GeneralUser GS 2.0.3**, replacing its old
+Gervill/lightweight-bank backend. TuxGuitar still generates the actual notes, repeats,
+controllers and bend events; its GM router preserves percussion and independent bend
+channels. FluidSynth renders stereo PCM, SoundFont envelopes/filters/modulators, sustain,
+reverb and chorus. Customize has **Reverb**, **Chorus**, **SoundFont** and **Reset bank**
+controls; SF2/SF3 loading uses the document picker, not a network service. Pause/background
+stops the audio device/thread. Hardware MIDI output remains available.
+
+This does **not** add playback, parsers, JNI or a SoundFont to the rendering library AAR.
+All SDK/bank downloads are build-only, version/SHA-256 pinned, under ignored generated
+folders. The installed app remains offline. See [SYNTH.md](docs/SYNTH.md) for full source
+provenance, native build versions, mathematical MIDI/PCM conventions, licensing/relinking,
+custom-bank behavior, footprint and test/hardware limitations.
+
 ## Tests, provenance and licensing
 
 - `commonTest`: duration/tuplet validation, immutable snapshots, spacing, wrapping, multi-track alignment, hit testing, culling, beaming, empty/extreme inputs and state navigation.
 - `demo-tuxguitar:test`: full native Java layout differentials (`NativeLayoutParityTest`) compare widths, every onset, row packing/justification, header flags and vertical lanes across styles, compact modes, fractional scale, effects, polyphony and real GP3/4/5 imports. The actual Android style class is compiled into tests, not copied. `native-layout-parity.json` is included in CI diagnostics. Also tests every supported duration/dot/tuplet, all pitches/keys/enharmonic spellings and all 19 lane permutations; whole-measure and projected-fragment row packing against `TGLayoutVertical.getTempLines`; recorded strum/picking vectors against the actual Java painters; GP3/4/5 strum round trips (plus GP4/5 picking marks); original MIDI event generation.
-- Android instrumentation: native-default mixed-duration reflow, actual-font zoom/pointer transforms, native/system-font-scale policy, real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the bundled guitar soundfont**. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
+- Android instrumentation: native-default mixed-duration reflow, actual-font zoom/pointer transforms, native/system-font-scale policy, real import, screen controls, theme/layout changes, native MIDI-to-AudioTrack playback and **non-silent PCM from the full GeneralUser GS bank**. FluidSynth instrumentation covers version, melodic/drum presets, reverb tails, chorus changes, RPN pitch bends and invalid-bank/close safety. Actual-font annotation tests also cover caption clearances, terminal-cap pixels, all three notation styles, font scale/reflow/zoom and hollow capsule pixels. Additional frame-clock/pointer tests cover unscaled dense-bar wrapping, packed continuation/next-bar hit testing, rendered incoming/outgoing effect pixels and both strum/picking directions, parent-width fitting, cursor tween frames, smooth follow, hidden cursors and manual interruption/resume. Audio rendering is verified, not a claim that a human auditioned speaker output.
+- Original Java annotation painters additionally record 288 number, 36 repeat-count
+  and 360 offline-path cases; pinned alphaTab code generates 3,444 records including
+  grouped-glyph painting and the real Score/TAB effect registries. Detailed hardware
+  images are fail-closed, byte-preserved and hash-manifested: 32 required scenes/API.
 - `python3 tools/verify.py`: reproducible glyph source hashes and a fail-closed check against platform/parser/player imports or demo dependencies in core.
 
-Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The optional Gervill demo includes GPLv2 with Classpath Exception code and existing soundfont assets; their notices remain unchanged. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.
+Derived TuxGuitar code and glyphs are **LGPL-2.1-or-later**; the attributed
+`TGAlphaEffectLayout.kt` source adaptation retains **MPL-2.0**. Both notices/full
+licences are checked in the shipped AAR/APK. See [the exact copying boundary](docs/UPSTREAM-COMPARISON.md#licence-boundary-after-the-annotation-correction); see [the existing license](../docs/LICENSE) and [NOTICE](NOTICE.md). The showcase now dynamically links LGPL FluidSynth and packages GeneralUser GS under its own license; full dependency notices are in `demo-synth/src/main/assets/licenses/` and the APK. See [synth provenance and relinking](docs/SYNTH.md). Original Gervill files remain untouched in the repository but are no longer compiled into this sample. Do not relicense the port as proprietary/MIT merely because the drawing API changed. When distributing derived binaries, include the relevant notices and comply with the applicable source/relinking requirements.
+
+## Focused Material 3 Expressive workspace (0.1.7)
+
+The sample now uses the real Material3 1.5.0-rc01 Expressive theme, connected/morphing
+toggle buttons, tonal controls, emphasized typography, loading shapes and semantic
+light/dark/dynamic color roles. The score owns the primary surface; Display, Cursor,
+Sound and Theme settings live in a tabbed sheet. Landscape/expanded windows move
+playback into a side pane. Preferences survive recreation, and 200% UI text retains
+48dp primary targets without shrinking notation.
+
+See **[UI.md](docs/UI.md)** for the official guidance links, component/interaction map,
+adaptive behavior, capsule padding math, toolchain and release signing/verification
+policy. The rolling download is now
+**[sample-android-release.apk](https://github.com/romankolov/tuxguitar/releases/download/tux-compose-preview/sample-android-release.apk)**,
+not a renamed debug build.
+
+## Visual polish and Technique Atlas (0.1.8)
+
+The new original **32-bar, three-part Technique Atlas** demonstrates chords/strums,
+picking, let-ring, articulations/harmonics, bends/ornaments, dotted/double-dotted rhythm,
+triplets/quintuplets, all duration/rest values, voices/ties, keys/clefs, changing meters,
+repeats/endings/swing and a dense 64th-note bar. A marker-derived section picker lets
+you explore these directly without enabling hidden cursor/follow preferences.
+
+Startup performs a real lossless **TuxGuitar `.tg` writer → importer round trip**;
+GP5 cannot preserve all that metadata. Genuine Guitar Pro import and an actual GP5
+companion export remain available in the separate demo modules. No fake renderer-only
+notes/effects are inserted. The core remains parser/audio/Material-free.
+
+Connected choices now wrap by measured label width at the user's font scale instead
+of hiding labels. The transport gives the music more height. CI adds a **1,152-case
+real-default geometry matrix**, adversarial caption/chord/font regressions, fixed-width
+cursor pixel tests, API 24/35 device suites and exact-release section screenshots.
+See **[VISUAL-AUDIT.md](docs/VISUAL-AUDIT.md)** for source pointers, equations, coverage,
+reproduction commands and explicit limits. Actual test counts/proof are in the linked
+Actions run and release metadata; test coverage is not a universal perfection claim.

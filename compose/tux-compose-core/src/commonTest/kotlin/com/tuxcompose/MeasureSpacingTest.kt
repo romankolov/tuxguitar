@@ -9,7 +9,7 @@ import kotlin.random.Random
 import kotlin.test.*
 
 // v0.1.4 extension regressions. Native defaults have separate full-Java differential tests.
-private val adaptiveConfig = TGLayoutConfig(spacingMode=TGSpacingMode.Adaptive,compact=false,
+private val adaptiveConfig = TGLayoutConfig(avoidAnnotationCollisions=false,spacingMode=TGSpacingMode.Adaptive,compact=false,
     pagePadding=12f,pageRightPadding=12f,systemSpacing=20f,showChords=true,
     typography=TGTypography(chordSize=9f,graceSize=6.3f),respectSystemFontScale=true)
 
@@ -209,7 +209,9 @@ class MeasureSpacingTest {
             10,30,55 -> b.copy(text="careful annotation")
             else -> b
         } }
-        val config = adaptiveConfig.copy(justifySystems=false)
+        // Chord names used to be painted even with their flag off in Adaptive.
+        // This test owns a visible long NAME, so enable it explicitly.
+        val config = adaptiveConfig.copy(justifySystems=false,showChordNames=true)
         val page = TGLayoutCalculator(config).calculate(data(m),220f)
         val pieces = page.staves.flatMap { it.measures }
         assertTrue(pieces.size>1)

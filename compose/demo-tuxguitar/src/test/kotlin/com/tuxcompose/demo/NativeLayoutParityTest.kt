@@ -140,7 +140,9 @@ class NativeLayoutParityTest {
         for (version in 3..5) {
             val decoded = TuxGuitarImporter.read(ByteArrayInputStream(DemoSongFactory.guitarPro(version)),"demo.gp$version")
             for (multi in listOf(false,true)) compare(NativeLayoutReference(decoded.native,
-                base.copy(multiTrack=multi),1100f))
+                // Merged spans are deliberately NOT upstream behavior. This oracle tests
+                // native geometry; annotation enhancement coverage lives in AnnotationTest.
+                base.copy(multiTrack=multi,mergeLetRing=false),1100f))
         }
     }
 
