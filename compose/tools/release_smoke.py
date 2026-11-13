@@ -236,7 +236,9 @@ def choose_documents_root(title):
     while time.monotonic()<deadline:
         doc=tree();roots=find(doc,tag='roots_list')
         if roots is not None:
-            item=next((n for n in roots.iter('node') if n.get('text','').casefold()==title.casefold()),None)
+            # Click the ListView row, not its non-clickable title TextView.
+            # Android N's root adapter handles the row's item-click event.
+            item=next((row for row in list(roots) if any(n.get('text','').casefold()==title.casefold() for n in row.iter('node'))),None)
             if item is not None:
                 tap(item);return
         time.sleep(.3)
@@ -268,14 +270,16 @@ def native_pdf_export():
     adb('shell','input','text',filename)
     sdk=int(adb('shell','getprop','ro.build.version.sdk').strip())
     if sdk<=25:
-        # Android 7 SaveFragment explicitly handles Enter in the filename editor.
-        # Use that public action instead of a Back key or a possibly obscured Save bar.
-        adb('shell','input','keyevent','66')
+        # The actual Android-7 capture shows filename editing with the IME open.
+        # Hide it before choosing the directory so its bottom Save bar is reachable.
+        dismiss_visible_keyboard()
+    click(description='Show roots')
+    choose_documents_root('Downloads')
+    if sdk<=25:
+        save=wait_node(tag='button1',predicate=lambda n:n.get('enabled')=='true')
     else:
-        click(description='Show roots')
-        choose_documents_root('Downloads')
         save=wait_matching(lambda n:(n.get('text','').casefold()=='save' or n.get('content-desc','').casefold()=='save') and n.get('enabled')=='true','System PDF Save action missing')
-        tap(save)
+    tap(save)
     wait_node(tag='score-canvas')
     deadline=time.monotonic()+120
     data=b''
