@@ -229,6 +229,20 @@ def dismiss_visible_keyboard():
         adb('shell','input','keyevent','4')
 
 
+def choose_documents_root(title):
+    # Restrict the tap to the open roots list. On Android 7 the same word can
+    # also be the underlying directory's toolbar title during drawer animation.
+    deadline=time.monotonic()+65
+    while time.monotonic()<deadline:
+        doc=tree();roots=find(doc,tag='roots_list')
+        if roots is not None:
+            item=next((n for n in roots.iter('node') if n.get('text','').casefold()==title.casefold()),None)
+            if item is not None:
+                tap(item);wait_gone(tag='drawer_roots');return
+        time.sleep(.3)
+    raise AssertionError('System document root missing: '+title)
+
+
 def assert_pdf_export_status(doc):
     # One committed accessibility snapshot: a successful short snackbar may
     # disappear while a second uiautomator dump is being taken.
@@ -247,14 +261,15 @@ def native_pdf_export():
     wait_node(text='TuxGuitar print layout')
     screenshot('studio-release-pdf-options')
     click(text='Choose where to save PDF')
-    field=wait_node(class_name='android.widget.EditText')
+    field=wait_node(tag='title',class_name='android.widget.EditText')
     tap(field)
     adb('shell','input','keyevent','123')
     adb('shell','input','keyevent',*(['67']*64))
     adb('shell','input','text',filename)
     dismiss_visible_keyboard()
     click(description='Show roots')
-    tap(wait_matching(lambda n:n.get('text','').casefold()=='downloads' and n.get('enabled')=='true','System Downloads destination missing'))
+    choose_documents_root('Downloads')
+    dismiss_visible_keyboard()
     save=wait_matching(lambda n:(n.get('text','').casefold()=='save' or n.get('content-desc','').casefold()=='save') and n.get('enabled')=='true','System PDF Save action missing')
     tap(save)
     wait_node(tag='score-canvas')

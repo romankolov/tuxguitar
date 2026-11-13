@@ -44,6 +44,18 @@ class DetailedPreviewExportTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'GitHub PATCH.*HTTP 502'):
                 gh('repos/example/example/check-runs/1','PATCH',{})
 
+    def test_only_unapplied_404_patch_is_retried_after_check_creation(self):
+        missing=subprocess.CompletedProcess([],1,b'',b'gh: Not Found (HTTP 404)')
+        ready=subprocess.CompletedProcess([],0,b'{}',b'')
+        with patch('publish_device_previews.subprocess.run',side_effect=[missing,ready]) as run,patch('publish_device_previews.time.sleep'):
+            self.assertEqual({},gh('repos/example/example/check-runs/1','PATCH',{}))
+            self.assertEqual(2,run.call_count)
+            self.assertEqual(run.call_args_list[0].kwargs['input'],run.call_args_list[1].kwargs['input'])
+        with patch('publish_device_previews.subprocess.run',return_value=missing) as run:
+            with self.assertRaisesRegex(RuntimeError,'HTTP 404'):
+                gh('repos/example/example/check-runs','POST',{})
+            self.assertEqual(1,run.call_count)
+
     def test_github_invalid_json_is_not_silent(self):
         failure=subprocess.CompletedProcess([],0,b'not-json',b'')
         with patch('publish_device_previews.subprocess.run',return_value=failure):

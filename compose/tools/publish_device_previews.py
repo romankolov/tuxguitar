@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 from report_screenshots import preview_chunks
 from verify_device_captures import required_scenes, verify
 
@@ -53,16 +54,25 @@ def annotations(folder, required=None):
 
 
 def gh(endpoint, method, data):
-    response=subprocess.run(['gh','api','--method',method,endpoint,'--input','-'],
-                            input=json.dumps(data).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-    if response.returncode:
-        raise RuntimeError(f'GitHub {method} {endpoint} exited {response.returncode}: '+
-                           response.stderr.decode(errors='replace')[:1800])
-    try:
-        return json.loads(response.stdout)
-    except ValueError as error:
-        raise RuntimeError(f'GitHub {method} {endpoint} returned invalid JSON: '+
-                           response.stdout.decode(errors='replace')[:300]) from error
+    payload=json.dumps(data).encode()
+    for attempt in range(3):
+        response=subprocess.run(['gh','api','--method',method,endpoint,'--input','-'],
+                                input=payload,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        error=response.stderr.decode(errors='replace')
+        # GitHub may briefly return 404 when PATCH follows check creation. A 404
+        # did not append annotations, so retrying THIS request cannot duplicate them.
+        # Never retry POST, tests, assertion failures or ambiguous/other HTTP errors.
+        if response.returncode and method=='PATCH' and '/check-runs/' in endpoint and 'HTTP 404' in error and attempt<2:
+            print(f'Waiting for newly created capture Check ({attempt+1}/2): {endpoint}',flush=True)
+            time.sleep(attempt+1)
+            continue
+        if response.returncode:
+            raise RuntimeError(f'GitHub {method} {endpoint} exited {response.returncode}: '+error[:1800])
+        try:
+            return json.loads(response.stdout)
+        except ValueError as error:
+            raise RuntimeError(f'GitHub {method} {endpoint} returned invalid JSON: '+
+                               response.stdout.decode(errors='replace')[:300]) from error
 
 
 def workflow_error(title,error):

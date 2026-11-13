@@ -57,6 +57,12 @@ class ReleaseCaptureTest(unittest.TestCase):
             smoke.dismiss_visible_keyboard()
             self.assertEqual(('shell','input','keyevent','4'),adb.call_args_list[-1].args)
 
+    def test_document_root_tap_is_scoped_to_drawer_not_underlying_toolbar(self):
+        doc=ET.fromstring('<hierarchy><node text="Downloads" bounds="[50,10][200,50]"/><node resource-id="com.android.documentsui:id/roots_list"><node text="Downloads" bounds="[10,200][180,250]"/></node></hierarchy>')
+        with patch.object(smoke,'tree',return_value=doc),patch.object(smoke,'tap') as tap,patch.object(smoke,'wait_gone'):
+            smoke.choose_documents_root('Downloads')
+            self.assertEqual('[10,200][180,250]',tap.call_args.args[0].get('bounds'))
+
     def capture(self, frames, *, settled=True, clock=None):
         # Minimal byte tokens exercise frame identity/control flow, not PNG decoding.
         with tempfile.TemporaryDirectory() as folder, patch.object(smoke, 'out', Path(folder)), patch.object(smoke, 'captures', {}), patch.object(smoke, 'wait_workspace') as workspace, patch.object(smoke, 'adb', side_effect=frames) as adb, patch.object(smoke.time, 'sleep'):
