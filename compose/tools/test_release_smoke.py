@@ -63,6 +63,15 @@ class ReleaseCaptureTest(unittest.TestCase):
             smoke.choose_documents_root('Downloads')
             self.assertEqual('[0,180][240,260]',tap.call_args.args[0].get('bounds'))
 
+    def test_back_only_closes_an_observed_roots_drawer_never_the_save_editor(self):
+        drawer=ET.fromstring('<hierarchy><node resource-id="com.android.documentsui:id/roots_list"/></hierarchy>')
+        editor=ET.fromstring('<hierarchy><node class="android.widget.EditText"/></hierarchy>')
+        with patch.object(smoke,'tree',return_value=drawer),patch.object(smoke,'adb') as adb:
+            smoke.close_open_roots_drawer()
+            self.assertEqual(('shell','input','keyevent','4'),adb.call_args.args)
+        with patch.object(smoke,'tree',return_value=editor),patch.object(smoke,'adb') as adb:
+            smoke.close_open_roots_drawer();adb.assert_not_called()
+
     def capture(self, frames, *, settled=True, clock=None):
         # Minimal byte tokens exercise frame identity/control flow, not PNG decoding.
         with tempfile.TemporaryDirectory() as folder, patch.object(smoke, 'out', Path(folder)), patch.object(smoke, 'captures', {}), patch.object(smoke, 'wait_workspace') as workspace, patch.object(smoke, 'adb', side_effect=frames) as adb, patch.object(smoke.time, 'sleep'):

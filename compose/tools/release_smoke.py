@@ -245,6 +245,15 @@ def choose_documents_root(title):
     raise AssertionError('System document root missing: '+title)
 
 
+def close_open_roots_drawer():
+    # The actual API-24 capture shows Downloads selected but the drawer still
+    # covering its enabled Save button. Back is a drawer-close action here only;
+    # never send it after the filename editor is visible (that would cancel Save).
+    doc=tree()
+    if find(doc,tag='roots_list') is not None and find(doc,class_name='android.widget.EditText') is None:
+        adb('shell','input','keyevent','4')
+
+
 def assert_pdf_export_status(doc):
     # One committed accessibility snapshot: a successful short snackbar may
     # disappear while a second uiautomator dump is being taken.
@@ -276,6 +285,7 @@ def native_pdf_export():
     click(description='Show roots')
     choose_documents_root('Downloads')
     if sdk<=25:
+        close_open_roots_drawer()
         save=wait_node(tag='button1',predicate=lambda n:n.get('enabled')=='true')
     else:
         save=wait_matching(lambda n:(n.get('text','').casefold()=='save' or n.get('content-desc','').casefold()=='save') and n.get('enabled')=='true','System PDF Save action missing')
