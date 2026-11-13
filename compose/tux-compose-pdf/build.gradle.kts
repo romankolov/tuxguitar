@@ -22,7 +22,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     sourceSets {
-        getByName("main").java.srcDir(nativeSourceDir)
+        getByName("main").java.srcDir(nativeSourceDir.get().asFile)
         getByName("test").java.apply {
             // ORIGINAL upstream PDF backend, test-only. Never ships iText in the AAR/APK.
             srcDir("../../common/TuxGuitar-pdf/src")
