@@ -251,11 +251,15 @@ fun TuxComposeDemo() {
         }
         if(pdfSheet) imported?.let {score->PdfExportSheet(score.score,state.selectedTrackIndex,session.pdfOptions,
             onDismiss={pdfSheet=false},onSave={options->
-                session.pdfOptions=options
-                session.pendingPdf=score.pdfSnapshot(options)
-                pdfSheet=false
-                val name=score.score.title.ifBlank {"score"}.replace(Regex("[^A-Za-z0-9 ._-]"),"_")
-                savePdf.launch("$name.pdf")
+                try {
+                    val request=score.pdfSnapshot(options)
+                    session.pdfOptions=options;session.pendingPdf=request
+                    pdfSheet=false
+                    val name=score.score.title.ifBlank {"score"}.replace(Regex("[^A-Za-z0-9 ._-]"),"_")
+                    savePdf.launch("$name.pdf")
+                } catch(e: Exception) {
+                    session.pendingPdf=null;error=e.message ?: "Unable to prepare PDF export"
+                }
             })}
         if(trackSheet) ModalBottomSheet(onDismissRequest={trackSheet=false},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
             Column(Modifier.fillMaxWidth().semantics { testTagsAsResourceId=true }.padding(horizontal=16.dp).verticalScroll(rememberScrollState()).padding(bottom=24.dp).selectableGroup()) {

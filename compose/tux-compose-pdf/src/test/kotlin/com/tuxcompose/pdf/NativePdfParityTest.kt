@@ -111,6 +111,41 @@ class NativePdfParityTest {
         renderNative(source,options,metadata,PrintResources(),doc)
         return calls.values
     }
+    /** Compare model fields before layout so a bridge omission is diagnosed at its source. */
+    private fun nativeModel(o: Any): List<String> {
+        fun get(obj: Any,name: String,vararg args: Any): Any? {
+            val method=obj.javaClass.methods.first {it.name==name && it.parameterCount==args.size}
+            method.isAccessible=true
+            return method.invoke(obj,*args)
+        }
+        fun value(obj: Any,names: List<String>)=names.joinToString(",") {"$it=${get(obj,it)}"}
+        fun d(obj: Any): String {
+            val div=get(obj,"getDivision")!!
+            return value(obj,listOf("getValue","isDotted","isDoubleDotted"))+","+value(div,listOf("getEnters","getTimes"))
+        }
+        val out=mutableListOf<String>()
+        repeat(get(o,"countTracks") as Int) {ti->
+            val track=get(o,"getTrack",ti)!!
+            out+="t$ti "+value(track,listOf("getNumber","getName","getOffset","getChannelId","isPercussion"))
+            repeat(get(track,"stringCount") as Int) {si->out+="s$ti/$si "+value(get(track,"getString",si+1)!!,listOf("getNumber","getValue"))}
+            repeat(get(track,"countMeasures") as Int) {mi->
+                val m=get(track,"getMeasure",mi)!!;val h=get(m,"getHeader")!!
+                out+="m$ti/$mi "+value(m,listOf("getNumber","getStart","getClef","getKeySignature"))+","+value(h,listOf("isLineBreak","getTripletFeel","isRepeatOpen","getRepeatClose","getRepeatAlternative"))
+                val beats=get(m,"getBeats") as List<*>
+                beats.forEachIndexed {bi,nullable->val b=nullable!!
+                    out+="b$ti/$mi/$bi "+value(b,listOf("getStart","getPreciseStart"))
+                    repeat(get(b,"countVoices") as Int) {vi->
+                        val v=get(b,"getVoice",vi)!!
+                        out+="v$ti/$mi/$bi/$vi "+value(v,listOf("isEmpty","getDirection"))+","+d(get(v,"getDuration")!!)
+                        (get(v,"getNotes") as List<*>).forEachIndexed {ni,nn->val n=nn!!
+                            out+="n$ti/$mi/$bi/$vi/$ni "+value(n,listOf("getValue","getString","getVelocity","isTiedNote","isAltEnharmonic"))
+                        }
+                    }
+                }
+            }
+        }
+        return out
+    }
     @Test fun printProfileMatchesActualPdfPluginRatherThanAndroidScreenDefaults() {
         val a=nativePdfStyles();val b=PDFLayoutStyles(TGContext())
         val getters=listOf("getFirstMeasureSpacing","getMinBufferSeparator","getMinTopSpacing","getMinScoreTabSpacing",
@@ -131,10 +166,18 @@ class NativePdfParityTest {
             TGPdfOptions(style=style),TGPdfOptions(style=style,trackIndex=0),
             TGPdfOptions(style=style,trackIndex=1,fromMeasure=5,toMeasure=12,zoomPercent=150),
             TGPdfOptions(style=style,trackIndex=2,fromMeasure=13,toMeasure=24,page=TGPdfPage.A4))}
+        val before=nativeModel(original)
+        val after=nativeModel(nativeScore(source,TGPdfOptions(),metadata(original)))
+        val modelMismatch=before.indices.firstOrNull {it>=after.size || before[it]!=after[it]}
+        if(modelMismatch!=null) fail("Native model at $modelMismatch: ${before[modelMismatch]} != ${after.getOrNull(modelMismatch)}")
+        assertEquals(before.size,after.size,"native bridge model fields")
         configurations.forEach {options->
             val expected=original(original,options);val actual=adapted(source,options,metadata(original))
             val mismatch=expected.indices.firstOrNull {it>=actual.size || expected[it]!=actual[it]}
-            if(mismatch!=null) fail("$options at call $mismatch\nexpected ${expected[mismatch]}\nactual ${actual.getOrNull(mismatch)}")
+            if(mismatch!=null) {
+                val recent=expected.take(mismatch).filter {it.startsWith("drawString:")}.takeLast(5)
+                fail("$options at call $mismatch\nrecent $recent\nexpected ${expected[mismatch]}\nactual ${actual.getOrNull(mismatch)}")
+            }
             assertEquals(expected.size,actual.size,"$options call count")
             assertEquals(expected.count {it=="PAGE"},actual.count {it=="PAGE"},"$options original pages")
         }
