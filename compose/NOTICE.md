@@ -63,3 +63,27 @@ The **20** native Java UI/layout/font/effect files compared with **TuxGuitar 2.1
 Their LGPL notices are unchanged; the reviewed-path/hash manifest is retained in
 `tools/upstream/tuxguitar-2.1.1.json`. Native annotation paint routines are also
 executed directly in JVM tests, not only checked by source inspection.
+
+## Optional native PDF export (1.1.0)
+
+`tux-compose-pdf` compiles 100 original TuxGuitar 2.1.1 print/notation/model/resource
+classes with namespace-only relocation to `com.tuxcompose.pdf.internal.tuxguitar`.
+Algorithms are not rewritten. These remain **LGPL-2.1-or-later**, with their original
+source/copyright retained, `upstream.json` hashes and a public relocation recipe.
+Their corresponding Source Code Form is in this repository's `common/TuxGuitar-lib`
+and the module/generator; generated build files are not the sole source copy.
+Two original `MidiInstrument`/`MidiPercussionKey` name/value descriptors accompany
+translated labels; no sequencer, synthesizer or musical input decoder is included.
+
+Vector PDF serialization and Standard-14 AFM data use **PDFBox-Android 2.0.27.0**,
+Apache Software Foundation / Tom Roush and contributors, Apache-2.0 plus the original
+font/Unicode notices; its Bouncy Castle 1.72 dependencies retain their permissive
+licence. Full texts are packaged under the optional AAR's and sample APK's
+`assets/licenses/`. The optional compile-only JPEG-2000 codec is not included or
+used by this paths/text exporter. Core's LGPL/MPL boundary remains unchanged.
+
+The unmodified original TuxGuitar PDF backend and **iText 5.5.13.3** are test-only
+references for print/font/paint-call comparisons; no iText runtime or AGPL backend
+is distributed in the optional AAR or sample release APK. The app-side file picker
+and native decoded-model adapter are source available; no new music parser/player
+or PDF dependency enters the rendering core.

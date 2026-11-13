@@ -45,11 +45,37 @@ Read [the upstream decisions and honest limits](docs/UPSTREAM-COMPARISON.md),
 outperforms either complete upstream application. The native Compose architecture and
 specific tested behaviors are the intended advantages.
 
+## Optional PDF export (1.1.0 candidate)
+
+The new **`tux-compose-pdf` Android library** takes the same decoded immutable
+`TGSong` and executes TuxGuitar's original print engine. It is not a screenshot
+export or a different page-layout algorithm. Core has no dependency on PDF.
+The sample's overflow menu adds **Export score / tab as PDF**, with Score/Tab/Both,
+parts, measure range, paper, native chord options and independent print scale.
+Saving uses Android's document contract without broad storage permission.
+
+```kotlin
+implementation(project(":tux-compose-pdf")) // optional, Android API 24+
+
+withContext(Dispatchers.IO) {
+    resolver.openOutputStream(destinationUri, "wt")!!.use { output ->
+        TuxGuitarPdfExporter(context).export(decodedSong, output,
+            TGPdfOptions(style = TGLayoutStyles.Mixed, trackIndex = null))
+    }
+}
+```
+
+[Module/API, native limits and licences](tux-compose-pdf/README.md) ·
+[Exact upstream print rules and mathematics](docs/PDF-EXPORT.md).
+This candidate is under qualification; the existing download above remains 1.0.1
+until the new version's CI, actual PDF and visual checks complete.
+
 ## Modules
 
 | Module | Responsibility | Platforms |
 |---|---|---|
 | `tux-compose-core` | `com.tuxcompose.model`, `.layout`, `.renderer`, `.component` | Android + JVM; optional iOS targets; all implementation in `commonMain` |
+| `tux-compose-pdf` | Optional native TuxGuitar print layout + vector PDF serialization; never a core dependency | Android 7.0+ |
 | `demo-tuxguitar` | Existing Java GP3/4/5, GPX, GP7/GP, TG and MIDI readers, immutable-model adapter, original MIDI event/repeat engine | JVM/Android, **demo only** |
 | `demo-synth` | FluidSynth 2.6.2 JNI + pinned GeneralUser GS 2.0.3 bank | Android, **demo only** |
 | `sample-android` | Compose screen, Storage Access Framework picker, transport, soundfonts and optional hardware MIDI output | Android 7.0+ |

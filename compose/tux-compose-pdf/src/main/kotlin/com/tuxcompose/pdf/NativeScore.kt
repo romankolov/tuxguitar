@@ -94,8 +94,8 @@ internal fun nativeScore(source: TGSong,options: TGPdfOptions,metadata: TGPdfMet
                 val beat=f.newBeat().apply {
                     preciseStart=b.preciseStart ?: NativeDuration.toPreciseTime(b.start)
                     stroke.direction=b.stroke.direction.value;stroke.value=b.stroke.value;pickStroke.direction=b.pickStroke.value
-                    text=b.text?.let {v->f.newText().apply {value=v}}
-                    chord=b.chord?.let {v->f.newChord(v.frets.size).apply {
+                    b.text?.let {v->text=f.newText().apply {value=v}}
+                    b.chord?.let {v->chord=f.newChord(v.frets.size).apply {
                         name=v.name;firstFret=v.firstFret;v.frets.forEachIndexed {i,fret->addFretValue(i,fret)}
                     }}
                 }
