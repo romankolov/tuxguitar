@@ -73,6 +73,8 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.12.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    // Original PDF font engine is a test-only reference, never in the app/runtime AAR.
+    androidTestImplementation("com.itextpdf:itextpdf:5.5.13.3")
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     debugImplementation("androidx.compose.ui:ui-test-manifest:1.12.1")

@@ -33,6 +33,7 @@ internal fun nativeScore(source: TGSong,options: TGPdfOptions,metadata: TGPdfMet
     }
     fun note(n: TGNote,t: TGTrack): NativeNote {
         val natural=n.value.coerceAtLeast(0)+(if(t.percussion) 0 else t.stringTuning[n.string-1])
+        require(natural in 0..127) {"This tuning/fret combination is outside native TuxGuitar's printable pitch range"}
         require(n.pitch==null || n.pitch==natural) {
             "A per-note pitch override cannot be represented by native TuxGuitar fret/tuning notation"
         }

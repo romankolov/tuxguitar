@@ -66,6 +66,26 @@ class PdfExportDeviceTest {
             }
         }
     }
+    @Test fun runtimeStandard14MetricsMatchOriginalItextWidthsAndDigitAscent() {
+        PDFBoxResourceLoader.init(context)
+        // Inspect the actual internal provider without adding font-test hooks to the API.
+        val type=Class.forName("com.tuxcompose.pdf.PdfMetrics")
+        val provider=type.getDeclaredConstructor().newInstance()
+        val fontType=Class.forName("com.tuxcompose.pdf.PrintFont")
+        val constructor=fontType.getDeclaredConstructor(String::class.java,java.lang.Float.TYPE,java.lang.Boolean.TYPE,java.lang.Boolean.TYPE)
+        val width=type.getDeclaredMethod("width",String::class.java,fontType)
+        val ascent=type.getDeclaredMethod("digitAscent",fontType)
+        val texts=listOf("1234567890","Technique Atlas","Track Acoustic guitar","Tuning: E A D G B E",
+            "let ring L.R P.M N.H A.H T.H P.H S.H","Cmaj7(add9)/G","Album Canvas Sessions (2026)","é € – ·", "中文")
+        for(name in listOf("Times-Roman","Times-Bold","Helvetica")) for(size in listOf(6f,8f,9f,10f,12f,16f)) {
+            val original=com.itextpdf.text.pdf.BaseFont.createFont(name,"Cp1252",false)
+            val font=constructor.newInstance(name,size,true,false)
+            assertEquals("$name/$size digit ascent",original.getAscent("1234567890")/1000f*size,ascent.invoke(provider,font) as Float,.0001f)
+            texts.forEach {value->
+                assertEquals("$name/$size width of $value",original.getWidth(value)/1000f*size,width.invoke(provider,value,font) as Float,.0001f)
+            }
+        }
+    }
     @Test fun vectorPdfHasNativePageFontsTrackPartsAndNoRasterizedScoreAcrossAllStyles() {
         val imported=source()
         val exporter=TuxGuitarPdfExporter(context)

@@ -200,7 +200,7 @@ fun TuxComposeDemo() {
                 contentWindowInsets=WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal+WindowInsetsSides.Bottom),
                 topBar={ StudioTopBar(imported?.score?.title ?: "Your practice space",status,busy,
                     {open.launch(arrayOf("*/*"))},{more=true}) {
-                    DropdownMenu(expanded=more,onDismissRequest={more=false}) {
+                    DropdownMenu(expanded=more,onDismissRequest={more=false},modifier=Modifier.semantics {testTagsAsResourceId=true}) {
                         DropdownMenuItem(text={Text("Score details")},leadingIcon={StudioIcon(R.drawable.ic_info)},
                             onClick={more=false;details=true},modifier=Modifier.testTag("score-details"))
                         DropdownMenuItem(text={Text("Explore score sections")},leadingIcon={StudioIcon(R.drawable.ic_graphic_eq)},

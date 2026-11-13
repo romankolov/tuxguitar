@@ -107,6 +107,10 @@ with ZipFile(pdf_aars[0]) as package:
         assert not any(n.startswith(('app/tuxguitar/','com/itextpdf/')) for n in names), 'Unisolated native runtime or iText leaked into PDF AAR'
         assert not any('/io/tg/' in n or '/io/gtp/' in n or 'MidiPlayer' in n or 'MidiSequence' in n for n in names), 'Music parser/playback leaked into PDF library'
         assert any('/graphics/control/print/TGPrintLayout.class' in n for n in names), 'Original print engine missing'
+with ZipFile(apk) as package:
+    for name in package.namelist():
+        if name.endswith('.dex'):
+            assert b'Lcom/itextpdf/' not in package.read(name), 'Test-only AGPL iText leaked into release APK'
 summary['pdf_has_native_print_engine']=True
 summary['core_has_audio_payload'] = False
 summary['core_mpl_licence_and_notice'] = True

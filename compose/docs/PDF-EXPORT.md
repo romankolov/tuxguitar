@@ -150,6 +150,9 @@ Host tests run the original, unrelocated `TGPrintLayout`, original PDF profile a
 original iText painter, then compare its complete painter call stream with the
 isolated adapter over the decoded Technique Atlas, styles, parts, ranges and scale.
 The reference really writes an iText PDF; it is not a second pagination formula.
+An Android test independently compares the actual PDFBox runtime provider with
+iText's Standard-14 widths and digit ascents, including extended CP1252 text and
+unrepresentable text, without changing fonts to Android substitutes.
 
 Device tests write actual PDF files, inspect page sizes/fonts/text/vector resources,
 check output digest/count/stream ownership, and rasterize their actual pages using
