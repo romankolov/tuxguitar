@@ -344,7 +344,7 @@ def install_verified_release(apk, proof):
     # A 95 MB APK on the API-24 emulator exceeded the old generic 60-second
     # command budget. Give this ONE install a bounded three minutes; no retry,
     # suppressed error or relaxed smoke assertion. UI/capture budgets stay unchanged.
-    output=adb('install',str(apk),timeout=180)
+    output=adb('install','--no-streaming',str(apk),timeout=180)
     assert b'Success' in output.splitlines(), f'Installer did not confirm success: {output!r}'
     info=adb('shell','dumpsys','package','com.tuxcompose.sample').decode(errors='replace')
     assert re.search(r'\bversionName='+re.escape(proof['version'])+r'(?:\s|$)',info), 'Installed release version name differs'

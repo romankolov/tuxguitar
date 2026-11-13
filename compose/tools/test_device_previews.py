@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import base64
+import contextlib
+import io
 import hashlib
 import json
 from pathlib import Path
@@ -70,7 +72,7 @@ class DetailedPreviewExportTest(unittest.TestCase):
             Image.new('RGB',(12,12),'white').save(folder/'capsule-1.0.png')
             with patch.object(exporter,'__file__',str(root/'tools/publish.py')),patch.object(exporter.sys,'argv',['publish','24']), \
                  patch.dict(exporter.os.environ,{'GITHUB_REPOSITORY':'example/example','GITHUB_SHA':'test'}), \
-                 patch.object(exporter,'gh',return_value={'id':1,'html_url':'https://example.invalid'}) as api:
+                 patch.object(exporter,'gh',return_value={'id':1,'html_url':'https://example.invalid'}) as api,contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaisesRegex(AssertionError,'Incomplete capture evidence'):
                     exporter.main()
             conclusions=[c.args[2].get('conclusion') for c in api.call_args_list]
