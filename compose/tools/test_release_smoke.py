@@ -49,6 +49,14 @@ class ReleaseCaptureTest(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError,'Unable to export PDF'):
             smoke.assert_pdf_export_status(doc)
 
+    def test_keyboard_back_is_sent_only_for_a_visible_ime(self):
+        with patch.object(smoke,'adb',return_value=b'mInputShown=false') as adb:
+            smoke.dismiss_visible_keyboard()
+            self.assertEqual(1,adb.call_count)
+        with patch.object(smoke,'adb',side_effect=[b'mInputShown=true',b'']) as adb:
+            smoke.dismiss_visible_keyboard()
+            self.assertEqual(('shell','input','keyevent','4'),adb.call_args_list[-1].args)
+
     def capture(self, frames, *, settled=True, clock=None):
         # Minimal byte tokens exercise frame identity/control flow, not PNG decoding.
         with tempfile.TemporaryDirectory() as folder, patch.object(smoke, 'out', Path(folder)), patch.object(smoke, 'captures', {}), patch.object(smoke, 'wait_workspace') as workspace, patch.object(smoke, 'adb', side_effect=frames) as adb, patch.object(smoke.time, 'sleep'):

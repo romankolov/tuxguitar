@@ -208,13 +208,25 @@ def showcase_sections():
 
 def wait_matching(predicate,message):
     deadline=time.monotonic()+65
+    visible=[]
     while time.monotonic()<deadline:
         try:
-            node=next((n for n in tree().iter('node') if predicate(n)),None)
+            doc=tree()
+            visible=[(n.get('resource-id',''),n.get('text',''),n.get('content-desc',''),n.get('enabled')) for n in doc.iter('node')
+                     if n.get('text') or n.get('resource-id') or n.get('content-desc')][-25:]
+            node=next((n for n in doc.iter('node') if predicate(n)),None)
             if node is not None:return node
         except (ET.ParseError,subprocess.CalledProcessError):pass
         time.sleep(.3)
-    raise AssertionError(message)
+    raise AssertionError(message+'; actual UI: '+str(visible)[:1700])
+
+
+def dismiss_visible_keyboard():
+    # Android 7 places Save at the bottom of DocumentsUI; unlike modern versions,
+    # an open IME can obscure it. Never send Back unless the IME is actually shown.
+    info=adb('shell','dumpsys','input_method').decode(errors='replace')
+    if re.search(r'(?:mInputShown|mIsInputViewShown|isInputViewShown)=true',info):
+        adb('shell','input','keyevent','4')
 
 
 def assert_pdf_export_status(doc):
@@ -240,6 +252,7 @@ def native_pdf_export():
     adb('shell','input','keyevent','123')
     adb('shell','input','keyevent',*(['67']*64))
     adb('shell','input','text',filename)
+    dismiss_visible_keyboard()
     click(description='Show roots')
     tap(wait_matching(lambda n:n.get('text','').casefold()=='downloads' and n.get('enabled')=='true','System Downloads destination missing'))
     save=wait_matching(lambda n:(n.get('text','').casefold()=='save' or n.get('content-desc','').casefold()=='save') and n.get('enabled')=='true','System PDF Save action missing')
