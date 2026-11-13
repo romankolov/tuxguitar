@@ -38,7 +38,8 @@ tasks.configureEach {
 dependencies {
     api(project(":tux-compose-core"))
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-    testImplementation(kotlin("test"))
+    testImplementation(kotlin("test-junit"))
+    testImplementation("junit:junit:4.13.2")
     testImplementation(project(":demo-tuxguitar"))
     testImplementation("com.itextpdf:itextpdf:5.5.13.3")
 }

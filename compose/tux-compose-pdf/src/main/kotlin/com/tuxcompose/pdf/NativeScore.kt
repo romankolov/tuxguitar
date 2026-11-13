@@ -28,7 +28,7 @@ internal fun nativeScore(source: TGSong,options: TGPdfOptions,metadata: TGPdfMet
         division.enters=d.division.enters;division.times=d.division.times
     }
     fun note(n: TGNote,t: TGTrack): NativeNote {
-        val natural=n.value.coerceAtLeast(0)+t.stringTuning[n.string-1]
+        val natural=n.value.coerceAtLeast(0)+(if(t.percussion) 0 else t.stringTuning[n.string-1])
         require(n.pitch==null || n.pitch==natural) {
             "A per-note pitch override cannot be represented by native TuxGuitar fret/tuning notation"
         }
@@ -81,7 +81,7 @@ internal fun nativeScore(source: TGSong,options: TGPdfOptions,metadata: TGPdfMet
     source.tracks.forEachIndexed {ti,t->
         out.addChannel(f.newChannel().apply {channelId=ti; if(t.percussion) bank=128.toShort()})
         val track=f.newTrack().apply {number=ti+1;name=t.name;channelId=ti;offset=t.capo}
-        t.stringTuning.forEachIndexed {i,pitch->track.strings.add(f.newString().apply {number=i+1;value=pitch})}
+        t.stringTuning.forEachIndexed {i,pitch->track.strings.add(f.newString().apply {number=i+1;value=if(t.percussion) 0 else pitch})}
         metadata.lyrics[ti]?.let {v->track.lyrics.apply {from=v.fromMeasure;lyrics=v.text}}
         out.addTrack(track)
         t.measures.forEachIndexed {mi,m->

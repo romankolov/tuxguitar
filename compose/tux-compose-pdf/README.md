@@ -122,6 +122,10 @@ checks their manifests and refuses publication if evidence is missing.
 TuxGuitar-derived engine/adapter: **LGPL-2.1-or-later**. PDFBox-Android and its
 bundled font data have their own Apache/third-party notices; Bouncy Castle has its
 permissive licence. Full notices are in `src/main/assets/licenses` and the AAR/APK.
-The existing core's separate LGPL/MPL boundary remains unchanged. Consumers must
+The existing core's separate LGPL/MPL boundary remains unchanged.
+PDFBox's compile-only JPEG-2000 codec is intentionally not packaged: there is no
+input-PDF/image-decoder API and exported notation is paths/text. Only the two
+optional JP2 codec class warnings are excluded; image-XObject rejection, native
+paint comparisons, PDF parsing/rendering and all core/release gates remain active. Consumers must
 comply with applicable source/relinking requirements; changing a Java package
 name does not remove upstream copyright or licence obligations.
