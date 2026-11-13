@@ -83,8 +83,12 @@ class PdfExportDeviceTest {
             val original=com.itextpdf.text.pdf.BaseFont.createFont(name,"Cp1252",false)
             val font=constructor.newInstance(name,size,true,false)
             assertEquals("$name/$size digit ascent",original.getAscent("1234567890")/1000f*size,ascent.invoke(provider,font) as Float,.0001f)
-            texts.forEach {value->
-                assertEquals("$name/$size width of $value",original.getWidth(value)/1000f*size,width.invoke(provider,value,font) as Float,.0001f)
+            texts.forEachIndexed {index,value->
+                value.forEach {char->
+                    val glyph=char.toString()
+                    assertEquals("$name/$size U+%04X".format(char.code),original.getWidth(glyph)/1000f*size,width.invoke(provider,glyph,font) as Float,.0001f)
+                }
+                assertEquals("$name/$size string $index width",original.getWidth(value)/1000f*size,width.invoke(provider,value,font) as Float,.0001f)
             }
         }
     }
@@ -141,9 +145,13 @@ class PdfExportDeviceTest {
         catch(_: IllegalArgumentException) {assertEquals(0,invalid.size())}
     }
     @Test fun samplePdfSettingsValidateInputAndSaveTheCurrentScoreThroughTheDocumentContract() {
-        compose.waitUntil(60_000) {compose.onAllNodesWithTag("score-canvas").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitUntil(60_000) {compose.onAllNodesWithTag("next").fetchSemanticsNodes().any {
+            !it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)
+        }}
         compose.onNodeWithTag("more").performClick()
-        compose.onNodeWithTag("export-pdf").performClick()
+        compose.waitUntil(10_000) {compose.onAllNodesWithText("Export score / tab as PDF").fetchSemanticsNodes().isNotEmpty()}
+        compose.onNodeWithText("Export score / tab as PDF").performClick()
+        compose.waitUntil(10_000) {compose.onAllNodesWithTag("pdf-export-sheet").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithTag("pdf-export-sheet").assertIsDisplayed()
         compose.onNodeWithTag("pdf-style-Mixed").assertIsOn()
         compose.onNodeWithTag("pdf-parts-all").assertIsOn()

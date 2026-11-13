@@ -127,6 +127,9 @@ PDF_y           = pageHeight - native_y
 Do not substitute Android `serif`, use the global AFM ascender instead of digit
 bounds, or measure in device pixels. PDFBox-Android supplies the same Standard-14
 AFM data and PDF serialization, avoiding an iText AGPL dependency in the runtime.
+Measurement uses raw AFM glyph advances (including native non-breaking-space
+aliasing), not backend-specific soft-hyphen substitutions. Per-character and
+whole-string comparisons cover the full CP1252 range.
 The original iText backend is used only in host comparison tests.
 
 `UIPainter.closePath` flushes paint with draw/fill/both flags; it is not a request

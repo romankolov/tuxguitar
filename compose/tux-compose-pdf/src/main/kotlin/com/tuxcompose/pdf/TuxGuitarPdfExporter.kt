@@ -3,6 +3,8 @@ package com.tuxcompose.pdf
 
 import android.content.Context
 import com.tom_roush.fontbox.afm.AFMParser
+import com.tom_roush.fontbox.afm.FontMetrics
+import com.tom_roush.pdfbox.pdmodel.font.encoding.GlyphList
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
@@ -66,7 +68,8 @@ private fun artistMetadata(info: com.tom_roush.pdfbox.pdmodel.PDDocumentInformat
 internal class PdfMetrics: PrintMetrics {
     private val fonts=mapOf("Times-Roman" to PDType1Font.TIMES_ROMAN,"Times-Bold" to PDType1Font.TIMES_BOLD,
         "Helvetica" to PDType1Font.HELVETICA)
-    private val ascents=mutableMapOf<String,Float>()
+    private val afms=mutableMapOf<String,FontMetrics>()
+    private val glyphs=GlyphList.getAdobeGlyphList()
     private val winAnsi=Charset.forName("windows-1252")
     fun font(name: String)=requireNotNull(fonts[name]) {"Unknown native PDF font: $name"}
     fun text(value: String,name: String): String {
@@ -77,12 +80,23 @@ internal class PdfMetrics: PrintMetrics {
             try {f.encode(c.toString());append(c)} catch(_: IllegalArgumentException) { /* no Standard-14 glyph */ }
         }}}
     }
-    override fun width(text: String,font: PrintFont)=this.font(font.name).getStringWidth(this.text(text,font.name))/1000f*font.size
-    override fun digitAscent(font: PrintFont): Float = ascents.getOrPut(font.name) {
-        PDFBoxResourceLoader.getStream("com/tom_roush/pdfbox/resources/afm/${font.name}.afm").use {stream->
-            AFMParser(stream).parse(true).charMetrics.filter {it.name in digitNames}.maxOf {it.boundingBox.upperRightY}
-        }
-    }/1000f*font.size
+    private fun afm(name: String)=afms.getOrPut(name) {
+        PDFBoxResourceLoader.getStream("com/tom_roush/pdfbox/resources/afm/$name.afm").use {AFMParser(it).parse(true)}
+    }
+    override fun width(text: String,font: PrintFont): Float {
+        // Use raw AFM glyph advances as PDFFont/BaseFont does. PDFBox's convenience
+        // getStringWidth substitutes hyphen for sfthyphen; upstream iText's raw AFM
+        // has no sfthyphen metric (zero). That difference must not reflow the music.
+        val metrics=afm(font.name);val encoder=winAnsi.newEncoder()
+        var units=0f
+        text.forEach {c->if(encoder.canEncode(c)) {
+            val name=glyphs.codePointToName(c.code)
+            units+=metrics.getCharacterWidth(if(c=='\u00a0') "space" else name)
+        }}
+        return units/1000f*font.size
+    }
+    override fun digitAscent(font: PrintFont)=afm(font.name).charMetrics
+        .filter {it.name in digitNames}.maxOf {it.boundingBox.upperRightY}/1000f*font.size
     private val digitNames=setOf("zero","one","two","three","four","five","six","seven","eight","nine")
 }
 
