@@ -1,6 +1,6 @@
 # Tux Compose PDF — optional Android library
 
-**Status: 1.1.0 candidate; qualification is in progress. Do not treat an unqualified build as a release.**
+**1.1.0** · [release APK/AAR/example PDF](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-v1.1.0) · [qualification and evidence](../docs/RELEASE-1.1.0.md)
 
 Exports the renderer's decoded immutable `TGSong` as a vector PDF. The optional
 module depends on `tux-compose-core`; core never depends on PDF, Android storage,
@@ -26,6 +26,13 @@ implementation(project(":tux-compose-pdf"))
 Include the module in the standalone `compose` build, or publish its `release`
 Maven publication locally. A manually installed AAR also needs the core AAR and
 `com.tom-roush:pdfbox-android:2.0.27.0`; the Maven POM declares these dependencies.
+For manually downloaded AARs in an existing core-based app:
+
+```kotlin
+implementation(files("libs/tux-compose-pdf-release.aar"))
+implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+// Keep your existing core AAR/project dependency; no extra native print JAR is needed.
+```
 
 ```kotlin
 val exporter = TuxGuitarPdfExporter(context.applicationContext)

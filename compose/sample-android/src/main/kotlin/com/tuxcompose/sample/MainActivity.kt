@@ -176,7 +176,7 @@ fun TuxComposeDemo() {
                     }
                 }
                 busy=false
-                snackbar.showSnackbar("PDF exported · ${result.pageCount} pages")
+                snackbar.showSnackbar("PDF exported · ${result.pageCount} ${if(result.pageCount==1) "page" else "pages"}")
             } catch(e: CancellationException) {throw e}
             catch(e: Exception) {error=e.message ?: "Unable to export PDF"}
             finally {busy=false}

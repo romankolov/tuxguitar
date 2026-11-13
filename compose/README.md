@@ -1,12 +1,13 @@
-# Tux Compose 1.0.1
+# Tux Compose 1.1.0
 
 **Immutable score → shared layout → Compose Canvas.** A standalone rendering library and an Android showcase built alongside (not inside) the legacy TuxGuitar applications.
 
 The library has **no decoder, file access, playback clock, MIDI, synthesizer, audio dependency, Android View, SWT or AWT**. The showcase intentionally has these integrations, in separate modules.
 
-**Downloads:** [1.0.1 evaluation release APK / core AAR / checksums](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-v1.0.1).
-See [the annotation corrections, source comparison, visual qualification and signing warning](docs/RELEASE-1.0.1.md).
-The previous 1.0.0 tag/assets remain immutable.
+**Downloads:** [1.1.0 evaluation APK / core AAR / PDF library AAR / example PDF / checksums](https://github.com/romankolov/tuxguitar/releases/tag/tux-compose-v1.1.0).
+See [the native PDF library, usage, qualification and signing warning](docs/RELEASE-1.1.0.md).
+The [1.0.1 annotation corrections](docs/RELEASE-1.0.1.md) remain in place.
+The previous 1.0.0 and 1.0.1 tag/assets remain immutable.
 
 ## 1.0.1 annotation correction
 
@@ -45,7 +46,7 @@ Read [the upstream decisions and honest limits](docs/UPSTREAM-COMPARISON.md),
 outperforms either complete upstream application. The native Compose architecture and
 specific tested behaviors are the intended advantages.
 
-## Optional PDF export (1.1.0 candidate)
+## Optional native PDF export (1.1.0)
 
 The new **`tux-compose-pdf` Android library** takes the same decoded immutable
 `TGSong` and executes TuxGuitar's original print engine. It is not a screenshot
@@ -67,8 +68,9 @@ withContext(Dispatchers.IO) {
 
 [Module/API, native limits and licences](tux-compose-pdf/README.md) ·
 [Exact upstream print rules and mathematics](docs/PDF-EXPORT.md).
-This candidate is under qualification; the existing download above remains 1.0.1
-until the new version's CI, actual PDF and visual checks complete.
+Qualification: 219 JVM tests, 40 host checks, and 40 instrumented + 6 exact-release
+cases on each API 24/35. All 106 score/PDF/release previews were hash-verified
+and reviewed before promotion. [Exact run, source and limits](docs/RELEASE-1.1.0.md).
 
 ## Modules
 
@@ -124,7 +126,7 @@ For an external project, publish to Maven Local first, add `mavenLocal()` to rep
 
 ```kotlin
 commonMain.dependencies {
-    implementation("com.tuxcompose:tux-compose-core:1.0.1")
+    implementation("com.tuxcompose:tux-compose-core:1.1.0")
 }
 ```
 

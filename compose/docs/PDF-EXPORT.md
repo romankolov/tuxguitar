@@ -1,8 +1,8 @@
-# Native TuxGuitar PDF export (1.1.0 candidate)
+# Native TuxGuitar PDF export (1.1.0)
 
 This feature is implemented in the separate optional Android library
-[`tux-compose-pdf`](../tux-compose-pdf/README.md). Qualification is still in
-progress; see Actions for actual results, not assumed success.
+[`tux-compose-pdf`](../tux-compose-pdf/README.md). [Qualification, exact run and evidence](RELEASE-1.1.0.md) record the verified
+results and inspected previews; scope limits below still apply.
 
 ## Why it does not export the screen layout
 

@@ -52,3 +52,16 @@ metrics can optionally override `firstBaseline`; Compose uses its actual cached 
 The attributed `TGAlphaEffectLayout.kt` adaptation adds an MPL-2.0 file obligation;
 other core source remains LGPL-2.1-or-later. Full licences and notices are verified
 inside both the shipped AAR and sample APK.
+
+### Optional PDF module (1.1.0)
+
+`tux-compose-pdf` is a separately consumable Android library. Its dependency points
+to core, never the reverse; core has no PDF/platform/parser/playback dependency.
+It executes namespace-only relocated original TuxGuitar print code rather than
+altering the screen API or serializing a published layout object. Its options and
+print-only metadata accept decoded core models; native implementation types are
+not public API. Written-pitch, two-voice, aligned-header, measure numbering and
+Standard-14/CP1252 limits are explicit in [the API guide](../tux-compose-pdf/README.md).
+Android/JVM core targets are not a promise of a desktop or iOS PDF backend.
+LGPL source/relinking and PDFBox/font notices accompany this optional AAR; the
+original iText backend remains a test-only reference. [1.1.0 qualification](RELEASE-1.1.0.md).
