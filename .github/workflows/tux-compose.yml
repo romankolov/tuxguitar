@@ -1,7 +1,7 @@
 name: Tux Compose · build, test & APK
 on:
   push:
-    branches: ["master", "arena/285632fe-tuxguitar"]
+    branches: ["master", "arena/3dc87cab-tuxguitar"]
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
   pull_request:
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
@@ -37,8 +37,9 @@ jobs:
           npm ci --no-audit --no-fund --prefix tools/upstream
           python3 tools/upstream/check.py
           python3 tools/upstream/check_tuxguitar.py
+          python3 tools/prepare_pdf_sources.py --remote
       - name: Install host screenshot test dependency
-        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0
+        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0 pypdf==6.1.3
       - name: Verify upstream glyphs, dependency boundary and screenshot harness
         run: |
           python3 tools/verify.py
@@ -64,6 +65,7 @@ jobs:
             compose/build/release-verification.json
             compose/build/synth-verification.json
             compose/tux-compose-core/build/outputs/aar/*.aar
+            compose/tux-compose-pdf/build/outputs/aar/*-release.aar
           if-no-files-found: error
           retention-days: 30
       - name: Upload diagnostics
@@ -110,7 +112,7 @@ jobs:
           name: tux-compose-apk-${{ github.run_number }}
           path: compose/verified-artifacts
       - name: Install screenshot encoder
-        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0
+        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0 pypdf==6.1.3
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -188,7 +190,7 @@ jobs:
           retention-days: 14
 
   preview-apk:
-    if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish]'))) && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/285632fe-tuxguitar')
+    if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish]'))) && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/arena/3dc87cab-tuxguitar')
     needs: [build, device-test]
     runs-on: ubuntu-22.04
     permissions:
@@ -204,15 +206,17 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           apk=$(find verified-artifacts -name 'sample-android-release.apk' -print -quit)
-          aar=$(find verified-artifacts -name '*.aar' -print -quit)
-          test -n "$apk" && test -n "$aar"
+          aar=$(find verified-artifacts -path '*tux-compose-core*' -name '*.aar' -print -quit)
+          pdf_aar=$(find verified-artifacts -name 'tux-compose-pdf-release.aar' -print -quit)
+          test -n "$apk" && test -n "$aar" && test -n "$pdf_aar"
           mkdir release
           cp "$apk" release/sample-android-release.apk
           cp "$(find verified-artifacts -name 'release-verification.json' -print -quit)" release/BUILD-VERIFICATION.json
           cp "$aar" release/tux-compose-core-release.aar
+          cp "$pdf_aar" release/tux-compose-pdf-release.aar
           (cd release && sha256sum *.apk *.aar > SHA256SUMS.txt)
           version=$(python3 -c "import json; print(json.load(open('release/BUILD-VERIFICATION.json'))['version'])")
-          notes="Tux Compose $version: immutable decoded score to native Compose Canvas, without core parsers or playback. Native TuxGuitar spacing remains the default; includes the 1.0.1 source-backed annotation correction (native text baselines/paths and attributed MPL-2.0 alphaTab grouped effects), chord/accidental/tie/grace improvements and opt-in Spring spacing with hard glyph minimums. Pinned TuxGuitar/alphaTab comparisons and explicit limitations are documented. Optimized, R8-shrunk, non-debuggable release APK and core AAR. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Both APIs preserved all 32 required detailed hardware capture scenes. Evaluation build, not a Play Store release. Source and usage: https://github.com/$GH_REPO/tree/$GITHUB_SHA/compose. Comparison and mathematics: https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/UPSTREAM-COMPARISON.md and https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/ENGRAVING.md. This is not a blanket superiority or complete-editor parity claim."
+          notes="Tux Compose $version: immutable decoded score to native Compose Canvas, without core parsers or playback. Native TuxGuitar spacing remains the default; includes the 1.0.1 source-backed annotation correction (native text baselines/paths and attributed MPL-2.0 alphaTab grouped effects), chord/accidental/tie/grace improvements and opt-in Spring spacing with hard glyph minimums. Pinned TuxGuitar/alphaTab comparisons and explicit limitations are documented. Optimized, R8-shrunk, non-debuggable release APK and core AAR. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Both APIs preserved all 41 required score/PDF capture scenes and validated five real vector PDFs. Evaluation build, not a Play Store release. Source and usage: https://github.com/$GH_REPO/tree/$GITHUB_SHA/compose. Comparison and mathematics: https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/UPSTREAM-COMPARISON.md and https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/ENGRAVING.md. This is not a blanket superiority or complete-editor parity claim."
           if gh release view tux-compose-preview >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GH_REPO/git/refs/tags/tux-compose-preview" -f sha="$GITHUB_SHA" -F force=true
             gh release edit tux-compose-preview --notes "$notes"

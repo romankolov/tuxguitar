@@ -1,0 +1,20 @@
+Tux Compose PDF: LGPL-2.1-or-later.
+
+The print engine is TuxGuitar 2.1.1, commit
+b4feea4fe2f0155d648a37282ec57f1ecb329a35, LGPL-2.1-or-later.
+Its original source algorithms are compiled with namespace-only relocation into
+com.tuxcompose.pdf.internal.tuxguitar to isolate native globals from importing or
+playing applications. The exact 100 runtime sources and 8 reference-backend
+sources are SHA-256 pinned in tux-compose-pdf/upstream.json. Corresponding source,
+relocation generator, decoded-model adapter and PDF painter:
+https://github.com/romankolov/tuxguitar/tree/arena/3dc87cab-tuxguitar/compose
+Original authorship: TuxGuitar / Julian Gabriel Casadesus and contributors.
+
+PDFBox-Android 2.0.27.0 (Tom Roush, Apache Software Foundation and contributors),
+Apache-2.0, supplies PDF serialization and Standard-14 font metrics, not musical
+layout. Its licence and NOTICE are included alongside this notice.
+https://github.com/TomRoush/PdfBox-Android/tree/v2.0.27.0
+
+The original iText 5.5.13.3 PDF backend is a TEST-ONLY reference. It is not shipped
+in this Android library or the sample release APK. No AGPL iText runtime is added.
+The existing rendering core's LGPL/MPL licensing is independent and unchanged.

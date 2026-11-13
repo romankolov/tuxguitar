@@ -10,8 +10,8 @@ android {
         applicationId = "com.tuxcompose.sample"
         minSdk = 24
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.0.1"
+        versionCode = 12
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -57,6 +57,7 @@ tasks.named("preBuild").configure { dependsOn(demoAssets) }
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
     implementation(project(":tux-compose-core"))
+    implementation(project(":tux-compose-pdf"))
     implementation(project(":demo-tuxguitar"))
     implementation(project(":demo-synth"))
     // Expressive is not in stable Material3 1.4.0. Pin the current RC explicitly.
@@ -68,6 +69,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.12.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("com.tom-roush:pdfbox-android:2.0.27.0")
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     debugImplementation("androidx.compose.ui:ui-test-manifest:1.12.1")

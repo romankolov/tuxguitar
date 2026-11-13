@@ -1,0 +1,548 @@
+{
+  "repository": "helge17/tuxguitar",
+  "release": "2.1.1",
+  "commit": "b4feea4fe2f0155d648a37282ec57f1ecb329a35",
+  "relocation": "app.tuxguitar -> com.tuxcompose.pdf.internal.tuxguitar; no algorithm changes",
+  "files": [
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/command/TGCubicTo.java",
+      "sha256": "7101c2b90da902ebc7112f13e33191f3f9360bca7a6ad2eb911421a725380cc2",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/command/TGLineTo.java",
+      "sha256": "8821c960000cb7d17aa198f592502c20bf8393fe30f82f55f961cd0a9e1e8655",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/command/TGMoveTo.java",
+      "sha256": "e23b2b4b4d83e61ec13fad66db0a820316714afb60336015fdb5386ecf140fdc",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/command/TGPaintCommand.java",
+      "sha256": "f683e1d9c108abd01318a7723aec86662740448c9666d1a1c1b03b6fc816a575",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/command/TGPaintModel.java",
+      "sha256": "8092be212644c2720a33f35e612391b085c15e7cca0531348865d36efddb2673",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/command/TGRectangle.java",
+      "sha256": "53009b242350c2cadd65e90403db5d05402f9ebaba25520e23e7ec62e182a66e",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGBeatGroup.java",
+      "sha256": "12d34dc45fb0703110f133fd1dcf697d2152e1ccf2e230bbff055ab670b84eec",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGBeatImpl.java",
+      "sha256": "88e30567aa29c6c5ddffd363dadb88ca38bc32aa4f8827d820073057a14f11a7",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGBeatSpacing.java",
+      "sha256": "90a7890272d5ba675234b6cfc4f5a1d24701701de89137cf45474fc7dacdbbcd",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGChordImpl.java",
+      "sha256": "d5be62039c7ecbb7a548d332d7a3860108ec90591752ed3571097049c7b9df35",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGController.java",
+      "sha256": "2890ddfa53bfabbabd3d02de45389672b1f3e354eef6e835c24188ee06f764ea",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGDrumMap.java",
+      "sha256": "6725ceccbfeebff343480517163372714157c093e981b1d7983a96804a5324ea",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGFactoryImpl.java",
+      "sha256": "fd09e950baf7a1a210146fde32fee03e34e0da0fcf058210d1b74f386983b45a",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGLayout.java",
+      "sha256": "f682d2637f78ab9434fd354cfa3d89e052b38a1dbc107123071d9133531098cd",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGLayoutStyles.java",
+      "sha256": "7ee2f35346ebb11892cb2c6ff9297c9001325111f73569d925d86640bb7ddd0a",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGLyricImpl.java",
+      "sha256": "5388a2d72b4ea0ba8249d0aaf41210abd397c1b9c11ab92280710af76f5a6a53",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGMeasureBuffer.java",
+      "sha256": "0d3fdeabdd30ff40b9f0fce205b65ee46df2830fafcf2923ea95a34ad7ecc7ea",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGMeasureHeaderImpl.java",
+      "sha256": "4a9f33f89facd34e7dfe30f0baebd57eed2a94e1f819df2df2cfe11964d6ae39",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGMeasureImpl.java",
+      "sha256": "90c2cca276b7aee13a1b2046d47257a36a8375920dadd81c6bd0b97d3c5df6f9",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGNotation.java",
+      "sha256": "036077bdff9a13428efaa951fe04c49acec8f216b03f8f6437cae1a97c93ecb7",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGNoteImpl.java",
+      "sha256": "b61427f9fd1aa4702d90aa4e8896f77dd1a1a9bc5643b7f827ce654ea973abad",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGResourceBuffer.java",
+      "sha256": "2f804a22826430ad3f0976bb1b45d4cd0630e795e3b0708f8d8e0021094f2296",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGResources.java",
+      "sha256": "3777eb0e92b2863d4e5d6046452f23ebb5e894dd11469c74dee603d1f9a3bd33",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGSpacing.java",
+      "sha256": "6ef36d350ff1cec4218158aa97a832eab6f67d704df7414694a3a8ca418ab88b",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGTextImpl.java",
+      "sha256": "f657b5f88ccab08393bfad1c590656915aaddda788eb716c93b01187de8b3e42",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGTrackImpl.java",
+      "sha256": "f1a39e17d512203c8f6cf840e9c86dcaa74452a949718daaedd16a0a509ee7aa",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGTrackSpacing.java",
+      "sha256": "c05e5bc196f3654116e61260c4a6828517f51192dd4d3cd6a9bf12fb73a48299",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/TGVoiceImpl.java",
+      "sha256": "3b62f4b6a78eec502e78508dad3ee4fa66511df608f4c4c15f5b39b15b416069",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/painters/TGClefPainter.java",
+      "sha256": "9f87e14a8b160f65ca9c2832cfedae09b2e192d2ae1ffe611b199c92564dd154",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/painters/TGKeySignaturePainter.java",
+      "sha256": "157eeeb88198483e61766ff1c56e1ca8710c74364c5e9cd83dae76e0fd65f60e",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/painters/TGNotePainter.java",
+      "sha256": "3c7aff4286cc6db50ddee4e7d6114918ca3dd4d10ce9fa3e5e744c82ce4f4a67",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/painters/TGNumberPainter.java",
+      "sha256": "4a943531035d9345498194e9e033c34747c0c23a17124aa4604b139301ce2a88",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/painters/TGSilencePainter.java",
+      "sha256": "8d896e491270821e3170189bd137c084373fd5253e4bb7c230145a33cf715236",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/painters/TGTempoPainter.java",
+      "sha256": "6ffea34cb0d20ff9c88adf8028092ef255234eb9fb82fbe9bbd99760b130a1be",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/painters/TGTripletFeelPainter.java",
+      "sha256": "7e6220397d561421917a311e41aaccf4150ae3d674a823d8ffa4d9ef3a3ceed9",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/print/TGPrintController.java",
+      "sha256": "e51cbb55553d20d7e3c2a72b140689f5543f35fc8533a9a55861db4debf090d5",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/print/TGPrintDocument.java",
+      "sha256": "35d88d6771782bd5d8869d3cdac3256785d27077b12d518fbf923d336a4d04a9",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/print/TGPrintLayout.java",
+      "sha256": "4eb25406a1d40c990eefe4f1220d124931758b9c0bec6a96e5b4d8751643bca8",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/graphics/control/print/TGPrintSettings.java",
+      "sha256": "9fe8f8065a79bd956c2b043cca6132c691b369d8a9a8ba7b52420af202259db5",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/player/base/MidiInstrument.java",
+      "sha256": "ab526094e0a54a2f2aaa15b9c8b1e1ee4acc9033decc061bc7a02d471a2d4126",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/player/base/MidiPercussionKey.java",
+      "sha256": "5e6479e336e47aebde3f4ddbe4d6547a8d9df7f559a3d79bc54f5d04d0aec3f4",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/resource/TGResourceBundle.java",
+      "sha256": "8c6b72fc2f0362bf91ee4474bb21057ead6621994444f48cef63caf409435beb",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/resource/TGResourceException.java",
+      "sha256": "303309cdd8086bc27da457f974a207a90a61478dc329da46880703781ed40878",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/resource/TGResourceLoader.java",
+      "sha256": "9170ac8d94bf8f9d383145c811eee193827b9e350528c318b5e8f3f90f0c119f",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/resource/TGResourceManager.java",
+      "sha256": "71ac4619194e6de6f59496a603824b53bebea9e8f9ba26336dc1c1f363b02f18",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/factory/TGFactory.java",
+      "sha256": "63017b9f5252276d92b9f2b9f74fa362a74ee846003e5b476b3564bfeb9571aa",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/helpers/TGMeasureError.java",
+      "sha256": "8d51a923f3ced422a9a3993b190c219cfbe7fe62db5a9b3ac59c091e4463257b",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/managers/TGMeasureManager.java",
+      "sha256": "185587bc88fd7a90b228950300722e86c880556550093cfc083ecbd27543b5ce",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/managers/TGSongManager.java",
+      "sha256": "e39e59b6ad8510daa8198b188faba132c7b274fc6c6d7f5f81fae47530024a6b",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/managers/TGTrackManager.java",
+      "sha256": "6c6e5065cd01523eafb00a972ef85c8e37b651e7c36e09d6be10494ef136b871",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGBeat.java",
+      "sha256": "b4a779cea023e2d1e4395be471b4b7bed7af386d7558c0228d26c804390436ec",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGChannel.java",
+      "sha256": "e95a4f9cefcffe7c211223312e9c465ca6a1be3051d8300dc1173c2abbeab48c",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGChannelParameter.java",
+      "sha256": "8640560af4133c387fb37c383bbbd6be8f6b63d476a5af351edb5e8427b2d02b",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGChord.java",
+      "sha256": "96d3e74213ca9ec1aedf78fac4376daf0597462f487deadd7d7c48c4a27b4b0d",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGColor.java",
+      "sha256": "b8bf635899e201879d2a7f9e6d7f2e3f6028d89797abc5e6d0bccc549527761f",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGDivisionType.java",
+      "sha256": "e1fc7f5daa72bdee6f7c65b05d2c913f1f2fb198a73b1f8d8221fdb7fee13c88",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGDuration.java",
+      "sha256": "ec662fd4894471b7c7f3467f71d341181289e82c1b8c8438bc6269ca96813aff",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGLyric.java",
+      "sha256": "c9991daef8f4b0a5cf656670ce0cbd43015ffdc59ad8dc6612bf866a26f6e5b7",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGMarker.java",
+      "sha256": "0a077dc98487d56ae709f21fcc94b3657e2a502121e854ad904b2e4e88464375",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGMeasure.java",
+      "sha256": "215202ecce643937039c571228029af3013305f8bde210029acfd3eeea534585",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGMeasureHeader.java",
+      "sha256": "6078f775c773a0c9da8273cae7d1ce2d652bd775d83e498e35bee168c9e6fb98",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGNote.java",
+      "sha256": "977d8f51da63d482c5bf5099a3ccd8dce638f9599fb383791b7a296bbe2a317e",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGNoteEffect.java",
+      "sha256": "4f20b9ff9230b1eb105e5f1fe2b964b313821e010901ff7fd804067bb0c9190d",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGPickStroke.java",
+      "sha256": "9a79c36439ad1c38ae8f4a21b2368f2622153d1574699c16a15a3892930e1587",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGScale.java",
+      "sha256": "aad6da3ebd68a74937c9d71cd24c57a70a5198143f9c2af2ec3a27add7beba52",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGSong.java",
+      "sha256": "91c89ac28ba34a2fcf226f06888d8267d00a4936650958ed3fe6d22e3e143ced",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGString.java",
+      "sha256": "95d83290a1f93acbc876a181dcab1ee152ef593bd0eb75d61b199052d7426413",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGStroke.java",
+      "sha256": "b0a1fbdd5b6da862f949fd5410eb8016ca5998780ae9241fc7b04bacc6e905bf",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGTempo.java",
+      "sha256": "17099e251b11f8511e071d301f5b52e1b9fe0513958029700d32eae882471759",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGText.java",
+      "sha256": "4998c5ec671c9cb2fc3624781c1542193dd6b6b927843ba3f2a3929ed02133ad",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGTimeSignature.java",
+      "sha256": "376f9d84a3d64496ab0b7f85eff5d852595366fa6ca45614a8dec5507ea44583",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGTrack.java",
+      "sha256": "b69cc3772178e94f2a67b5f676ca0a4b2a32b06aa58dc74a12e5e97351b71da8",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGVelocities.java",
+      "sha256": "0006fff56e47915651eb18df372b91990fa15d6433e2a677bdc05bce91f566a7",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/TGVoice.java",
+      "sha256": "067fdfa127479ea964e0f0dc0ec11e98d987e64c31c483ad44a54d8216dede96",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/effects/TGEffectBend.java",
+      "sha256": "822d276cf484eefb8a93a27175d56dc7b2f427fcd52b44dfbf1b6666aecdf564",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/effects/TGEffectGrace.java",
+      "sha256": "37dbdea9cbdcfbf404a82b6d3dc79637ca9c38a19d068e1e74aa5c6809228cfb",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/effects/TGEffectHarmonic.java",
+      "sha256": "166426515904907c21f29c2e5a5e56808a4e890c6b68401bfcaa55fd2f998625",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/effects/TGEffectTremoloBar.java",
+      "sha256": "9c5f4c7c095d13357a201c31d64a451750238f57bfaa5b3296213b9a40c39948",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/effects/TGEffectTremoloPicking.java",
+      "sha256": "8f70d2c09fa35de6ce298217ae84f18e1c3e1312c0ba29388e4c1a9cbff8a693",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/song/models/effects/TGEffectTrill.java",
+      "sha256": "2db64f83f55c706c79aecd4c939de410aaa8e80128fe0c1e65b7ae75085e3349",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIColor.java",
+      "sha256": "11a08160cbaba5699da065a56b2f98f32e861514cf7bacef108c809300393965",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIColorModel.java",
+      "sha256": "2f49564d9174e608953f8c1d5b3359fdcd41f7f1ff4527f40bdfab4cab184f7b",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIFont.java",
+      "sha256": "dadbd13b93d49f261d3c69890f6bde24c9d2ea9a97d473cd13291d47669d4fe5",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIFontAlignment.java",
+      "sha256": "0fd1964def3774035e739183c7d2012dd185bc756df4e0a2a4147c0a24cf3b8a",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIFontModel.java",
+      "sha256": "316581c4ebf67c7dc0accb0551fb2ad01ab34801071b985a07eb09f9c284baef",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIImage.java",
+      "sha256": "782e0f3dfcdec15209089ec4da1d020add1b4989a00e3fc78f79684c7ff8b9f2",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIInset.java",
+      "sha256": "1f5ca04068a1dcdfa7233333afebbbb196afbc5d4a9bd6603ebd645e878e50b7",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIPainter.java",
+      "sha256": "bee770194f71684ea935f54d2275769bcf45bcb0d2240863f19c1d81bc8427ef",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIPosition.java",
+      "sha256": "09a1bb80bf70488da1c187b084ed1d016c7363c25743dd9a2cc4d27048ba4922",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIRectangle.java",
+      "sha256": "10584c05969814cb50578759c5b70c4ab724234252f8ec538b90b8a8915b1fb6",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIResource.java",
+      "sha256": "90b5bbc8958336d0aff3eaea08674f1f447c734560fca2fc1c22499592fcb3b5",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UIResourceFactory.java",
+      "sha256": "bd4fdc57bb0704ed67a03da8fa9c3645d5f923b9f1de01e4dda17dd307d41185",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/ui/resource/UISize.java",
+      "sha256": "f5a655d33dc46f0eea043d38a0591fb62af6f169d62b1d21d4f3361320fd5b8e",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/util/TGAbstractContext.java",
+      "sha256": "66c532c9cbdb2e7ce8735b10d920cf78c228f7fca66426a96aad1f238f20b3b1",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/util/TGContext.java",
+      "sha256": "dae6fde0bad8e786eedd9a10fd862be4b0cd39051e37caf5d108d7525603ee42",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/util/TGException.java",
+      "sha256": "587cd9aba867146042b5a92ef3fb9000e36c668304b0b773a44c0f4535b01bed",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/util/TGMessagesManager.java",
+      "sha256": "c3bee355226859560c3234a43ad0f4c48804e3304ba35a75e6ab0d2d4f6f68a3",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/util/TGMusicKeyUtils.java",
+      "sha256": "f56f73aacffc2dcd26a47e91e5a980b04fd199b39d00646fe004160b4d40fa73",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/util/singleton/TGSingletonFactory.java",
+      "sha256": "3d7bdc5c5cb2946e6665f67c49868cbf90f41587f5713670083963afd66b17f5",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-lib/src/main/java/app/tuxguitar/util/singleton/TGSingletonUtil.java",
+      "sha256": "bac74f5d6f60b6b704fd3bde3acbc4430a9ccad1dbde671e5bfb43d59921bd0e",
+      "runtime": true
+    },
+    {
+      "path": "common/TuxGuitar-pdf/src/app/tuxguitar/io/pdf/PDFSongWriter.java",
+      "sha256": "6186d9a4d51b153fa7438555d8d3ab158e7cfd433bb0d8e1a7ecddadd61548cb",
+      "runtime": false
+    },
+    {
+      "path": "common/TuxGuitar-pdf/src/app/tuxguitar/io/pdf/PDFDocument.java",
+      "sha256": "b177d7de276a2e677892613466dbb68fc591f541618de9b5d876b94f89cabcc5",
+      "runtime": false
+    },
+    {
+      "path": "common/TuxGuitar-pdf/src/app/tuxguitar/io/pdf/PDFPainter.java",
+      "sha256": "97df108777bedc3945a7ed15dea044de28c8723f62726ad496d0451e11293586",
+      "runtime": false
+    },
+    {
+      "path": "common/TuxGuitar-pdf/src/app/tuxguitar/io/pdf/PDFFont.java",
+      "sha256": "0d45ec13922eabb6119f284d82d9489c5b8df069cae16b3275ecf7359c76d97e",
+      "runtime": false
+    },
+    {
+      "path": "common/TuxGuitar-pdf/src/app/tuxguitar/io/pdf/PDFLayoutStyles.java",
+      "sha256": "3ebd001d6a0bd2f10565635f507f2d8ea9780380b79d759c844a00a0b78cbae9",
+      "runtime": false
+    },
+    {
+      "path": "common/TuxGuitar-pdf/src/app/tuxguitar/io/pdf/PDFSettings.java",
+      "sha256": "af306ade1c86ddef61304d2a485baf19ff476443f3a786eff381dbd021cd4513",
+      "runtime": false
+    },
+    {
+      "path": "common/TuxGuitar-pdf/src/app/tuxguitar/io/pdf/PDFColor.java",
+      "sha256": "557fd6f3eacfb939bba1a9af132d29bb2352c34f1082ffc48a7b9e81b06e837f",
+      "runtime": false
+    },
+    {
+      "path": "common/TuxGuitar-pdf/src/app/tuxguitar/io/pdf/PDFResourceFactory.java",
+      "sha256": "c43774a3b09c6fb433026d482cebbc508e17b612b649e93cfd7a7776ae5d4ec4",
+      "runtime": false
+    }
+  ]
+}

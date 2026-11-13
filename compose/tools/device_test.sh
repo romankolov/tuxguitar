@@ -13,6 +13,7 @@ capture_result=$?
 if [[ "$result" -eq 0 && "$capture_result" -ne 0 ]]; then result=$capture_result; fi
 if [[ "$result" -eq 0 ]]; then
   python3 tools/verify_device_captures.py || result=$?
+  if [[ "$result" -eq 0 ]]; then python3 tools/verify_pdf_exports.py || result=$?; fi
 fi
 if [[ "$result" -eq 0 ]]; then
   python3 tools/release_smoke.py

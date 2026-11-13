@@ -32,6 +32,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tuxcompose.component.*
 import com.tuxcompose.demo.*
 import com.tuxcompose.layout.*
+import com.tuxcompose.pdf.TuxGuitarPdfExporter
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -70,6 +73,7 @@ fun TuxComposeDemo() {
     var details by remember { mutableStateOf(false) }
     var about by remember { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
+    var pdfSheet by remember { mutableStateOf(false) }
     var midiStatus by session::midiStatus
     var soundFont by session::soundFont
     val snackbar=remember { SnackbarHostState() }
@@ -158,6 +162,26 @@ fun TuxComposeDemo() {
             catch(e: Exception) { error=e.message ?: "Unable to export the bundled demo" }
         }
     }
+    val savePdf=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) {uri->
+        val request=session.pendingPdf
+        session.pendingPdf=null
+        if(uri!=null) scope.launch {
+            if(request==null) {error="The PDF request was interrupted. Reopen Export PDF.";return@launch}
+            busy=true;error=null
+            try {
+                val job=currentCoroutineContext()
+                val result=withContext(Dispatchers.IO) {
+                    requireNotNull(context.contentResolver.openOutputStream(uri,"wt")).use {output->
+                        TuxGuitarPdfExporter(context).export(request.song,output,request.options,request.metadata) {job.ensureActive()}
+                    }
+                }
+                busy=false
+                snackbar.showSnackbar("PDF exported · ${result.pageCount} pages")
+            } catch(e: CancellationException) {throw e}
+            catch(e: Exception) {error=e.message ?: "Unable to export PDF"}
+            finally {busy=false}
+        }
+    }
     LaunchedEffect(error,player.error) {
         (error ?: player.error)?.let { snackbar.showSnackbar(it,withDismissAction=true,duration=SnackbarDuration.Long) }
     }
@@ -181,6 +205,8 @@ fun TuxComposeDemo() {
                             onClick={more=false;details=true},modifier=Modifier.testTag("score-details"))
                         DropdownMenuItem(text={Text("Explore score sections")},leadingIcon={StudioIcon(R.drawable.ic_graphic_eq)},
                             onClick={more=false;sectionsSheet=true},modifier=Modifier.testTag("score-sections"))
+                        DropdownMenuItem(text={Text("Export score / tab as PDF")},leadingIcon={StudioIcon(R.drawable.ic_download)},
+                            enabled=imported!=null && !busy,onClick={more=false;pdfSheet=true},modifier=Modifier.testTag("export-pdf"))
                         DropdownMenuItem(text={Text("Export showcase GP5")},leadingIcon={StudioIcon(R.drawable.ic_download)},
                             onClick={more=false;export.launch("technique-atlas.gp5")})
                         DropdownMenuItem(text={Text("Return to beginning")},leadingIcon={StudioIcon(R.drawable.ic_restart_alt)},
@@ -223,6 +249,14 @@ fun TuxComposeDemo() {
             }
             state.resumeAutoScroll();sectionsSheet=false
         }
+        if(pdfSheet) imported?.let {score->PdfExportSheet(score.score,state.selectedTrackIndex,session.pdfOptions,
+            onDismiss={pdfSheet=false},onSave={options->
+                session.pdfOptions=options
+                session.pendingPdf=score.pdfSnapshot(options)
+                pdfSheet=false
+                val name=score.score.title.ifBlank {"score"}.replace(Regex("[^A-Za-z0-9 ._-]"),"_")
+                savePdf.launch("$name.pdf")
+            })}
         if(trackSheet) ModalBottomSheet(onDismissRequest={trackSheet=false},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
             Column(Modifier.fillMaxWidth().semantics { testTagsAsResourceId=true }.padding(horizontal=16.dp).verticalScroll(rememberScrollState()).padding(bottom=24.dp).selectableGroup()) {
                 Text("Find your part",style=MaterialTheme.typography.headlineSmall,modifier=Modifier.padding(horizontal=8.dp))
@@ -261,8 +295,8 @@ fun TuxComposeDemo() {
                 }
             },confirmButton={TextButton(onClick={details=false}) {Text("Done")}})
         if(about) AlertDialog(onDismissRequest={about=false},icon={StudioIcon(R.drawable.ic_music_note)},
-            title={Text("Tux Compose 0.1.8")},text={ Text("A focused practice workspace built with Material 3 Expressive.\n\nTuxGuitar Guitar Pro import · FluidSynth 2.6.2 · GeneralUser GS 2.0.3.\n\nThis is an evaluation app. Source, usage, mathematics and third-party licensing notes are available in the project documentation; licence texts are bundled in the APK.") },
-            confirmButton={TextButton(onClick={about=false;uriHandler.openUri("https://github.com/romankolov/tuxguitar/tree/arena/285632fe-tuxguitar/compose")}) {Text("Source & licences")}},
+            title={Text("Tux Compose 1.1.0")},text={ Text("A focused practice workspace built with Material 3 Expressive.\n\nTuxGuitar Guitar Pro import · FluidSynth 2.6.2 · GeneralUser GS 2.0.3.\n\nThis is an evaluation app. Source, usage, mathematics and third-party licensing notes are available in the project documentation; licence texts are bundled in the APK.") },
+            confirmButton={TextButton(onClick={about=false;uriHandler.openUri("https://github.com/romankolov/tuxguitar/tree/arena/3dc87cab-tuxguitar/compose")}) {Text("Source & licences")}},
             dismissButton={TextButton(onClick={about=false}) {Text("Close")}})
     }
 }

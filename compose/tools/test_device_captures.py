@@ -7,8 +7,10 @@ from verify_device_captures import required_scenes, verify
 
 
 class HardwareCaptureExportTest(unittest.TestCase):
-    def test_all_32_required_scenes_are_explicit(self):
-        self.assertEqual(32,len(required_scenes()))
+    def test_all_41_required_scenes_are_explicit(self):
+        self.assertEqual(41,len(required_scenes()))
+        self.assertIn('pdf-Mixed-first',required_scenes())
+        self.assertIn('pdf-result',required_scenes())
         self.assertIn('annotation-origins-Mixed-1.0',required_scenes())
         self.assertIn('engraving-Mixed-TuxGuitar-1.0',required_scenes())
 

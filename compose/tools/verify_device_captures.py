@@ -15,6 +15,8 @@ def required_scenes():
         for mode in ('TuxGuitar','Adaptive','Spring'):
             for zoom in ('1.0','1.5'):
                 result.add(f'engraving-{style}-{mode}-{zoom}')
+    result.update(f'pdf-{style}-{page}' for style in ('Score','Tablature','Mixed') for page in ('first','last'))
+    result.update(('pdf-range-first','pdf-sheet','pdf-result'))
     return result
 
 

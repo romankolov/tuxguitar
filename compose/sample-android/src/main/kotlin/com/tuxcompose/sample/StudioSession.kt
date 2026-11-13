@@ -23,6 +23,8 @@ class StudioSession(application: Application, private val saved: SavedStateHandl
     val player=DemoPlayback(application,viewModelScope,state)
     val midi=ExternalMidi(application,player.audio)
     var imported by mutableStateOf<ImportedScore?>(null)
+    internal var pendingPdf by mutableStateOf<PendingPdfExport?>(null)
+    internal var pdfOptions by mutableStateOf(com.tuxcompose.pdf.TGPdfOptions())
     var status by mutableStateOf("Preparing Technique Atlas…")
     var soundFont by mutableStateOf("GeneralUser GS 2.0.3")
     var midiStatus by mutableStateOf("Built-in FluidSynth")

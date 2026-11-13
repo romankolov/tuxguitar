@@ -97,6 +97,17 @@ with ZipFile(aar) as core:
         assert b'TGAlphaEffectLayout.kt' in classes.read('META-INF/Tux-Compose-NOTICE.txt'), 'AAR attribution missing'
 
 summary['soundfont_sha256'] = expected_bank
+pdf_aars=list((root/'tux-compose-pdf/build/outputs/aar').glob('*-release.aar'))
+assert len(pdf_aars)==1, 'Missing optional PDF library AAR'
+with ZipFile(pdf_aars[0]) as package:
+    for name in ('TuxGuitar-LGPL.txt','PDFBox-Android-Apache-2.0.txt','PDFBox-Android-NOTICE.txt','BouncyCastle-MIT.html','Tux-Compose-PDF-NOTICE.txt'):
+        assert len(package.read('assets/licenses/'+name))>100,name
+    with ZipFile(BytesIO(package.read('classes.jar'))) as classes:
+        names=classes.namelist()
+        assert not any(n.startswith(('app/tuxguitar/','com/itextpdf/')) for n in names), 'Unisolated native runtime or iText leaked into PDF AAR'
+        assert not any('/io/tg/' in n or '/io/gtp/' in n or 'MidiPlayer' in n or 'MidiSequence' in n for n in names), 'Music parser/playback leaked into PDF library'
+        assert any('/graphics/control/print/TGPrintLayout.class' in n for n in names), 'Original print engine missing'
+summary['pdf_has_native_print_engine']=True
 summary['core_has_audio_payload'] = False
 summary['core_mpl_licence_and_notice'] = True
 (root / 'build').mkdir(exist_ok=True)

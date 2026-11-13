@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "tux-compose"
-include(":tux-compose-core", ":demo-tuxguitar", ":demo-synth", ":sample-android")
+include(":tux-compose-pdf", ":tux-compose-core", ":demo-tuxguitar", ":demo-synth", ":sample-android")

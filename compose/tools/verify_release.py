@@ -21,7 +21,7 @@ try:
     assert 'Tux Compose Evaluation Release' in cert, 'Unexpected release signer'
     badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
     assert 'application-debuggable' not in badging, 'Release is debuggable'
-    assert "versionName='1.0.1'" in badging and "versionCode='11'" in badging, 'Unexpected app version'
+    assert "versionName='1.1.0'" in badging and "versionCode='12'" in badging, 'Unexpected app version'
     with zipfile.ZipFile(apk) as archive:
         assert archive.read('assets/licenses/alphaTab-MPL-2.0.txt') == (root/'licenses/alphaTab-MPL-2.0.txt').read_bytes(), 'MPL licence missing from APK'
         assert b'TGAlphaEffectLayout.kt' in archive.read('assets/licenses/Tux-Compose-NOTICE.md'), 'MPL adaptation attribution missing'
@@ -33,7 +33,7 @@ try:
     fingerprints = re.findall(r'certificate SHA-256 digest:\s*([0-9a-fA-F]{64})', cert)
     assert len(fingerprints) == 1, 'Expected one release signing certificate SHA-256'
     fingerprint = fingerprints[0].lower()
-    summary = dict(apk_sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), version='1.0.1', version_code=11,
+    summary = dict(apk_sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), version='1.1.0', version_code=12,
                    source_sha=os.environ.get('GITHUB_SHA'), debuggable=False, r8=True, signer_sha256=fingerprint, signing='ephemeral evaluation release')
     (root / 'build').mkdir(exist_ok=True)
     (root / 'build/release-verification.json').write_text(json.dumps(summary, indent=2)+'\n')
