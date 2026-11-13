@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export all detailed hardware captures in a separate, neutral GitHub Check.
+"""Export real score/PDF/release captures in a separate, neutral GitHub Check.
 
 Workflow job annotations have a 50-annotation budget; they used to hide debug
 scenes behind release previews. Checks accept batches of 50, so this independent
@@ -17,6 +17,12 @@ from verify_device_captures import required_scenes, verify
 
 
 SOURCE='compose/sample-android/src/androidTest/kotlin/com/tuxcompose/sample/AnnotationsDeviceTest.kt'
+PDF_SOURCE='compose/sample-android/src/androidTest/kotlin/com/tuxcompose/sample/PdfExportDeviceTest.kt'
+RELEASE_SOURCE='compose/tools/release_smoke.py'
+RELEASE_SCENES={'studio-release','studio-release-dark','studio-release-large-text',
+    'studio-release-narrow-large-text','studio-release-wide','studio-release-settings',
+    'studio-release-articulation','studio-release-rhythm','studio-release-voices','studio-release-dense',
+    'studio-release-pdf-options','studio-release-pdf-saved'}
 
 
 def annotations(folder, required=None):
@@ -29,9 +35,20 @@ def annotations(folder, required=None):
         for chunk in preview_chunks(path,name):
             chunk['original_png_sha256']=original['sha256']
             chunk['original_png_size']=original['size']
-            result.append(dict(path=SOURCE,start_line=1,end_line=1,annotation_level='notice',
+            pdf_page=name.startswith('pdf-') and name not in ('pdf-sheet','pdf-result')
+            chunk['capture_kind']='pdf-rendered-page' if pdf_page else 'hardware-display'
+            if pdf_page:
+                pdf_name='pdf-range.pdf' if name=='pdf-range-first' else '-'.join(name.split('-')[:2])+'.pdf'
+                pdf=folder/pdf_name
+                assert pdf.is_file(), f'PDF page preview has no source document: {name}'
+                chunk['original_pdf_name']=pdf_name
+                chunk['original_pdf_sha256']=hashlib.sha256(pdf.read_bytes()).hexdigest()
+            message=json.dumps(chunk,separators=(',',':'))
+            assert len(message)<4000, 'Preview provenance exceeded safe annotation budget'
+            path=RELEASE_SOURCE if name.startswith('studio-release') else PDF_SOURCE if name.startswith('pdf-') else SOURCE
+            result.append(dict(path=path,start_line=1,end_line=1,annotation_level='notice',
                                title=f'UI preview {name} {chunk["part"]}/{chunk["parts"]}',
-                               message=json.dumps(chunk,separators=(',',':'))))
+                               message=message))
     return manifest,result
 
 
@@ -58,8 +75,12 @@ def main():
     repo=os.environ['GITHUB_REPOSITORY'];sha=os.environ['GITHUB_SHA']
     folder=Path(__file__).resolve().parents[1]/'sample-android/build/device-screenshots'
     manifest,items=annotations(folder)
-    title=f'Hardware capture export · API {api}'
-    summary=(f'{manifest["required"]} required detailed hardware scenes, {len(items)} preview chunks. '
+    release_folder=folder.parent/'device-release-screenshots'
+    release,release_items=annotations(release_folder,RELEASE_SCENES)
+    items+=release_items
+    manifest=dict(required=manifest['required']+release['required'],score_and_pdf=manifest,release=release)
+    title=f'Score and PDF capture export · API {api}'
+    summary=(f'{manifest["required"]} required score/PDF/release scenes, {len(items)} preview chunks. '
              'PNG SHA-256 and original dimensions accompany each image. '
              'Export only: this neutral check is NOT visual approval. '
              'All test and explicit publication gates remain separate.')
@@ -76,16 +97,16 @@ def main():
     except Exception as error:
         # Report the ORIGINAL failure through Checks even when log/artifact download
         # is unavailable. A failed cleanup must not hide that original diagnosis.
-        workflow_error('Detailed hardware export failed',error)
+        workflow_error('Complete capture export failed',error)
         if endpoint is not None:
             try:
                 gh(endpoint,'PATCH',dict(status='completed',conclusion='failure',
                     output=dict(title=title,summary='Hardware preview export failed: '+str(error)[:1800])))
             except Exception as cleanup:
-                workflow_error('Detailed hardware export cleanup failed',cleanup)
+                workflow_error('Complete capture export cleanup failed',cleanup)
         raise
     digest=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest()
-    print('::notice title=Detailed hardware previews exported::'+json.dumps(dict(api=api,check_id=check['id'],
+    print('::notice title=Complete score and PDF previews exported::'+json.dumps(dict(api=api,check_id=check['id'],
           scenes=manifest['required'],chunks=len(items),manifest_sha256=digest,url=check['html_url'])))
 
 

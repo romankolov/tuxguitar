@@ -41,8 +41,14 @@ class PdfExportDeviceTest {
     private fun shell(command: String)=ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).use {it.readBytes()}
     private fun preserve(file: File,name: String) {
         require(name.matches(Regex("[A-Za-z0-9_.-]+")))
+        // shell cannot read /data/user/0/.../cache. Stage the actual bytes in the
+        // app's external-files directory, as the durable score-capture exporter does.
+        val folder=File(context.getExternalFilesDir(null),"pdf-evidence").apply {check(mkdirs() || isDirectory)}
+        val staged=File(folder,name)
+        file.copyTo(staged,overwrite=true)
+        assertArrayEquals(file.readBytes(),staged.readBytes())
         shell("mkdir -p /sdcard/Download/tux-compose-qa")
-        shell("cp ${file.absolutePath} /sdcard/Download/tux-compose-qa/$name")
+        shell("cp ${staged.absolutePath} /sdcard/Download/tux-compose-qa/$name")
         assertArrayEquals(file.readBytes(),shell("cat /sdcard/Download/tux-compose-qa/$name"))
     }
     private fun render(file: File,index: Int,name: String) {

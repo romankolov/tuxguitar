@@ -27,6 +27,17 @@ class DetailedPreviewExportTest(unittest.TestCase):
             self.assertEqual(1,manifest['required'])
             self.assertTrue(all(item['annotation_level']=='notice' for item in items))
 
+    def test_pdf_page_preview_is_labelled_as_pdf_render_not_a_hardware_screenshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory)
+            Image.new('RGB',(900,1309),'white').save(folder/'pdf-Mixed-first.png')
+            pdf=folder/'pdf-Mixed.pdf';pdf.write_bytes(b'%PDF-test-provenance')
+            _,items=annotations(folder,{'pdf-Mixed-first'})
+            chunk=json.loads(items[0]['message'])
+            self.assertEqual('pdf-rendered-page',chunk['capture_kind'])
+            self.assertEqual(hashlib.sha256(pdf.read_bytes()).hexdigest(),chunk['original_pdf_sha256'])
+            self.assertTrue(items[0]['path'].endswith('PdfExportDeviceTest.kt'))
+
     def test_github_failure_preserves_http_diagnosis(self):
         failure=subprocess.CompletedProcess([],1,b'',b'HTTP 502: Bad Gateway')
         with patch('publish_device_previews.subprocess.run',return_value=failure):

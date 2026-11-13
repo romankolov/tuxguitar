@@ -35,10 +35,12 @@ def tree():
     return ET.fromstring(data)
 
 
-def find(doc, tag=None, text=None, description=None):
+def find(doc, tag=None, text=None, description=None, class_name=None):
     for node in doc.iter('node'):
         rid = node.get('resource-id', '')
         if tag is not None and not (rid == tag or rid.endswith(':id/'+tag)):
+            continue
+        if class_name is not None and node.get('class')!=class_name:
             continue
         if text is not None and node.get('text') != text:
             continue
@@ -94,7 +96,7 @@ def wait_workspace():
         try:
             doc = tree()
             if find(doc, tag='score-canvas') is not None and all(find(doc, tag=tag) is None
-                    for tag in ('cursor-tick', 'settings-close', 'sections-close')):
+                    for tag in ('cursor-tick', 'settings-close', 'sections-close','pdf-export-sheet')):
                 return
         except (ET.ParseError, subprocess.CalledProcessError):
             pass
@@ -103,7 +105,7 @@ def wait_workspace():
 
 
 def screenshot(name, settled=True):
-    if settled and name != 'studio-release-settings':
+    if settled and name not in ('studio-release-settings','studio-release-pdf-options'):
         wait_workspace()
     # A successful adb tap is not proof that Compose has committed the new frame.
     # Require two identical ACTUAL display PNGs, also waiting out scroll flings and
@@ -200,6 +202,59 @@ def showcase_sections():
     click(tag='stop'); assert tick()==960
 
 
+def wait_matching(predicate,message):
+    deadline=time.monotonic()+65
+    while time.monotonic()<deadline:
+        try:
+            node=next((n for n in tree().iter('node') if predicate(n)),None)
+            if node is not None:return node
+        except (ET.ParseError,subprocess.CalledProcessError):pass
+        time.sleep(.3)
+    raise AssertionError(message)
+
+
+def native_pdf_export():
+    # Drive the real R8 app and the REAL system destination picker, without debug hooks.
+    from pypdf import PdfReader
+    filename='tux-compose-release-proof.pdf'
+    destination='/sdcard/Download/'+filename
+    adb('shell','rm','-f',destination)
+    click(tag='more');click(tag='export-pdf')
+    wait_node(tag='pdf-style-Mixed',predicate=lambda n:n.get('checked')=='true')
+    screenshot('studio-release-pdf-options')
+    click(tag='pdf-save')
+    field=wait_node(class_name='android.widget.EditText')
+    tap(field)
+    adb('shell','input','keyevent','123')
+    adb('shell','input','keyevent',*(['67']*64))
+    adb('shell','input','text',filename)
+    click(description='Show roots')
+    tap(wait_matching(lambda n:n.get('text','').casefold()=='downloads' and n.get('enabled')=='true','System Downloads destination missing'))
+    save=wait_matching(lambda n:(n.get('text','').casefold()=='save' or n.get('content-desc','').casefold()=='save') and n.get('enabled')=='true','System PDF Save action missing')
+    tap(save)
+    wait_node(tag='score-canvas')
+    deadline=time.monotonic()+120
+    data=b''
+    while time.monotonic()<deadline:
+        data=adb('exec-out','cat',destination,check=False)
+        if data.startswith(b'%PDF-') and data.rstrip().endswith(b'%%EOF'):break
+        time.sleep(.3)
+    assert data.startswith(b'%PDF-') and data.rstrip().endswith(b'%%EOF'),'R8 PDF export did not finish through the system picker'
+    path=report/'pdf-release.pdf';path.write_bytes(data)
+    pdf=PdfReader(path,strict=True)
+    assert len(pdf.pages)>=3 and not pdf.is_encrypted
+    assert [float(pdf.pages[0].mediabox.width),float(pdf.pages[0].mediabox.height)]==[550.0,800.0]
+    text='\n'.join(p.extract_text() for p in pdf.pages)
+    assert 'Technique Atlas' in text and all('Track '+v in text for v in ('Acoustic guitar','Fingered bass','Studio drums'))
+    assert all(not p['/Resources'].get_object().get('/XObject') for p in pdf.pages),'Release PDF score was rasterized'
+    assert find(tree(),tag='error') is None or any('PDF exported' in n.get('text','') for n in tree().iter('node')),'Release PDF export reported an error'
+    result=dict(pdf_sha256=hashlib.sha256(data).hexdigest(),bytes=len(data),pages=len(pdf.pages),native_paper=True,vector=True,
+                source_apk=json.loads((report/'release-installation.json').read_text())['apk_sha256'])
+    (report/'release-pdf.json').write_text(json.dumps(result,indent=2)+'\n')
+    print('::notice title=Exact release native PDF verified::'+json.dumps(result))
+    screenshot('studio-release-pdf-saved')
+
+
 def theme_and_cursor():
     click(tag='settings')
     click(tag='settings-Cursor')
@@ -269,6 +324,7 @@ def main():
         for name, action in [('release_launch_import_navigation', launch_and_controls),
                              ('release_fluidsynth_playback', playback),
                              ('release_lossless_showcase_and_sections', showcase_sections),
+                             ('release_native_pdf_system_document_export', native_pdf_export),
                              ('release_expressive_theme_and_padded_capsule', theme_and_cursor),
                              ('release_large_text_and_expanded_window', adaptive_windows)]:
             case = ET.SubElement(suite, 'testcase', classname='ReleaseApkSmoke', name=name)

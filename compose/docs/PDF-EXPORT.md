@@ -156,6 +156,9 @@ check output digest/count/stream ownership, and rasterize their actual pages usi
 Android `PdfRenderer`. They also exercise the sample's document contract (only the
 OS destination chooser is intercepted for an automated test). The host validates
 all pulled PDFs and original page-preview images before release smoke checks.
+The exact R8 release then creates another PDF through its real UI and the actual
+system DocumentsUI picker. That file is parsed/validated and tied to the installed
+APK hash, rather than assuming a debug-instrumented export proves release linkage.
 Missing files/images fail closed. PDF page previews are labelled PDF-rendered
 evidence, not hardware screenshots of the score canvas.
 

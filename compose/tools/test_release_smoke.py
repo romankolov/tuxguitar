@@ -34,6 +34,11 @@ class ReleaseCaptureTest(unittest.TestCase):
             smoke.wait_gone(tag='cursor-tick')
         self.assertEqual(tree.call_count, 2)
 
+    def test_native_picker_edittext_does_not_match_a_toolbar_title(self):
+        doc=ET.fromstring('<hierarchy><node resource-id="android:id/title" class="android.widget.TextView"/><node resource-id="android:id/title" class="android.widget.EditText"/></hierarchy>')
+        node=smoke.find(doc,tag='title',class_name='android.widget.EditText')
+        self.assertEqual('android.widget.EditText',node.get('class'))
+
     def capture(self, frames, *, settled=True, clock=None):
         # Minimal byte tokens exercise frame identity/control flow, not PNG decoding.
         with tempfile.TemporaryDirectory() as folder, patch.object(smoke, 'out', Path(folder)), patch.object(smoke, 'captures', {}), patch.object(smoke, 'wait_workspace') as workspace, patch.object(smoke, 'adb', side_effect=frames) as adb, patch.object(smoke.time, 'sleep'):

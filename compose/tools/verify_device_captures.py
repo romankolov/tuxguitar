@@ -40,7 +40,7 @@ def main():
     folder=Path(__file__).resolve().parents[1]/'sample-android/build/device-screenshots'
     report=verify(folder)
     (folder/'capture-manifest.json').write_text(json.dumps(report,indent=2)+'\n')
-    print('::notice title=Hardware captures preserved::'+json.dumps({k:v for k,v in report.items() if k!='images'}))
+    print('::notice title=Score and PDF captures preserved::'+json.dumps({k:v for k,v in report.items() if k!='images'}))
 
 
 if __name__=='__main__':

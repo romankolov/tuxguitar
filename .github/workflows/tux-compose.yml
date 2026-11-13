@@ -128,7 +128,7 @@ jobs:
           disk-size: 4096M
           disable-animations: true
           script: bash compose/tools/device_test.sh
-      - name: Export every detailed hardware capture for review
+      - name: Export complete score and PDF evidence for review
         if: always() && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -200,6 +200,11 @@ jobs:
         with:
           name: tux-compose-apk-${{ github.run_number }}
           path: verified-artifacts
+      - name: Download the exact-release native PDF evidence
+        uses: actions/download-artifact@v8
+        with:
+          name: tux-compose-device-api35-${{ github.run_number }}
+          path: verified-pdf
       - name: Publish the latest verified demo APK
         env:
           GH_TOKEN: ${{ github.token }}
@@ -209,14 +214,19 @@ jobs:
           aar=$(find verified-artifacts -path '*tux-compose-core*' -name '*.aar' -print -quit)
           pdf_aar=$(find verified-artifacts -name 'tux-compose-pdf-release.aar' -print -quit)
           test -n "$apk" && test -n "$aar" && test -n "$pdf_aar"
+          example_pdf=$(find verified-pdf -name 'pdf-release.pdf' -print -quit)
+          pdf_proof=$(find verified-pdf -name 'release-pdf.json' -print -quit)
+          test -n "$example_pdf" && test -n "$pdf_proof"
           mkdir release
           cp "$apk" release/sample-android-release.apk
           cp "$(find verified-artifacts -name 'release-verification.json' -print -quit)" release/BUILD-VERIFICATION.json
           cp "$aar" release/tux-compose-core-release.aar
           cp "$pdf_aar" release/tux-compose-pdf-release.aar
-          (cd release && sha256sum *.apk *.aar > SHA256SUMS.txt)
+          cp "$example_pdf" release/technique-atlas-native.pdf
+          cp "$pdf_proof" release/PDF-VERIFICATION.json
+          (cd release && sha256sum *.apk *.aar *.pdf *.json > SHA256SUMS.txt)
           version=$(python3 -c "import json; print(json.load(open('release/BUILD-VERIFICATION.json'))['version'])")
-          notes="Tux Compose $version: immutable decoded score to native Compose Canvas, without core parsers or playback. Native TuxGuitar spacing remains the default; includes the 1.0.1 source-backed annotation correction (native text baselines/paths and attributed MPL-2.0 alphaTab grouped effects), chord/accidental/tie/grace improvements and opt-in Spring spacing with hard glyph minimums. Pinned TuxGuitar/alphaTab comparisons and explicit limitations are documented. Optimized, R8-shrunk, non-debuggable release APK and core AAR. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Both APIs preserved all 41 required score/PDF capture scenes and validated five real vector PDFs. Evaluation build, not a Play Store release. Source and usage: https://github.com/$GH_REPO/tree/$GITHUB_SHA/compose. Comparison and mathematics: https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/UPSTREAM-COMPARISON.md and https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/ENGRAVING.md. This is not a blanket superiority or complete-editor parity claim."
+          notes="Tux Compose $version: immutable decoded score to native Compose Canvas, without core parsers or playback. Native TuxGuitar spacing remains the default; includes the 1.0.1 source-backed annotation correction (native text baselines/paths and attributed MPL-2.0 alphaTab grouped effects), chord/accidental/tie/grace improvements and opt-in Spring spacing with hard glyph minimums. Pinned TuxGuitar/alphaTab comparisons and explicit limitations are documented. Optimized, R8-shrunk, non-debuggable release APK, core AAR, optional native TuxGuitar PDF-export AAR and an example PDF generated through the exact release app. This evaluation release uses a temporary signing key (not the Android debug key); uninstall differently signed previous builds before installing. The key is discarded after CI and is not a production/update signing identity. Source: $GITHUB_SHA. Verification: https://github.com/$GH_REPO/actions/runs/$GITHUB_RUN_ID. JVM differential/unit tests, Android lint/build, emulator interaction/PCM tests, and black-box checks on this exact release APK passed. Both APIs preserved 41 required score/PDF captures and 12 settled release scenes, validated five instrumented PDFs, and exported a sixth PDF through the exact R8 release and real system document picker. Evaluation build, not a Play Store release. Source and usage: https://github.com/$GH_REPO/tree/$GITHUB_SHA/compose. PDF API/source and native print mathematics: https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/PDF-EXPORT.md. Comparison and mathematics: https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/UPSTREAM-COMPARISON.md and https://github.com/$GH_REPO/blob/$GITHUB_SHA/compose/docs/ENGRAVING.md. This is not a blanket superiority or complete-editor parity claim."
           if gh release view tux-compose-preview >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GH_REPO/git/refs/tags/tux-compose-preview" -f sha="$GITHUB_SHA" -F force=true
             gh release edit tux-compose-preview --notes "$notes"

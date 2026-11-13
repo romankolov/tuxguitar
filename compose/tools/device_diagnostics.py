@@ -23,9 +23,12 @@ if sys.argv[1:] == ['failure']:
     log = out / 'device-logcat.txt'
     keys = ('packageinstaller', 'packagemanager', 'installd', 'install_failed',
             'install-write', 'insufficient', 'no space left')
-    lines = [line[-200:] for line in log.read_text(errors='replace').splitlines()
-             if any(key in line.lower() for key in keys)][-12:] if log.exists() else []
-    details = dict(data=command('adb', 'shell', 'df', '-k', '/data'), installer_tail=lines)
+    raw=log.read_text(errors='replace').splitlines() if log.exists() else []
+    hits=[i for i,line in enumerate(raw) if any(key in line.lower() for key in keys)]
+    # Preserve exception/message context, not just matching stack-frame names.
+    indexes=sorted({j for i in hits[-5:] for j in range(max(0,i-2),min(len(raw),i+5))})
+    lines=[raw[i][-260:] for i in indexes][-20:]
+    details = dict(data=command('adb', 'shell', 'df', '-k', '/data'), installer_tail=lines,apk_sizes={p.name:p.stat().st_size for p in (root/'sample-android/build/outputs/apk').rglob('*.apk')})
     (out / 'device-install-diagnostics.json').write_text(json.dumps(details, indent=2))
     print('::notice title=Android install diagnostics::' + json.dumps(details).replace('%', '%25'))
 else:

@@ -33,6 +33,9 @@ android {
         }
     }
     buildFeatures { compose = true }
+    // One bounded install/adb budget for the larger native-bank + PDF debug APK.
+    // No retry and no change to UI/pixel/assertion deadlines.
+    installation { timeOutInMs = 180_000 }
     compileOptions {
         // Optional native/demo utilities use Java time/NIO. The TG envelope has a
         // separate Java-ZIP adapter for API-24 ZipEntry/FileTime compatibility.
