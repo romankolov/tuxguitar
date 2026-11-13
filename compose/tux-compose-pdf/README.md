@@ -56,8 +56,9 @@ PDF document are disposed on failure. The caller's stream is not closed by the
 exporter.
 
 `TGPdfMetadata` provides author/year/copyright/transcriber/writer and per-track
-lyrics that are deliberately absent from the smaller core model. The sample
-passes these from its already decoded native song; no music reader is added to
+lyrics and stored percussion-clef sequences that are deliberately absent from the smaller core model. The sample
+passes these from its already decoded native song, including latent percussion
+clef changes which influence original header widths; no music reader is added to
 this library.
 
 ## Actual upstream print behaviour

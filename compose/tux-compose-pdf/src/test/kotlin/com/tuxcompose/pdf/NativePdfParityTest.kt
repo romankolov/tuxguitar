@@ -65,7 +65,13 @@ class NativePdfParityTest {
     }
     private fun metadata(native: app.tuxguitar.song.models.TGSong)=TGPdfMetadata(
         author=native.author,year=native.date,copyright=native.copyright,transcriber=native.transcriber,writer=native.writer,
-        lyrics=(0 until native.countTracks()).associateWith {i->native.getTrack(i).lyrics.let {TGPdfLyrics(it.lyrics,it.from)}})
+        lyrics=(0 until native.countTracks()).associateWith {i->native.getTrack(i).lyrics.let {TGPdfLyrics(it.lyrics,it.from)}},
+        percussionClefs=(0 until native.countTracks()).filter {native.getTrack(it).isPercussion}.associateWith {ti->
+            val track=native.getTrack(ti)
+            (0 until track.countMeasures()).map {mi->when(track.getMeasure(mi).clef) {
+                2->TGClef.Bass;3->TGClef.Tenor;4->TGClef.Alto;else->TGClef.Treble
+            }}
+        })
     private fun original(input: app.tuxguitar.song.models.TGSong,options: TGPdfOptions): List<String> {
         val calls=Calls();val out=ByteArrayOutputStream();val context=TGContext()
         val labels=Properties().apply {
@@ -148,6 +154,11 @@ class NativePdfParityTest {
     }
     @Test fun printProfileMatchesActualPdfPluginRatherThanAndroidScreenDefaults() {
         val a=nativePdfStyles();val b=PDFLayoutStyles(TGContext())
+        val song=ShowcaseSongFactory.create()
+        val defaults=app.tuxguitar.io.pdf.PDFSongWriter(TGContext()).getDefaultStyles(song)
+        val options=nativePrintSettings(TuxGuitarImporter.adapt(song),TGPdfOptions())
+        assertEquals(defaults.style,options.style);assertEquals(defaults.fromMeasure,options.fromMeasure)
+        assertEquals(defaults.toMeasure,options.toMeasure);assertEquals(defaults.trackNumber,options.trackNumber)
         val getters=listOf("getFirstMeasureSpacing","getMinBufferSeparator","getMinTopSpacing","getMinScoreTabSpacing",
             "getScoreLineSpacing","getFirstTrackSpacing","getTrackSpacing","getStringSpacing","getChordFretIndexSpacing",
             "getChordStringSpacing","getChordFretSpacing","getChordNoteSize","getChordLineWidth","getRepeatEndingSpacing",

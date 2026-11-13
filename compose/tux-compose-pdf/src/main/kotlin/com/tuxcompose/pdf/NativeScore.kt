@@ -22,6 +22,10 @@ internal fun nativeScore(source: TGSong,options: TGPdfOptions,metadata: TGPdfMet
     require(source.tracks.all {t->t.measures.all {m->m.beats.all {b->b.voices.all {it.empty || it.index<2}}}}) {
         "TuxGuitar's native print engine supports two voices; additional voices cannot be silently discarded"
     }
+    metadata.percussionClefs.forEach {(ti,clefs)->
+        require(ti in source.tracks.indices && source.tracks[ti].percussion && clefs.size==reference.size &&
+            clefs.none {it==TGClef.Percussion}) {"Invalid native percussion clef sequence"}
+    }
     val f=TGFactoryImpl()
     fun duration(d: TGDuration)=f.newDuration().apply {
         value=d.value;isDotted=d.dotted;isDoubleDotted=d.doubleDotted
@@ -86,7 +90,7 @@ internal fun nativeScore(source: TGSong,options: TGPdfOptions,metadata: TGPdfMet
         out.addTrack(track)
         t.measures.forEachIndexed {mi,m->
             val measure=f.newMeasure(out.getMeasureHeader(mi)).apply {
-                clef=when(m.clef) {TGClef.Bass->2;TGClef.Tenor->3;TGClef.Alto->4;else->1}
+                clef=when(metadata.percussionClefs[ti]?.get(mi) ?: m.clef) {TGClef.Bass->2;TGClef.Tenor->3;TGClef.Alto->4;else->1}
                 keySignature=m.header.keySignature.value
             }
             track.addMeasure(measure)

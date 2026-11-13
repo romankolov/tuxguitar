@@ -21,6 +21,10 @@ files. Namespace relocation is byte-checkable and preserves all algorithms.
 The two `MidiInstrument`/`MidiPercussionKey` classes in the closure are name/value
 descriptors used by the translated-message utility, not audio/player engines.
 No musical input decoder is included; the caller supplies decoded core models.
+The sample also supplies stored percussion-clef sequences through print metadata:
+core intentionally uses a single Percussion clef, but the original native raw
+clef changes still influence printed header widths. Those values are preserved,
+not compensated with a custom spacing formula.
 
 ## Source equations and decisions
 

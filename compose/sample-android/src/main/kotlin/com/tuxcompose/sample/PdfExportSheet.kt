@@ -18,13 +18,20 @@ import androidx.compose.ui.unit.dp
 import com.tuxcompose.demo.ImportedScore
 import com.tuxcompose.layout.TGLayoutStyles
 import com.tuxcompose.model.TGSong
+import com.tuxcompose.model.TGClef
 import com.tuxcompose.pdf.*
 
 internal data class PendingPdfExport(val song: TGSong,val options: TGPdfOptions,val metadata: TGPdfMetadata)
 internal fun ImportedScore.pdfSnapshot(options: TGPdfOptions)=PendingPdfExport(score,options,TGPdfMetadata(
     author=native.author.orEmpty(),year=native.date.orEmpty(),copyright=native.copyright.orEmpty(),
     transcriber=native.transcriber.orEmpty(),writer=native.writer.orEmpty(),
-    lyrics=(0 until native.countTracks()).associateWith {i->native.getTrack(i).lyrics.let {TGPdfLyrics(it.lyrics,it.from)}}))
+    lyrics=(0 until native.countTracks()).associateWith {i->native.getTrack(i).lyrics.let {TGPdfLyrics(it.lyrics,it.from)}},
+    percussionClefs=(0 until native.countTracks()).filter {native.getTrack(it).isPercussion}.associateWith {ti->
+        val track=native.getTrack(ti)
+        (0 until track.countMeasures()).map {mi->when(track.getMeasure(mi).clef) {
+            2->TGClef.Bass;3->TGClef.Tenor;4->TGClef.Alto;else->TGClef.Treble
+        }}
+    }))
 
 private enum class PdfPaper(val label: String,val page: TGPdfPage) {
     Native("TuxGuitar",TGPdfPage.TuxGuitar),A4("A4",TGPdfPage.A4),Letter("Letter",TGPdfPage.Letter)

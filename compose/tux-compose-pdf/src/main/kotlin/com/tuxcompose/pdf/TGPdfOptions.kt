@@ -2,6 +2,7 @@
 package com.tuxcompose.pdf
 
 import com.tuxcompose.layout.TGLayoutStyles
+import com.tuxcompose.model.TGClef
 
 /** PDF points (1/72 inch), never Android dp, device density or current screen zoom. */
 data class TGPdfPage(val width: Float=550f,val height: Float=800f,
@@ -47,6 +48,10 @@ data class TGPdfMetadata(
     val transcriber: String="",val writer: String="",
     /** One entry per zero-based source track index. Inputs are snapshotted on export. */
     val lyrics: Map<Int,TGPdfLyrics> = emptyMap(),
+    /** Raw native clef changes on percussion parts still affect print-header spacing.
+     * Core intentionally represents every such clef as Percussion; import adapters
+     * can preserve the original Treble/Bass/Tenor/Alto sequence here. */
+    val percussionClefs: Map<Int,List<TGClef>> = emptyMap(),
 ) 
 data class TGPdfLyrics(val text: String,val fromMeasure: Int=1) {
     init {require(fromMeasure>=1)}

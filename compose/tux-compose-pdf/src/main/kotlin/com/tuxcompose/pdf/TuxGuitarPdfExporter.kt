@@ -42,7 +42,7 @@ class TuxGuitarPdfExporter(context: Context) {
             override fun write(bytes: ByteArray,offset: Int,length: Int) {out.write(bytes,offset,length)}
             override fun close() {flush()}
         }
-        val snapshot=metadata.copy(lyrics=metadata.lyrics.toMap())
+        val snapshot=metadata.copy(lyrics=metadata.lyrics.toMap(),percussionClefs=metadata.percussionClefs.mapValues {it.value.toList()})
         PDDocument().use {pdf->
             pdf.documentInformation.apply {
                 title=song.title;artistMetadata(this,snapshot,song)
