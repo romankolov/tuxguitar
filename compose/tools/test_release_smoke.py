@@ -63,12 +63,12 @@ class ReleaseCaptureTest(unittest.TestCase):
             smoke.choose_documents_root('Downloads')
             self.assertEqual('[0,180][240,260]',tap.call_args.args[0].get('bounds'))
 
-    def test_back_only_closes_an_observed_roots_drawer_never_the_save_editor(self):
-        drawer=ET.fromstring('<hierarchy><node resource-id="com.android.documentsui:id/roots_list"/></hierarchy>')
+    def test_legacy_picker_drawer_is_closed_by_scrim_never_cancelled_with_back(self):
+        drawer=ET.fromstring('<hierarchy><node resource-id="com.android.documentsui:id/drawer_layout" bounds="[0,0][1080,1800]"><node resource-id="com.android.documentsui:id/drawer_roots" bounds="[0,0][735,1800]"/></node></hierarchy>')
         editor=ET.fromstring('<hierarchy><node class="android.widget.EditText"/></hierarchy>')
         with patch.object(smoke,'tree',return_value=drawer),patch.object(smoke,'adb') as adb:
             smoke.close_open_roots_drawer()
-            self.assertEqual(('shell','input','keyevent','4'),adb.call_args.args)
+            self.assertEqual(('shell','input','tap','907','900'),adb.call_args.args)
         with patch.object(smoke,'tree',return_value=editor),patch.object(smoke,'adb') as adb:
             smoke.close_open_roots_drawer();adb.assert_not_called()
 

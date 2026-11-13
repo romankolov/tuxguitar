@@ -246,12 +246,15 @@ def choose_documents_root(title):
 
 
 def close_open_roots_drawer():
-    # The actual API-24 capture shows Downloads selected but the drawer still
-    # covering its enabled Save button. Back is a drawer-close action here only;
-    # never send it after the filename editor is visible (that would cancel Save).
-    doc=tree()
-    if find(doc,tag='roots_list') is not None and find(doc,class_name='android.widget.EditText') is None:
-        adb('shell','input','keyevent','4')
+    # Android 7 BaseActivity.onBackPressed cancels Save; it does not close this
+    # roots drawer. Use the actual visible scrim outside the drawer instead.
+    doc=tree();drawer=find(doc,tag='drawer_roots');layout=find(doc,tag='drawer_layout')
+    if drawer is not None and layout is not None and find(doc,class_name='android.widget.EditText') is None:
+        d=list(map(int,re.findall(r'-?\d+',drawer.get('bounds',''))))
+        r=list(map(int,re.findall(r'-?\d+',layout.get('bounds',''))))
+        assert len(d)==len(r)==4, 'Missing system drawer bounds'
+        assert d[2]<r[2], f'No visible drawer scrim: {d} / {r}'
+        adb('shell','input','tap',str((d[2]+r[2])//2),str((r[1]+r[3])//2))
 
 
 def assert_pdf_export_status(doc):
