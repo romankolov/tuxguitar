@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from PIL import Image
 from publish_device_previews import annotations, gh
+import publish_device_previews as exporter
 from unittest.mock import patch
 import subprocess
 
@@ -61,6 +62,20 @@ class DetailedPreviewExportTest(unittest.TestCase):
         with patch('publish_device_previews.subprocess.run',return_value=failure):
             with self.assertRaisesRegex(RuntimeError,'returned invalid JSON: not-json'):
                 gh('repos/example/example/check-runs','POST',{})
+
+    def test_partial_failure_images_never_become_a_neutral_approval_check(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            folder=root/'sample-android/build/device-screenshots';folder.mkdir(parents=True)
+            Image.new('RGB',(12,12),'white').save(folder/'capsule-1.0.png')
+            with patch.object(exporter,'__file__',str(root/'tools/publish.py')),patch.object(exporter.sys,'argv',['publish','24']), \
+                 patch.dict(exporter.os.environ,{'GITHUB_REPOSITORY':'example/example','GITHUB_SHA':'test'}), \
+                 patch.object(exporter,'gh',return_value={'id':1,'html_url':'https://example.invalid'}) as api:
+                with self.assertRaisesRegex(AssertionError,'Incomplete capture evidence'):
+                    exporter.main()
+            conclusions=[c.args[2].get('conclusion') for c in api.call_args_list]
+            self.assertIn('failure',conclusions)
+            self.assertNotIn('neutral',conclusions)
 
     def test_export_cannot_silently_skip_missing_required_frame(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -37,7 +37,7 @@ def annotations(folder, required=None):
             chunk['original_png_sha256']=original['sha256']
             chunk['original_png_size']=original['size']
             pdf_page=name.startswith('pdf-') and name not in ('pdf-sheet','pdf-result')
-            chunk['capture_kind']='pdf-rendered-page' if pdf_page else 'hardware-display'
+            chunk['capture_kind']='unsettled-failure-display' if name=='release-final-state' else 'pdf-rendered-page' if pdf_page else 'hardware-display'
             if pdf_page:
                 pdf_name='pdf-range.pdf' if name=='pdf-range-first' else '-'.join(name.split('-')[:2])+'.pdf'
                 pdf=folder/pdf_name
@@ -84,16 +84,23 @@ def main():
     api=int(sys.argv[1]);assert api in (24,35)
     repo=os.environ['GITHUB_REPOSITORY'];sha=os.environ['GITHUB_SHA']
     folder=Path(__file__).resolve().parents[1]/'sample-android/build/device-screenshots'
-    manifest,items=annotations(folder)
+    required=required_scenes()
+    available={p.stem for p in folder.rglob('*.png')}
+    missing=sorted(required-available)
+    manifest,items=annotations(folder,required & available)
     release_folder=folder.parent/'device-release-screenshots'
-    release,release_items=annotations(release_folder,RELEASE_SCENES)
+    available_release={p.stem for p in release_folder.rglob('*.png')}
+    missing+=sorted(RELEASE_SCENES-available_release)
+    release_names=RELEASE_SCENES & available_release
+    if missing and 'release-final-state' in available_release:release_names.add('release-final-state')
+    release,release_items=annotations(release_folder,release_names)
     items+=release_items
-    manifest=dict(required=manifest['required']+release['required'],score_and_pdf=manifest,release=release)
+    manifest=dict(required=len(required)+len(RELEASE_SCENES),missing=missing,score_and_pdf=manifest,release=release)
     title=f'Score and PDF capture export · API {api}'
     summary=(f'{manifest["required"]} required score/PDF/release scenes, {len(items)} preview chunks. '
              'PNG SHA-256 and original dimensions accompany each image. '
              'Export only: this neutral check is NOT visual approval. '
-             'All test and explicit publication gates remain separate.')
+             'All test and explicit publication gates remain separate. Missing: '+repr(missing))
     check=None
     endpoint=None
     try:
@@ -103,7 +110,7 @@ def main():
         endpoint=f'repos/{repo}/check-runs/{check["id"]}'
         for offset in range(0,len(items),50):
             gh(endpoint,'PATCH',dict(output=dict(title=title,summary=summary,annotations=items[offset:offset+50])))
-        gh(endpoint,'PATCH',dict(status='completed',conclusion='neutral',output=dict(title=title,summary=summary)))
+        gh(endpoint,'PATCH',dict(status='completed',conclusion='failure' if missing else 'neutral',output=dict(title=title,summary=summary)))
     except Exception as error:
         # Report the ORIGINAL failure through Checks even when log/artifact download
         # is unavailable. A failed cleanup must not hide that original diagnosis.
@@ -117,7 +124,8 @@ def main():
         raise
     digest=hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest()
     print('::notice title=Complete score and PDF previews exported::'+json.dumps(dict(api=api,check_id=check['id'],
-          scenes=manifest['required'],chunks=len(items),manifest_sha256=digest,url=check['html_url'])))
+          scenes=manifest['required'],missing=missing,chunks=len(items),manifest_sha256=digest,url=check['html_url'])))
+    assert not missing, 'Incomplete capture evidence (diagnostic images exported, NOT approved): '+repr(missing)
 
 
 if __name__=='__main__':

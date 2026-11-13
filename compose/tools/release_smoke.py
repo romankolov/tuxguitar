@@ -238,7 +238,7 @@ def choose_documents_root(title):
         if roots is not None:
             item=next((n for n in roots.iter('node') if n.get('text','').casefold()==title.casefold()),None)
             if item is not None:
-                tap(item);wait_gone(tag='drawer_roots');return
+                tap(item);return
         time.sleep(.3)
     raise AssertionError('System document root missing: '+title)
 
@@ -266,12 +266,16 @@ def native_pdf_export():
     adb('shell','input','keyevent','123')
     adb('shell','input','keyevent',*(['67']*64))
     adb('shell','input','text',filename)
-    dismiss_visible_keyboard()
-    click(description='Show roots')
-    choose_documents_root('Downloads')
-    dismiss_visible_keyboard()
-    save=wait_matching(lambda n:(n.get('text','').casefold()=='save' or n.get('content-desc','').casefold()=='save') and n.get('enabled')=='true','System PDF Save action missing')
-    tap(save)
+    sdk=int(adb('shell','getprop','ro.build.version.sdk').strip())
+    if sdk<=25:
+        # Android 7 SaveFragment explicitly handles Enter in the filename editor.
+        # Use that public action instead of a Back key or a possibly obscured Save bar.
+        adb('shell','input','keyevent','66')
+    else:
+        click(description='Show roots')
+        choose_documents_root('Downloads')
+        save=wait_matching(lambda n:(n.get('text','').casefold()=='save' or n.get('content-desc','').casefold()=='save') and n.get('enabled')=='true','System PDF Save action missing')
+        tap(save)
     wait_node(tag='score-canvas')
     deadline=time.monotonic()+120
     data=b''
