@@ -76,7 +76,9 @@ class PdfExportDeviceTest {
         val width=type.getDeclaredMethod("width",String::class.java,fontType)
         val ascent=type.getDeclaredMethod("digitAscent",fontType)
         val texts=listOf("1234567890","Technique Atlas","Track Acoustic guitar","Tuning: E A D G B E",
-            "let ring L.R P.M N.H A.H T.H P.H S.H","Cmaj7(add9)/G","Album Canvas Sessions (2026)","é € – ·", "中文")
+            "let ring L.R P.M N.H A.H T.H P.H S.H","Cmaj7(add9)/G","Album Canvas Sessions (2026)","é € – ·", "中文",
+            (32..255).map {it.toByte()}.toByteArray().toString(Charsets.ISO_8859_1),
+            (32..255).map {it.toByte()}.toByteArray().toString(java.nio.charset.Charset.forName("windows-1252")))
         for(name in listOf("Times-Roman","Times-Bold","Helvetica")) for(size in listOf(6f,8f,9f,10f,12f,16f)) {
             val original=com.itextpdf.text.pdf.BaseFont.createFont(name,"Cp1252",false)
             val font=constructor.newInstance(name,size,true,false)

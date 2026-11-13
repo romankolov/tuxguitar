@@ -53,15 +53,19 @@ def find(doc, tag=None, text=None, description=None, class_name=None):
 def wait_node(predicate=None, **kwargs):
     deadline = time.monotonic()+65
     last = None
+    visible=[]
     while time.monotonic() < deadline:
         try:
-            node = find(tree(), **kwargs)
+            doc=tree()
+            visible=[(n.get('resource-id',''),n.get('text',''),n.get('content-desc','')) for n in doc.iter('node')
+                     if n.get('text') or n.get('resource-id') or n.get('content-desc')][-25:]
+            node = find(doc, **kwargs)
             if node is not None and (predicate is None or predicate(node)):
                 return node
         except (ET.ParseError, subprocess.CalledProcessError) as error:
             last = error
         time.sleep(.3)
-    raise AssertionError(f'Visible release node not found: {kwargs}; {last}')
+    raise AssertionError(f'Visible release node not found: {kwargs}; {last}; actual UI: {str(visible)[:1700]}')
 
 
 def tap(node):
@@ -213,16 +217,24 @@ def wait_matching(predicate,message):
     raise AssertionError(message)
 
 
+def assert_pdf_export_status(doc):
+    # One committed accessibility snapshot: a successful short snackbar may
+    # disappear while a second uiautomator dump is being taken.
+    texts=[n.get('text','') for n in doc.iter('node')]
+    assert find(doc,tag='error') is None or any('PDF exported' in text for text in texts), \
+        'Release PDF export reported an error: '+repr(texts)
+
+
 def native_pdf_export():
     # Drive the real R8 app and the REAL system destination picker, without debug hooks.
     from pypdf import PdfReader
     filename='tux-compose-release-proof.pdf'
     destination='/sdcard/Download/'+filename
     adb('shell','rm','-f',destination)
-    click(tag='more');click(tag='export-pdf')
-    wait_node(tag='pdf-style-Mixed',predicate=lambda n:n.get('checked')=='true')
+    click(tag='more');click(text='Export score / tab as PDF')
+    wait_node(text='TuxGuitar print layout')
     screenshot('studio-release-pdf-options')
-    click(tag='pdf-save')
+    click(text='Choose where to save PDF')
     field=wait_node(class_name='android.widget.EditText')
     tap(field)
     adb('shell','input','keyevent','123')
@@ -247,7 +259,7 @@ def native_pdf_export():
     text='\n'.join(p.extract_text() for p in pdf.pages)
     assert 'Technique Atlas' in text and all('Track '+v in text for v in ('Acoustic guitar','Fingered bass','Studio drums'))
     assert all(not p['/Resources'].get_object().get('/XObject') for p in pdf.pages),'Release PDF score was rasterized'
-    assert find(tree(),tag='error') is None or any('PDF exported' in n.get('text','') for n in tree().iter('node')),'Release PDF export reported an error'
+    assert_pdf_export_status(tree())
     result=dict(pdf_sha256=hashlib.sha256(data).hexdigest(),bytes=len(data),pages=len(pdf.pages),native_paper=True,vector=True,
                 source_apk=json.loads((report/'release-installation.json').read_text())['apk_sha256'])
     (report/'release-pdf.json').write_text(json.dumps(result,indent=2)+'\n')

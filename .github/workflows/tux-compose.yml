@@ -88,7 +88,7 @@ jobs:
     permissions:
       contents: read
       checks: write
-    # 13 job previews * 3 chunks + 6 success notices = 45, below the job's 50.
+    # 13 score previews * 3 + 1 PDF preview * 2 + 8 success notices = 49, below 50.
     # The independent detailed Check has its own batched annotation budget.
     env:
       TUX_PREVIEW_MAX_CHUNKS: '3'
@@ -136,6 +136,9 @@ jobs:
         run: python3 compose/tools/publish_device_previews.py ${{ matrix.api }}
       # Each scene has its own step: bounded JSON chunks stay under Checks' per-step
       # annotation count and 4096-character message limits, unlike one huge base64 line.
+      - name: Preview actual native PDF page
+        if: always()
+        run: TUX_PREVIEW_MAX_CHUNKS=2 python3 compose/tools/report_screenshots.py pdf-Mixed-first pdf-Score-first
       - name: Preview main workspace
         if: always()
         run: python3 compose/tools/report_screenshots.py studio-release studio-home

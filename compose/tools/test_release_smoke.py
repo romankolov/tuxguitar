@@ -39,6 +39,16 @@ class ReleaseCaptureTest(unittest.TestCase):
         node=smoke.find(doc,tag='title',class_name='android.widget.EditText')
         self.assertEqual('android.widget.EditText',node.get('class'))
 
+    def test_pdf_success_snackbar_is_checked_from_one_snapshot(self):
+        doc=ET.fromstring('<hierarchy><node resource-id="error"><node text="PDF exported · 15 pages"/></node></hierarchy>')
+        smoke.assert_pdf_export_status(doc)
+        smoke.assert_pdf_export_status(ET.fromstring('<hierarchy/>'))
+
+    def test_real_pdf_error_snackbar_is_not_accepted(self):
+        doc=ET.fromstring('<hierarchy><node resource-id="error"><node text="Unable to export PDF"/></node></hierarchy>')
+        with self.assertRaisesRegex(AssertionError,'Unable to export PDF'):
+            smoke.assert_pdf_export_status(doc)
+
     def capture(self, frames, *, settled=True, clock=None):
         # Minimal byte tokens exercise frame identity/control flow, not PNG decoding.
         with tempfile.TemporaryDirectory() as folder, patch.object(smoke, 'out', Path(folder)), patch.object(smoke, 'captures', {}), patch.object(smoke, 'wait_workspace') as workspace, patch.object(smoke, 'adb', side_effect=frames) as adb, patch.object(smoke.time, 'sleep'):
