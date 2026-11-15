@@ -1,7 +1,7 @@
 name: Tux Compose · build, test & APK
 on:
   push:
-    branches: ["master", "arena/285632fe-tuxguitar"]
+    branches: ["master", "arena/285632fe-tuxguitar", "arena/d9f4a948-tuxguitar"]
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
   pull_request:
     paths: ["compose/**", "common/TuxGuitar-lib/**", "common/TuxGuitar-gm-utils/**", "common/TuxGuitar-gtp/**", "common/TuxGuitar-gpx/**", "common/TuxGuitar-midi/**", "android/TuxGuitar-android/src/app/tuxguitar/android/view/tablature/**", "android/TuxGuitar-android-gervill/**", "android/TuxGuitar-android-gervill-soundbank/**", ".github/workflows/tux-compose.yml"]
