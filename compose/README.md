@@ -475,3 +475,22 @@ cursor pixel tests, API 24/35 device suites and exact-release section screenshot
 See **[VISUAL-AUDIT.md](docs/VISUAL-AUDIT.md)** for source pointers, equations, coverage,
 reproduction commands and explicit limits. Actual test counts/proof are in the linked
 Actions run and release metadata; test coverage is not a universal perfection claim.
+
+## Practice loop (sample transport)
+
+The sample can repeat any whole-bar range for practice. The repeat button in the
+transport toggles the loop once a range exists (and opens the editor until then). Set the
+range with two whole-bar sliders, the preset ranges, or by tapping the first and last bar
+on the score; a configured range keeps a status row with the bars, the current pass and
+*End loop*, and its label reopens the editor. Playback keeps returning to the start of the
+range until you end the loop.
+
+The transport resolves bars to the native performance window, so repeats that open inside
+the range play in full while a repeat that began earlier is never half-entered;
+all-notes-off plus programme and controller restoration happen at the boundary, and the
+range is tinted on the score (dimmed while the loop is paused). Loop state survives
+rotation and saved state and is cleared when another score is opened.
+
+Like the rest of the transport, this lives **only in `sample-android`**: the core AAR
+still has no clock, repeats or audio, and the demo modules are unchanged. See
+[the loop section in UI.md](docs/UI.md#loop-practice).

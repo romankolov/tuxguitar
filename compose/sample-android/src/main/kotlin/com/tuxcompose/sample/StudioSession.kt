@@ -32,10 +32,22 @@ class StudioSession(application: Application, private val saved: SavedStateHandl
     var sourceName: String
         get()=saved["sourceName"] ?: "score.gp5"
         set(value) { saved["sourceName"]=value }
+    /** Practice loop state survives rotation; the transport itself stays sample-only. */
+    var loopEnabled by mutableStateOf(saved.get<Boolean>("loopEnabled") ?: false)
+    var loop by mutableStateOf(
+        saved.get<Long>("loopStart")?.let { start ->
+            saved.get<Long>("loopEnd")?.let { end -> LoopRegion(start,end).takeIf { it.isValid } }
+        }
+    )
     init {
         viewModelScope.launch {
             snapshotFlow { Triple(state.cursorTick,state.selectedTrackIndex,state.zoomScale) }.sample(500).collect { (tick,track,zoom) ->
                 saved["tick"]=tick; saved["track"]=track; saved["zoom"]=zoom
+            }
+        }
+        viewModelScope.launch {
+            snapshotFlow { Triple(loopEnabled,loop?.startTick,loop?.endTick) }.collect { (enabled,start,end) ->
+                saved["loopEnabled"]=enabled; saved["loopStart"]=start; saved["loopEnd"]=end
             }
         }
     }

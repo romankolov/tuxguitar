@@ -43,9 +43,10 @@ the actual compatibility gate.
 | Top app bar | Identify/open the score | Song title, format/measure count, open file, overflow |
 | Reading bar | Focus on a part | Track sheet, follow/resume, workspace settings |
 | Score surface | Read the music | Connected Tab / Staff / Both toggle buttons, notation, pinch/scroll/seek |
-| Transport surface | Practise | Section/count picker, score-position slider, previous, primary play/pause, next, stop, speed/sound shortcuts |
+| Transport surface | Practise | Section/count picker, loop toggle (tonal while active), score-position slider, previous, primary play/pause, next, stop, speed/sound shortcuts, loop status/pick row |
 | Settings sheet | Deliberate customization | Display, Cursor, Sound, Theme tabs |
-| Overflow | Infrequent actions | Score details, explore sections, export **bundled showcase** GP5, return to beginning, source/licensing information |
+| Loop sheet | Repeat a passage | Loop switch, first/last bar sliders, this-measure/from-here/whole-score ranges, pick-on-score, jump to start, pass counter |
+| Overflow | Infrequent actions | Score details, explore sections, loop practice, export **bundled showcase** GP5, return to beginning, source/licensing information |
 
 There are no more horizontally scrolling rows of unrelated settings above the score.
 The settings tabs may scroll on a narrow/large-font screen; their *contents* scroll
@@ -64,6 +65,44 @@ The slider seeks score ticks, not an invented constant-tempo clock. Repeat-aware
 playback remains the native TuxGuitar `DemoSequence`; a score-position slider can move
 backward when the native sequence repeats a section. Changing speed pauses the player
 and preserves its score position.
+
+## Loop practice
+
+Loop mode is **sample-only** UI plus sample transport state. No clock, repeat flag or
+playback dependency was added to `tux-compose-core`, and `demo-tuxguitar` /
+`demo-synth` are unchanged.
+
+- The repeat button in the transport is a **one-tap toggle** once a range exists; it
+  opens the range sheet while none does. *More → Loop practice* always opens the sheet.
+- A range can be chosen four ways: the two integer **first/last bar sliders** (snapped
+  to whole bars), the *This measure* / *From here* / *Whole score* presets, or
+  **pick on the score** — tap the first bar, then the last bar. A backwards second tap
+  still produces an ordered range; picking is cancelled from the transport hint or by
+  opening the sheet. Any way of choosing a range turns looping on.
+- A configured range keeps a status row in the transport: `Looping measures 5–8`, the
+  current pass while playing and *End loop* when active, or `Loop off · measures 5–8`
+  when paused. The label itself opens the sheet, so the range stays editable without
+  hunting through the overflow menu. *Go to loop start* moves the playhead and continues
+  playback from there when the transport was already running.
+- The transport resolves the range to a window of **performance** time through the
+  native measure spans, not by assuming score time equals played time. A repeat that
+  opens inside the range is played in full before returning; a repeat that opened
+  *before* the range is not half-entered. A range that ends with the score's last bar
+  still wraps instead of stopping.
+- At every wrap the sample sends all-notes-off, restores programme/controller/bend
+  state for the new position and re-anchors its monotonic clock, so no note rings across
+  the boundary and no stuck note survives a jump. Tempo, metre and swing still come from
+  the unmodified TuxGuitar parser.
+- The looping bars are tinted above the notation with edge strokes, using the same
+  scroll/zoom transform and visibility culling as the score. A range that is configured
+  but paused stays visible at a lower tint, so it can be re-enabled knowingly; the
+  overlay draws nothing while no range exists.
+- Enabling or editing the range during playback re-resolves the window; if the playhead
+  is outside it, playback continues from the new range start. Pausing keeps the position
+  inside the range, and loop state/preferences survive rotation, saved state and process
+  death. Opening another score clears the range because ticks belong to the old bars.
+- Playback ends normally when loop mode is off. This is a rehearsal loop, not a
+  recorder, count-in, tempo ramp or backing-track feature.
 
 ## Actual theme/components, not decorative approximations
 

@@ -65,6 +65,11 @@ fun TuxComposeDemo() {
     var settings by remember { mutableStateOf<SettingsPage?>(null) }
     var trackSheet by remember { mutableStateOf(false) }
     var sectionsSheet by remember { mutableStateOf(false) }
+    var loopSheet by remember { mutableStateOf(false) }
+    var loopPick by remember { mutableStateOf(false) }
+    var loopPickStart by remember { mutableStateOf<LoopRegion?>(null) }
+    var loopPickRestore by remember { mutableStateOf<LoopRegion?>(null) }
+    var loopPickWasEnabled by remember { mutableStateOf(false) }
     var scoreLayout by remember { mutableStateOf<TGSongLayout?>(null) }
     var midiSheet by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf(false) }
@@ -72,10 +77,31 @@ fun TuxComposeDemo() {
     var more by remember { mutableStateOf(false) }
     var midiStatus by session::midiStatus
     var soundFont by session::soundFont
+    val loopState=LoopUiState(session.loopEnabled,session.loop,loopPick,loopPickStart)
+    // Cancelling a pick restores the range that was there before, so a stray tap is harmless.
+    fun cancelPick() {
+        if (!loopPick) return
+        session.loop=loopPickRestore; session.loopEnabled=loopPickWasEnabled
+        loopPick=false; loopPickStart=null; loopPickRestore=null
+    }
+    fun openLoopSheet() { cancelPick(); loopSheet=true }
+    fun toggleLoop() {
+        if (session.loop==null) openLoopSheet() else session.loopEnabled=!session.loopEnabled
+    }
+    // Picking is two score taps: the first bar, then the last bar (ordered either way).
+    fun pickLoopAt(tick: Long) {
+        val measures=state.song?.tracks?.getOrNull(state.selectedTrackIndex)?.measures.orEmpty()
+        val picked=pickLoopRange(measures,loopPickStart,tick) ?: return
+        state.clearSelection(); session.loop=picked.region
+        if (picked.complete) { session.loopEnabled=true; loopPick=false; loopPickStart=null; loopPickRestore=null }
+        else { session.loopEnabled=false; loopPickStart=picked.region }
+    }
     val snackbar=remember { SnackbarHostState() }
     LaunchedEffect(preferences.reverb,preferences.chorus) {
         withContext(Dispatchers.IO) { player.audio.setEffects(preferences.reverb,preferences.chorus) }
     }
+    // Loop edits reach the sample transport immediately; the core renderer stays clock-free.
+    LaunchedEffect(session.loopEnabled,session.loop) { player.setLoop(session.loopEnabled,session.loop) }
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer=LifecycleEventObserver { _,event -> if(event==Lifecycle.Event.ON_STOP) player.pause() }
@@ -83,7 +109,7 @@ fun TuxComposeDemo() {
         onDispose { lifecycle.removeObserver(observer) }
     }
     fun install(score: ImportedScore, resetPosition: Boolean = true) {
-        scoreLayout=null
+        scoreLayout=null; loopPick=false; loopPickStart=null; loopPickRestore=null
         player.load(score); imported=score; state.song=score.score
         state.selectedTrackIndex=if(resetPosition) 0 else state.selectedTrackIndex.coerceIn(0,score.score.tracks.lastIndex)
         val measures=score.score.tracks[state.selectedTrackIndex].measures
@@ -96,6 +122,8 @@ fun TuxComposeDemo() {
         if(imported!=null) { busy=false; return@LaunchedEffect }
         val restoredUri=session.sourceUri
         val restoredName=session.sourceName
+        // A saved loop only describes the score it was chosen on; without that score it is stale.
+        if(restoredUri==null) { session.loop=null; session.loopEnabled=false }
         try {
             // Retain decoded data/bank across resize; re-decode the saved URI after process death.
             install(withContext(Dispatchers.IO) {
@@ -119,6 +147,8 @@ fun TuxComposeDemo() {
                 install(withContext(Dispatchers.IO) {
                     requireNotNull(context.contentResolver.openInputStream(uri)).use { TuxGuitarImporter.read(it,name) }
                 })
+                // Only after a successful import: a failed file keeps the current score and its loop.
+                session.loop=null; session.loopEnabled=false
                 session.sourceName=name
                 session.sourceUri=try {
                     context.contentResolver.takePersistableUriPermission(uri,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -181,6 +211,8 @@ fun TuxComposeDemo() {
                             onClick={more=false;details=true},modifier=Modifier.testTag("score-details"))
                         DropdownMenuItem(text={Text("Explore score sections")},leadingIcon={StudioIcon(R.drawable.ic_graphic_eq)},
                             onClick={more=false;sectionsSheet=true},modifier=Modifier.testTag("score-sections"))
+                        DropdownMenuItem(text={Text("Loop practice")},leadingIcon={StudioIcon(R.drawable.ic_repeat)},
+                            onClick={more=false;openLoopSheet()},modifier=Modifier.testTag("loop-practice"))
                         DropdownMenuItem(text={Text("Export showcase GP5")},leadingIcon={StudioIcon(R.drawable.ic_download)},
                             onClick={more=false;export.launch("technique-atlas.gp5")})
                         DropdownMenuItem(text={Text("Return to beginning")},leadingIcon={StudioIcon(R.drawable.ic_restart_alt)},
@@ -190,19 +222,24 @@ fun TuxComposeDemo() {
                     }
                 } },
                 bottomBar={ if(!wide) Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=16.dp,vertical=8.dp)) {
-                    StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound},Modifier.fillMaxWidth(),onSections={sectionsSheet=true})
+                    StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound},Modifier.fillMaxWidth(),
+                        onSections={sectionsSheet=true},loop=loopState,onLoopToggle={toggleLoop()},onLoopEdit={openLoopSheet()},
+                        onLoopOff={session.loopEnabled=false},onLoopPickCancel={cancelPick()})
                 } },
                 snackbarHost={ SnackbarHost(snackbar) { data -> Snackbar(data,modifier=Modifier.testTag("error")) } }) { padding ->
                 val track=state.song?.tracks?.getOrNull(state.selectedTrackIndex)
                 Row(Modifier.fillMaxSize().padding(padding).padding(horizontal=16.dp).padding(bottom=if(wide) 12.dp else 0.dp),
                     horizontalArrangement=Arrangement.spacedBy(16.dp)) {
                     StudioScore(state,preferences,layout,track?.name ?: "Choose a track",busy,
-                        {trackSheet=true},{settings=SettingsPage.Display},{preferences=it},{player.seek(it)},
-                        Modifier.weight(1f).fillMaxHeight(),onLayout={scoreLayout=it})
+                        {trackSheet=true},{settings=SettingsPage.Display},{preferences=it},
+                        {tick -> if (loopPick) pickLoopAt(tick) else player.seek(tick)},
+                        Modifier.weight(1f).fillMaxHeight(),onLayout={scoreLayout=it},loop=loopState)
                     if(wide) Column(Modifier.width(280.dp).fillMaxHeight().verticalScroll(rememberScrollState()).testTag("wide-controls"),
                         verticalArrangement=Arrangement.spacedBy(16.dp)) {
                         SettingsHeading("Practice, at your pace","Focus on the music. Your controls stay close.")
-                        StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound},onSections={sectionsSheet=true})
+                        StudioTransport(state,player,busy,{settings=SettingsPage.Sound},{settings=SettingsPage.Sound},
+                            onSections={sectionsSheet=true},loop=loopState,onLoopToggle={toggleLoop()},onLoopEdit={openLoopSheet()},
+                            onLoopOff={session.loopEnabled=false},onLoopPickCancel={cancelPick()})
                         SettingsAction("Workspace settings","Layout, playhead, sound and color.",R.drawable.ic_tune,"wide-settings") { settings=SettingsPage.Display }
                     }
                 }
@@ -222,6 +259,25 @@ fun TuxComposeDemo() {
                     y=if(preferences.orientation==TGLayoutOrientation.Page) (beat.bounds.top-4f).coerceAtLeast(0f) else 0f)
             }
             state.resumeAutoScroll();sectionsSheet=false
+        }
+        if(loopSheet) {
+            val loopMeasures=state.song?.tracks?.getOrNull(state.selectedTrackIndex)?.measures.orEmpty()
+            LoopPracticeSheet(state.song,state.selectedTrackIndex,session.loopEnabled,session.loop,
+                {state.cursorTick},player.playing||player.loading,player.loopPasses,
+                onEnabled={ on ->
+                    // Turning loop on without a range starts with the bar under the playhead.
+                    if(on && session.loop==null) session.loop=defaultLoopRegion(loopMeasures,state.cursorTick)
+                    session.loopEnabled=on && session.loop!=null
+                },
+                onRegion={ region -> session.loop=region;session.loopEnabled=true },
+                // Picking is a stopped, deliberate gesture: the playhead must not race the taps.
+                onPick={
+                    player.pause();loopPickRestore=session.loop;loopPickWasEnabled=session.loopEnabled
+                    loopSheet=false;loopPick=true;loopPickStart=null
+                },
+                // player.seek resumes playback when it was already running.
+                onSeek={ tick -> state.clearSelection();state.cursor.seek(tick);player.seek(tick);state.resumeAutoScroll() },
+                onDismiss={loopSheet=false})
         }
         if(trackSheet) ModalBottomSheet(onDismissRequest={trackSheet=false},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
             Column(Modifier.fillMaxWidth().semantics { testTagsAsResourceId=true }.padding(horizontal=16.dp).verticalScroll(rememberScrollState()).padding(bottom=24.dp).selectableGroup()) {
