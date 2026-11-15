@@ -173,6 +173,14 @@ jobs:
       - name: Preview chord engraving pixel regression
         if: always()
         run: TUX_PREVIEW_MAX_CHUNKS=3 python3 compose/tools/report_screenshots.py engraving-Mixed-TuxGuitar-1.0
+      # The practice loop is sample-only UI. These scenes prove the range tint follows the
+      # score transform and that the transport/editor states are reachable and legible.
+      - name: Preview practice loop range on the score
+        if: always()
+        run: TUX_PREVIEW_MAX_CHUNKS=2 python3 compose/tools/report_screenshots.py studio-loop
+      - name: Preview practice loop editor
+        if: always()
+        run: TUX_PREVIEW_MAX_CHUNKS=2 python3 compose/tools/report_screenshots.py loop-sheet-range
       - name: Upload device reports and screenshots
         if: always()
         uses: actions/upload-artifact@v7
